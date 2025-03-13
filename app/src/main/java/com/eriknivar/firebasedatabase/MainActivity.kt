@@ -28,7 +28,6 @@ class MainActivity : ComponentActivity() {
         setContent {
 
             MyApp(requestCameraPermissionLauncher)
-            //FirestoreApp()
         }
     }
 }
@@ -48,10 +47,3 @@ fun MyApp(requestCameraPermissionLauncher: ActivityResultLauncher<String>) {
     NavGraph(navController)
 }
 
-/*
-@Preview(showBackground = true)
-@Composable
-fun FirestoreAppPreview() {
-
-    //FirestoreApp()
-}*/
