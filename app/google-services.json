@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "769215006925",
+    "project_id": "pruebaconexio",
+    "storage_bucket": "pruebaconexio.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:769215006925:android:d62e6b9991f092bf4e8184",
+        "android_client_info": {
+          "package_name": "com.eriknivar.firebasedatabase"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQtQ-DUzbMIc9bfJky3DCfql2JvtZrg4U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
