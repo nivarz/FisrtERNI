@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -39,6 +40,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
@@ -46,7 +49,6 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
-
 
 @Composable
 fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
@@ -171,7 +173,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         modifier = Modifier
             .fillMaxWidth(0.9f)
             .padding(
-                16.dp, 8.dp, 16.dp, 8.dp
+                8.dp, 0.dp, 8.dp, 0.dp
             )// 📌 Ajusta el padding, digase la columna donde estan los campos
     ) {
 
@@ -267,32 +269,72 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 // 🔽 🔥 Diálogo de Lista de Productos (Pantalla Completa)
 
         if (showProductDialog) {
-            AlertDialog(onDismissRequest = { showProductDialog = false }, confirmButton = {
-                TextButton(onClick = { showProductDialog = false }) {
-                    Text("Cerrar")
-                }
-            }, title = { Text("Selecciona un producto") }, text = {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(productList) { descripcion ->
-                        TextButton(
-                            onClick = {
-                                val codigoSeleccionado = productMap[descripcion]
-                                if (codigoSeleccionado != null) {
-                                    sku = codigoSeleccionado
-                                    qrCodeContentSku.value = codigoSeleccionado
-                                    productoDescripcion.value = descripcion
-                                }
-                                showProductDialog = false // 🔥 Cierra el diálogo
-                            }, modifier = Modifier
+            var searchQuery by remember { mutableStateOf("") } // Estado para la búsqueda
+
+            AlertDialog(
+                onDismissRequest = { showProductDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showProductDialog = false }) {
+                        Text("Cerrar")
+                    }
+                },
+                title = { Text("Selecciona un producto") },
+                text = {
+                    Column {
+                        // 🔍 Campo de búsqueda
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = { Text("Buscar producto") },
+                            singleLine = true,
+                            modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(8.dp)
+                                .padding(bottom = 8.dp)
+                        )
+
+                        // 🔥 Filtrar productos según la búsqueda
+                        val filteredProducts = productList.filter { it.contains(searchQuery, ignoreCase = true) }
+
+                        LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 0.dp) // 🔥 Reduce espacio vertical general
                         ) {
-                            Text(descripcion, fontSize = 18.sp)
+                            items(filteredProducts) { descripcion ->
+                                TextButton(
+                                    onClick = {
+                                        val codigoSeleccionado = productMap[descripcion]
+                                        if (codigoSeleccionado != null) {
+                                            sku = codigoSeleccionado
+                                            qrCodeContentSku.value = codigoSeleccionado
+                                            productoDescripcion.value = descripcion
+                                        }
+                                        showProductDialog = false // 🔥 Cierra el diálogo
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 0.dp, vertical = 0.dp) // 🔥 Espaciado mínimo
+                                ) {
+                                    Text(
+                                        text = descripcion,
+                                        fontSize = 14.sp,
+                                        color = Color.Black,
+                                        textAlign = TextAlign.Start,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis, // 🔥 Agrega "..." si el texto es muy largo
+                                        modifier = Modifier.padding(vertical = 0.dp).fillMaxWidth() // 🔥 Espaciado reducido aún más
+
+                                    )
+                                }
+
+                                HorizontalDivider(
+                                    color = Color.Gray, // Color de la línea
+                                    thickness = 1.dp, // Grosor de la línea
+                                    modifier = Modifier.padding(horizontal = 8.dp) // Espaciado lateral
+                                )
+                            }
                         }
                     }
                 }
-            })
+            )
         }
+
 
         // 📌 CAMPO DE TEXTO PARA EL LOTE
 
@@ -312,24 +354,23 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     qrCodeContentLot.value = newValue.uppercase()
                 },
 
-            trailingIcon = {
-                Row {
-                    IconButton(
-                        onClick = { qrCodeScannerLot.startQRCodeScanner(context as android.app.Activity) },
-                        modifier = Modifier.size(50.dp) // 📌 Tamaño del botón
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.QrCodeScanner,
-                            contentDescription = "Escanear Código",
-                        )
+                trailingIcon = {
+                    Row {
+                        IconButton(
+                            onClick = { qrCodeScannerLot.startQRCodeScanner(context as android.app.Activity) },
+                            modifier = Modifier.size(50.dp) // 📌 Tamaño del botón
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.QrCodeScanner,
+                                contentDescription = "Escanear Código",
+                            )
+                        }
                     }
-                }
-            })
+                })
         }
 
         DatePickerTextField(dateText)// FUNCION PARA EL CALENDARIO
 
-        Spacer(modifier = Modifier.height(8.dp)) // 📌 Espacio entre el campo
 
         // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 
@@ -372,6 +413,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         }
 
         // 🔽 🔥 Diálogo de Campos Obligatorios
+
         if (showErrorDialog) {
             AlertDialog(onDismissRequest = { showErrorDialog = false },
                 confirmButton = {
@@ -384,8 +426,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         }
 
 
-        val quantityValue =
-            quantity.toDoubleOrNull() ?: 0.00  // ✅ Permite decimales y evita errores
+        // val quantityValue =
+        quantity.toDoubleOrNull() ?: 0.00  // ✅ Permite decimales y evita errores
 
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -413,7 +455,14 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     errorMessage1 = ""
 
                     saveToFirestore(
-                        firestore, location, sku, productoDescripcion.value, lot, dateText.value, quantity.toDoubleOrNull() ?: 0.0, allData
+                        firestore,
+                        location,
+                        sku,
+                        productoDescripcion.value,
+                        lot,
+                        dateText.value,
+                        quantity.toDoubleOrNull() ?: 0.0,
+                        allData
                     )
                     location = ""
                     sku = ""

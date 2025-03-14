@@ -2,6 +2,8 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import com.google.firebase.firestore.FirebaseFirestore
 
+// 🔥 Función para buscar productos en Firestore
+
 fun buscarProductos(db: FirebaseFirestore, onResult: (List<String>, Map<String, String>) -> Unit) {
     db.collection("productos")
         .get()
