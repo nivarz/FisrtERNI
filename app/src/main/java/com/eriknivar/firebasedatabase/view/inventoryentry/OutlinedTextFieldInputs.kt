@@ -136,10 +136,13 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     val context = LocalContext.current
     var showError by remember { mutableStateOf(false) }// Para validar los campos vacios
     var showError1 by remember { mutableStateOf(false) }
+    var showError2 by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) } // Estado para mostrar el cuadro de diálogo
     var showDialog1 by remember { mutableStateOf(false) }
+    var showDialog2 by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") } // Mensaje de error para el cuadro de diálogo
     var errorMessage1 by remember { mutableStateOf("") }
+    var errorMessage2 by remember { mutableStateOf("") }
     var showErrorQuantity by remember { mutableStateOf(false) }
     var errorMessageQuantity by remember { mutableStateOf("") }
 
@@ -221,7 +224,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         ) {
             OutlinedTextField(modifier = Modifier
                 .weight(2f)
-                .padding(4.dp)
+                .padding(2.dp)
                 .onFocusChanged { focusState ->
                     if (!focusState.isFocused && sku.isNotEmpty() && sku != "CODIGO NO ENCONTRADO") {
                         findProductDescription(db, sku) { descripcion ->
@@ -345,7 +348,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             OutlinedTextField(
                 modifier = Modifier
                     .weight(2f) // 📌 Hace que el campo de texto ocupe el espacio disponible
-                    .padding(4.dp),
+                    .padding(2.dp),
                 singleLine = true,
                 label = { Text(text = "Lote") },
                 value = lot,
@@ -380,8 +383,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         ) {
             OutlinedTextField(
                 modifier = Modifier
-                    .size(235.dp, 70.dp)
-                    .padding(4.dp),
+                    .size(247.dp, 70.dp)
+                    .padding(2.dp),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),// ACTIVA EL TECLADO NUMERICO
                 label = { Text(text = "Cantidad") },
@@ -427,7 +430,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
 
         // val quantityValue =
-        quantity.toDoubleOrNull() ?: 0.00  // ✅ Permite decimales y evita errores
+       // quantity.toDoubleOrNull() ?: 0.00  // ✅ Permite decimales y evita errores
 
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -448,11 +451,19 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     lot = "N/A"
                     dateText.value = "N/A"
 
+                } else if (productoDescripcion.value == "Sin descripción") {
+                    errorMessage2 = "Producto No Encontrado"
+                    showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                    showError2 = true
+
+
                 } else {
                     showError = false
                     errorMessage = ""
                     showError1 = false
                     errorMessage1 = ""
+                    showError2 = false
+                    errorMessage2 = ""
 
                     saveToFirestore(
                         firestore,
@@ -502,6 +513,18 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog1 = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+        if (showDialog2) {
+            AlertDialog(onDismissRequest = {
+                showDialog2 = true
+            }, // No se cierra al tocar fuera del cuadro
+                title = { Text("Producto No Encontrado"); Color.Red },
+                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+                confirmButton = {
+                    Button(onClick = { showDialog2 = false }) {
                         Text("Aceptar")
                     }
                 })

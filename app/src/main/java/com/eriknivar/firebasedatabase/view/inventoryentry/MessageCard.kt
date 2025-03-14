@@ -116,23 +116,24 @@ fun MessageCard(
                     value = editedLocation,
                     onValueChange = { editedLocation = it },
                     singleLine = true,
-                    label = { Text("Editar Ubicacion") },
+                    label = { Text("Editar Ubicacion", fontWeight = FontWeight.Bold) },
                     modifier = Modifier.fillMaxWidth()
+
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = editedSku,
                     onValueChange = { editedSku = it },
                     singleLine = true,
-                    label = { Text("Editar Codigo de Producto") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Editar Codigo de Producto", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = editedLot,
                     onValueChange = { editedLot = it },
                     singleLine = true,
-                    label = { Text("Editar Lote") },
+                    label = { Text("Editar Lote", fontWeight = FontWeight.Bold) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -140,7 +141,7 @@ fun MessageCard(
                 OutlinedTextField(
                     value = editedExpirationDate,
                     onValueChange = { editedExpirationDate = it },
-                    label = { Text("Editar Fecha de Vencimiento") },
+                    label = { Text("Editar Fecha de Vencimiento", fontWeight = FontWeight.Bold) },
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         IconButton(onClick = { datePickerDialog.show() }) {
@@ -158,7 +159,7 @@ fun MessageCard(
                     value = editedQuantity,
                     onValueChange = { editedQuantity = it },
                     singleLine = true,
-                    label = { Text("Editar Cantidad") },
+                    label = { Text("Editar Cantidad", fontWeight = FontWeight.Bold) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -227,7 +228,7 @@ fun MessageCard(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 if (isEditing) {
-                    Button(modifier = Modifier.padding(8.dp),
+                    Button(modifier = Modifier.padding(4.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
                         onClick = {
                             updateFirestore(
@@ -244,7 +245,7 @@ fun MessageCard(
                         }) {
                         Text("Guardar")
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    //Spacer(modifier = Modifier.width(4.dp))
                     Button(modifier = Modifier.padding(4.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
                         onClick = {

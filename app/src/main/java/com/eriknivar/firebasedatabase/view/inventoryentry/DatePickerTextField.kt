@@ -16,8 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Calendar
 
-
-
 @Composable
 fun DatePickerTextField(dateText: MutableState<String>) {
     val context = LocalContext.current
@@ -37,7 +35,7 @@ fun DatePickerTextField(dateText: MutableState<String>) {
         value = dateText.value,
         onValueChange = { dateText.value = it },
         label = { Text("Caducidad") },
-        modifier = Modifier.fillMaxWidth(.80f).padding(4.dp),
+        modifier = Modifier.fillMaxWidth(.80f).padding(2.dp),
         trailingIcon = {
             IconButton(onClick = { datePickerDialog.show() }) {
                 Icon(

@@ -31,7 +31,7 @@ fun FirestoreApp(navController: NavHostController) {
                 text = " ${productoDescripcion.value}", // ✅ Este es el campo de texto que se muestra en la pantalla con la descripcion del producto
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = androidx.compose.ui.graphics.Color.Red,
+                color = androidx.compose.ui.graphics.Color.Blue,
                 modifier = Modifier
                     .padding(16.dp)
                     .fillMaxWidth(),
