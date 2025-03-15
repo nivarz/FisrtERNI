@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.storagetype
 
 import com.google.firebase.Timestamp
 
+
 data class DataFields (
     val documentId: String,
     val location: String,
@@ -12,6 +13,7 @@ data class DataFields (
     val description: String,
     val unidadMedida: String, // 🆕 Unidad de medida
     val fechaRegistro: Timestamp? = null // 🔥 Agrega el campo con valor por defecto `null`
+
 
 
 

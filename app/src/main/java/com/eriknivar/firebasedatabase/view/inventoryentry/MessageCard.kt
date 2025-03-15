@@ -103,176 +103,176 @@ fun MessageCard(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
+
         Column(modifier = Modifier.padding(8.dp)) {
+
             if (isEditing) {
-                OutlinedTextField(
-                    value = editedLocation,
-                    onValueChange = { editedLocation = it },
-                    singleLine = true,
-                    label = { Text("Editar Ubicacion", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.fillMaxWidth()
+        OutlinedTextField(
+            value = editedLocation,
+            onValueChange = { editedLocation = it },
+            singleLine = true,
+            label = { Text("Editar Ubicacion", fontWeight = FontWeight.Bold) },
+            modifier = Modifier.fillMaxWidth()
 
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = editedSku,
-                    onValueChange = { editedSku = it },
-                    singleLine = true,
-                    label = { Text("Editar Codigo de Producto", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = editedLot,
-                    onValueChange = { editedLot = it },
-                    singleLine = true,
-                    label = { Text("Editar Lote", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = editedSku,
+            onValueChange = { editedSku = it },
+            singleLine = true,
+            label = { Text("Editar Codigo de Producto", fontWeight = FontWeight.Bold) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = editedLot,
+            onValueChange = { editedLot = it },
+            singleLine = true,
+            label = { Text("Editar Lote", fontWeight = FontWeight.Bold) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = editedExpirationDate,
-                    onValueChange = { editedExpirationDate = it },
-                    label = { Text("Editar Fecha de Vencimiento", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        IconButton(onClick = { datePickerDialog.show() }) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarMonth,
-                                contentDescription = "Seleccionar Fecha"
-                            )
-                        }
-                    },
-                    readOnly = true
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = editedQuantity,
-                    onValueChange = { editedQuantity = it },
-                    singleLine = true,
-                    label = { Text("Editar Cantidad", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-            } else {
-                Row {
-                    Text(
-                        text = "Ubicacion: ",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Blue
-                    )
-                    Text(
-                        text = location, modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black, fontWeight = FontWeight.Bold
+        OutlinedTextField(
+            value = editedExpirationDate,
+            onValueChange = { editedExpirationDate = it },
+            label = { Text("Editar Fecha de Vencimiento", fontWeight = FontWeight.Bold) },
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                IconButton(onClick = { datePickerDialog.show() }) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = "Seleccionar Fecha"
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                    Text(
-                        text = "Cod. de Producto: ",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Blue
-                    )
-                    Text(
-                        text = sku, modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black, fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                    Text(
-                        text = "Lote: ",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Blue
-                    )
-                    Text(
-                        text = lote, modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black, fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                    Text(
-                        text = "Fecha de Caducidad: ",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Blue
-                    )
-                    Text(
-                        text = expirationDate, modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black, fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                    Text(
-                        text = "Cantidad: ",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Blue
-                    )
-                    Text(
-                        text = quantity.toString(), modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black, fontWeight = FontWeight.Bold
-                    )
-                }
+            },
+            readOnly = true
+        )
 
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = editedQuantity,
+            onValueChange = { editedQuantity = it },
+            singleLine = true,
+            label = { Text("Editar Cantidad", fontWeight = FontWeight.Bold) },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+    } else {
+        Row {
+            Text(
+                text = "Ubicacion: ",
+                fontWeight = FontWeight.Bold,
+                color = Color.Blue
+            )
+            Text(
+                text = location, modifier = Modifier.fillMaxWidth(),
+                color = Color.Black, fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row {
+            Text(
+                text = "Cod. de Producto: ",
+                fontWeight = FontWeight.Bold,
+                color = Color.Blue
+            )
+            Text(
+                text = sku, modifier = Modifier.fillMaxWidth(),
+                color = Color.Black, fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row {
+            Text(
+                text = "Lote: ",
+                fontWeight = FontWeight.Bold,
+                color = Color.Blue
+            )
+            Text(
+                text = lote, modifier = Modifier.fillMaxWidth(),
+                color = Color.Black, fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row {
+            Text(
+                text = "Fecha de Caducidad: ",
+                fontWeight = FontWeight.Bold,
+                color = Color.Blue
+            )
+            Text(
+                text = expirationDate, modifier = Modifier.fillMaxWidth(),
+                color = Color.Black, fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row {
+            Text(
+                text = "Cantidad: ",
+                fontWeight = FontWeight.Bold,
+                color = Color.Blue
+            )
+            Text(
+                text = quantity.toString(), modifier = Modifier.fillMaxWidth(),
+                color = Color.Black, fontWeight = FontWeight.Bold
+            )
+        }
+
+    }
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        if (isEditing) {
+            Button(modifier = Modifier.padding(4.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
+                onClick = {
+                    updateFirestore(
+                        db,
+                        documentId,
+                        editedLocation,
+                        editedSku,
+                        editedLot,
+                        editedExpirationDate,
+                        editedQuantity.toDoubleOrNull() ?: 0.0,
+                        allData
+                    )
+                    isEditing = false
+                }) {
+                Text("Guardar")
             }
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (isEditing) {
-                    Button(modifier = Modifier.padding(4.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
-                        onClick = {
-                            updateFirestore(
-                                db,
-                                documentId,
-                                editedLocation,
-                                editedSku,
-                                editedLot,
-                                editedExpirationDate,
-                                editedQuantity.toDoubleOrNull() ?: 0.0,
-                                allData
-                            )
-                            isEditing = false
-                        }) {
-                        Text("Guardar")
-                    }
-                    //Spacer(modifier = Modifier.width(4.dp))
-                    Button(modifier = Modifier.padding(4.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                        onClick = {
-                            isEditing = false
-                            editedLocation = location
-                            editedSku = sku
-                            editedLot = lote
-                            editedExpirationDate = expirationDate
-                            editedQuantity = quantity.toString()
-                        }) {
-                        Text("Cancelar")
-                    }
-                } else {
-                    IconButton(onClick = { isEditing = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = {
-                        showDialog = true
-                    })
-                    {
-                        Icon(
-                            Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red
-                        )
-                    }
-                }
+            Button(modifier = Modifier.padding(4.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                onClick = {
+                    isEditing = false
+                    editedLocation = location
+                    editedSku = sku
+                    editedLot = lote
+                    editedExpirationDate = expirationDate
+                    editedQuantity = quantity.toString()
+                }) {
+                Text("Cancelar")
+            }
+        } else {
+            IconButton(onClick = { isEditing = true }) {
+                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(onClick = {
+                showDialog = true
+            })
+            {
+                Icon(
+                    Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red
+                )
             }
         }
     }
+}
+}
 }
