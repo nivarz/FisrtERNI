@@ -106,7 +106,7 @@ fun MessageCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
 
@@ -165,6 +165,7 @@ fun MessageCard(
         )
 
     } else {
+        Spacer(modifier = Modifier.height(4.dp))
         Row {
             Text(
                 text = "Ubicacion: ",

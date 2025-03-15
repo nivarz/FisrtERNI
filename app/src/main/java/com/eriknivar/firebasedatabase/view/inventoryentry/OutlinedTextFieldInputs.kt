@@ -418,7 +418,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         ) {
             OutlinedTextField(
                 modifier = Modifier
-                    .size(247.dp, 70.dp)
+                    .size(222.dp, 70.dp)
                     .padding(2.dp),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),// ACTIVA EL TECLADO NUMERICO
@@ -468,7 +468,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
        // quantity.toDoubleOrNull() ?: 0.00  // ✅ Permite decimales y evita errores
 
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {
@@ -566,6 +566,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 })
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize()
