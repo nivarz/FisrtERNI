@@ -23,7 +23,7 @@ fun updateFirestore(
             val index = allData.indexOfFirst { it.documentId == documentId }
             if (index != -1) {
                 allData[index] = DataFields(documentId, location, sku, lote, expirationDate,
-                    quantity, "")
+                    quantity, "","")
             }
         }
         .addOnFailureListener { e ->

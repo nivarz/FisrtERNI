@@ -16,7 +16,20 @@ fun fetchDataFromFirestore(
                 val lote = document.getString("lote") ?: ""
                 val expirationDate = document.getString("fechaVencimiento") ?: ""
                 val quantity = document.getLong("cantidad")?.toDouble() ?: 0.00
-                allData.add(DataFields(document.id, location, sku, lote, expirationDate, quantity, document.getString("descripcion") ?: ""))
+                val unidadMedida = document.getString("unidadMedida") ?: ""
+                //val descripcion = document.getString("descripcion") ?: ""
+
+                allData.add(DataFields(
+                    document.id,
+                    location,
+                    sku,
+                    lote,
+                    expirationDate,
+                    quantity,
+                    document.getString("descripcion") ?: "", // ✅ Mantiene la descripción
+                    unidadMedida // ✅ Se envía la unidad de medida correctamente
+                    )
+                )
             }
         }
         .addOnFailureListener { e ->

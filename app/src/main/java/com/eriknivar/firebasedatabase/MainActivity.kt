@@ -12,7 +12,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
 
 
-
 class MainActivity : ComponentActivity() {
 
     private val requestCameraPermissionLauncher =
@@ -29,8 +28,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
 
+        setContent {
             MyApp(requestCameraPermissionLauncher)
         }
     }

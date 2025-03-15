@@ -3,6 +3,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,7 +81,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     var showErrorDialog by remember { mutableStateOf(false) } // 🔥 Para el mensaje de error
 
     var productList by remember { mutableStateOf(listOf<String>()) }
-    var productMap by remember { mutableStateOf(mapOf<String, String>()) }
+    var productMap by remember { mutableStateOf(mapOf<String, Pair<String, String>>()) }
+
 
     LaunchedEffect(Unit) {
         db.collection("productos").get().addOnSuccessListener { result ->
@@ -146,6 +149,9 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     var showErrorQuantity by remember { mutableStateOf(false) }
     var errorMessageQuantity by remember { mutableStateOf("") }
 
+    var unidadMedida by remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
+
+
     LaunchedEffect(qrCodeContentLocation.value) {
         location = qrCodeContentLocation.value.uppercase()
     }
@@ -175,9 +181,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     Column(
         modifier = Modifier
             .fillMaxWidth(0.9f)
-            .padding(
-                8.dp, 0.dp, 8.dp, 0.dp
-            )// 📌 Ajusta el padding, digase la columna donde estan los campos
+            .padding(8.dp, 0.dp, 40.dp, 0.dp)// 📌 Ajusta el padding, digase la columna donde estan los campos
     ) {
 
         // 📌 CAMPO DE TEXTO PARA LA UBICACION
@@ -244,11 +248,12 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 trailingIcon = {
                     Row {
                         // 📌 Botón para abrir la lista de productos
-                        IconButton(onClick = {
-                            buscarProductos(db) { lista, mapa ->
-                                productList = lista
-                                productMap = mapa
-                                showProductDialog = true // 🔥 Abre el diálogo de productos
+                        IconButton(
+                            onClick = {
+                                buscarProductos(db) { lista, mapa ->
+                                    productList = lista
+                                    productMap = mapa
+                                    showProductDialog = true // 🔥 Abre el diálogo de productos
                             }
                         }) {
                             Icon(
@@ -269,10 +274,22 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 })
         }
 
-// 🔽 🔥 Diálogo de Lista de Productos (Pantalla Completa)
+        // 🔽 🔥 Diálogo de Lista de Productos (Pantalla Completa)
 
         if (showProductDialog) {
             var searchQuery by remember { mutableStateOf("") } // Estado para la búsqueda
+            var isLoading by remember { mutableStateOf(true) } // Estado para mostrar el loading
+
+            // Llamar a la función de búsqueda de productos cuando se abra el diálogo
+
+            LaunchedEffect(Unit) {
+                isLoading = true // 🔥 Muestra el indicador de carga antes de obtener los datos
+                buscarProductos(db) { lista, mapa ->
+                    productList = lista.sorted() // 🔥 Ordena los productos alfabéticamente
+                    productMap = mapa
+                    isLoading = false // 🔥 Oculta el loading cuando se cargan los datos
+                }
+            }
 
             AlertDialog(
                 onDismissRequest = { showProductDialog = false },
@@ -281,7 +298,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                         Text("Cerrar")
                     }
                 },
-                title = { Text("Selecciona un producto") },
+                title = { Text("Selecciona un Producto") },
                 text = {
                     Column {
                         // 🔍 Campo de búsqueda
@@ -295,49 +312,67 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                                 .padding(bottom = 8.dp)
                         )
 
-                        // 🔥 Filtrar productos según la búsqueda
-                        val filteredProducts = productList.filter { it.contains(searchQuery, ignoreCase = true) }
+                        // 🔥 Mostrar indicador de carga mientras los productos se obtienen
+                        if (isLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            // 🔥 Filtrar y ordenar productos por orden alfabético
+                            val filteredProducts = productList.filter { it.contains(searchQuery, ignoreCase = true) }
 
-                        LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 0.dp) // 🔥 Reduce espacio vertical general
-                        ) {
-                            items(filteredProducts) { descripcion ->
-                                TextButton(
-                                    onClick = {
-                                        val codigoSeleccionado = productMap[descripcion]
-                                        if (codigoSeleccionado != null) {
-                                            sku = codigoSeleccionado
-                                            qrCodeContentSku.value = codigoSeleccionado
-                                            productoDescripcion.value = descripcion
-                                        }
-                                        showProductDialog = false // 🔥 Cierra el diálogo
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                        .padding(horizontal = 0.dp, vertical = 0.dp) // 🔥 Espaciado mínimo
-                                ) {
-                                    Text(
-                                        text = descripcion,
-                                        fontSize = 14.sp,
-                                        color = Color.Black,
-                                        textAlign = TextAlign.Start,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis, // 🔥 Agrega "..." si el texto es muy largo
-                                        modifier = Modifier.padding(vertical = 0.dp).fillMaxWidth() // 🔥 Espaciado reducido aún más
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(vertical = 0.dp) // 🔥 Reduce espacio vertical general
+                            ) {
+                                items(filteredProducts) { descripcion ->
+                                    TextButton(
+                                        onClick = {
+                                            val productoSeleccionado = productMap[descripcion]
+                                            if (productoSeleccionado != null) {
+                                                val (codigoSeleccionado, unidadMedidaSeleccionada) = productoSeleccionado
+                                                sku = codigoSeleccionado
+                                                qrCodeContentSku.value = codigoSeleccionado
+                                                productoDescripcion.value = descripcion
+                                                unidadMedida = unidadMedidaSeleccionada // ✅ Actualiza correctamente la unidad de medida
+                                            }
+                                            showProductDialog = false // 🔥 Cierra el diálogo
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 0.dp, vertical = 0.dp) // 🔥 Espaciado mínimo
+                                    ) {
+                                        Text(
+                                            text = descripcion,
+                                            fontSize = 14.sp,
+                                            color = Color.Black,
+                                            textAlign = TextAlign.Start,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis, // 🔥 Agrega "..." si el texto es muy largo
+                                            modifier = Modifier
+                                                .padding(vertical = 0.dp)
+                                                .fillMaxWidth()
+                                        )
+                                    }
 
+                                    HorizontalDivider(
+                                        color = Color.Gray, // Color de la línea
+                                        thickness = 1.dp, // Grosor de la línea
+                                        modifier = Modifier.padding(horizontal = 8.dp) // Espaciado lateral
                                     )
                                 }
-
-                                HorizontalDivider(
-                                    color = Color.Gray, // Color de la línea
-                                    thickness = 1.dp, // Grosor de la línea
-                                    modifier = Modifier.padding(horizontal = 8.dp) // Espaciado lateral
-                                )
                             }
                         }
                     }
                 }
             )
         }
-
 
         // 📌 CAMPO DE TEXTO PARA EL LOTE
 
@@ -473,6 +508,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                         lot,
                         dateText.value,
                         quantity.toDoubleOrNull() ?: 0.0,
+                        unidadMedida,
                         allData
                     )
                     location = ""

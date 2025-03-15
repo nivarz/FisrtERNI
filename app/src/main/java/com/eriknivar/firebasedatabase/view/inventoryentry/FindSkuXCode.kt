@@ -4,17 +4,16 @@ import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 
 fun findProductDescription(db: FirebaseFirestore, sku: String, onResult: (String) -> Unit) {
-    db.collection("productos") // 🔹 Asegúrate de que esta es la colección correcta en Firestore
-        .whereEqualTo("sku", sku) // 🔹 Asegúrate de que el campo "sku" existe en Firestore
-        .limit(1) // 🔹 Solo obtener el primer resultado encontrado
+    db.collection("productos") // 🔹 Asegúrate de que la colección se llama "productos"
+        .document(sku) // ✅ Ahora buscamos directamente por el SKU como ID del documento
         .get()
-        .addOnSuccessListener { documents ->
-            if (!documents.isEmpty) {
-                val descripcion = documents.documents[0].getString("descripcion") ?: "Sin descripción"
+        .addOnSuccessListener { document ->
+            if (document.exists()) {
+                val descripcion = document.getString("descripcion") ?: "Sin descripción"
                 onResult(descripcion) // 🔥 Enviar la descripción al estado
             } else {
                 Log.d("FirestoreDebug", "No se encontró el SKU en Firestore") // 🔹 Para depurar
-                onResult("Sin descripción") // 🔹 Si no hay datos, mostrar esto
+                onResult("Producto no encontrado") // 🔹 Si no hay datos, mostrar esto
             }
         }
         .addOnFailureListener { e ->
@@ -22,4 +21,3 @@ fun findProductDescription(db: FirebaseFirestore, sku: String, onResult: (String
             onResult("Error al obtener datos")
         }
 }
-
