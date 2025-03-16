@@ -13,7 +13,7 @@ fun findProductDescription(db: FirebaseFirestore, sku: String, onResult: (String
                 onResult(descripcion) // 🔥 Enviar la descripción al estado
             } else {
                 Log.d("FirestoreDebug", "No se encontró el SKU en Firestore") // 🔹 Para depurar
-                onResult("Producto no encontrado") // 🔹 Si no hay datos, mostrar esto
+                onResult("Producto No Existe") // 🔹 Si no hay datos, mostrar esto
             }
         }
         .addOnFailureListener { e ->

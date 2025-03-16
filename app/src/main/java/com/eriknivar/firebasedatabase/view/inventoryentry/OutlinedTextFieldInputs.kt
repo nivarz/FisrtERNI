@@ -1,9 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,8 +19,6 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -42,8 +38,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
@@ -55,17 +49,26 @@ import com.google.zxing.integration.android.IntentIntegrator
 @Composable
 fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
-    var location by remember { mutableStateOf("") }
-    var sku by remember { mutableStateOf("") }
+    //var sku by remember { mutableStateOf("") }
+    val sku = remember { mutableStateOf("") }
+    val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
+    val unidadMedida = remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
+    val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
+    val productDescriptions = remember { mutableStateOf(emptyList<String>()) }
+    val productList = remember { mutableStateOf(emptyList<String>()) }
+    val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
+
+
+
     var lot by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
 
     val firestore = Firebase.firestore
     val allData = remember { mutableStateListOf<DataFields>() }
     val dateText = remember { mutableStateOf("") }
+    val location = remember { mutableStateOf("") } // 🔥 Debe ser MutableState<String>
 
-    val qrCodeContentLocation = remember { mutableStateOf("") } //esto es para el scanner de QRCode
-    val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
+
     val qrCodeContentLot = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val qrCodeContentQuantity = remember { mutableStateOf("") } //esto es para el scanner de QRCode
 
@@ -73,37 +76,9 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
     // Para ocultar el teclado val focusManager = LocalFocusManager.current
 
-    // Lista de descripciones de productos obtenidas de Firestore
-    var productDescriptions by remember { mutableStateOf(listOf<String>()) }
 
-    // 📌 Estados para los diálogos
-    var showProductDialog by remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     var showErrorDialog by remember { mutableStateOf(false) } // 🔥 Para el mensaje de error
 
-    var productList by remember { mutableStateOf(listOf<String>()) }
-    var productMap by remember { mutableStateOf(mapOf<String, Pair<String, String>>()) }
-
-
-    LaunchedEffect(Unit) {
-        db.collection("productos").get().addOnSuccessListener { result ->
-            productDescriptions = result.documents.mapNotNull { it.getString("descripcion") }
-        }.addOnFailureListener { e ->
-            Log.e("Firestore", "Error al obtener descripciones: ", e)
-        }
-    }
-
-    val qrScanLauncherLocation =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val data = result.data
-            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
-            if (intentResult != null) {
-                if (intentResult.contents != null) {
-                    qrCodeContentLocation.value = intentResult.contents
-                } else {
-                    qrCodeContentLocation.value = "Codigo No Encontrado"
-                }
-            }
-        }
 
     val qrScanLauncherSku =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -132,33 +107,30 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         }
 
 
-    val qrCodeScannerLocation = remember { QRCodeScanner(qrScanLauncherLocation) }
     val qrCodeScannerSku = remember { QRCodeScanner(qrScanLauncherSku) }
     val qrCodeScannerLot = remember { QRCodeScanner(qrScanLauncherLot) }
 
+
+    val showErrorLocation = remember { mutableStateOf(false) }// Para validar los campos vacios
+
     val context = LocalContext.current
-    var showError by remember { mutableStateOf(false) }// Para validar los campos vacios
     var showError1 by remember { mutableStateOf(false) }
     var showError2 by remember { mutableStateOf(false) }
+    var showError3 by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) } // Estado para mostrar el cuadro de diálogo
     var showDialog1 by remember { mutableStateOf(false) }
     var showDialog2 by remember { mutableStateOf(false) }
+    var showDialog3 by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") } // Mensaje de error para el cuadro de diálogo
     var errorMessage1 by remember { mutableStateOf("") }
     var errorMessage2 by remember { mutableStateOf("") }
+    var errorMessage3 by remember { mutableStateOf("") }
     var showErrorQuantity by remember { mutableStateOf(false) }
     var errorMessageQuantity by remember { mutableStateOf("") }
 
-    var unidadMedida by remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
-
-
-    LaunchedEffect(qrCodeContentLocation.value) {
-        location = qrCodeContentLocation.value.uppercase()
-    }
-
 
     LaunchedEffect(qrCodeContentSku.value) {
-        sku = qrCodeContentSku.value.uppercase()
+        sku.value = qrCodeContentSku.value.uppercase()
 
     }
 
@@ -184,42 +156,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             .padding(8.dp, 0.dp, 40.dp, 0.dp)// 📌 Ajusta el padding, digase la columna donde estan los campos
     ) {
 
-        // 📌 CAMPO DE TEXTO PARA LA UBICACION
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically // 📌 Asegura alineación vertical
-        ) {
-            OutlinedTextField(modifier = Modifier
-                .weight(2f) // 📌 Hace que el campo de texto ocupe el espacio disponible
-                .padding(2.dp),
-                singleLine = true,
-                label = { Text(text = "Ubicación") },
-                value = location,
-                onValueChange = { newValue ->
-                    location = newValue.uppercase()
-                    qrCodeContentLocation.value = newValue.uppercase()
-                    if (newValue.isNotEmpty()) {
-                        showError = false // ✅ Si hay un valor, ocultar el error
-
-                    }
-                },
-                isError = showError && (location.isEmpty() || location == "CODIGO NO ENCONTRADO"),
-
-                trailingIcon = {
-                    Row {
-                        IconButton(
-                            onClick = { qrCodeScannerLocation.startQRCodeScanner(context as android.app.Activity) },
-                            modifier = Modifier.size(50.dp) // 📌 Tamaño del botón
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.QrCodeScanner,
-                                contentDescription = "Escanear Código",
-                            )
-                        }
-                    }
-                })
-        }
+                OutlinedTextFieldsInputsLocation(location,showErrorLocation) // 📌 FUNCION PARA LA UBICACION
 
         // 📌 CAMPO DE TEXTO PARA EL SKU
 
@@ -230,30 +167,31 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 .weight(2f)
                 .padding(2.dp)
                 .onFocusChanged { focusState ->
-                    if (!focusState.isFocused && sku.isNotEmpty() && sku != "CODIGO NO ENCONTRADO") {
-                        findProductDescription(db, sku) { descripcion ->
+                    if (!focusState.isFocused && sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
+                        findProductDescription(db, sku.value) { descripcion ->
                             productoDescripcion.value = descripcion // 🔥 Actualiza la descripción
                         }
                     }
                 },
                 singleLine = true,
                 label = { Text(text = "Código Producto") },
-                value = sku,
+                value = sku.value,
                 onValueChange = { newValue ->
-                    sku = newValue.uppercase()
+                    sku.value = newValue.uppercase()
                     qrCodeContentSku.value = newValue.uppercase()
-                    showError = false
+                    showError3 = false
                 },
-                isError = showError && (sku.isEmpty() || sku == "CODIGO NO ENCONTRADO"),
+                isError = showError3 && (sku.value.isEmpty() || sku.value == "CODIGO NO ENCONTRADO"),
+
                 trailingIcon = {
                     Row {
                         // 📌 Botón para abrir la lista de productos
                         IconButton(
                             onClick = {
                                 buscarProductos(db) { lista, mapa ->
-                                    productList = lista
-                                    productMap = mapa
-                                    showProductDialog = true // 🔥 Abre el diálogo de productos
+                                    productList.value = lista
+                                    productMap.value = mapa
+                                    showProductDialog.value = true // 🔥 Abre el diálogo de productos
                             }
                         }) {
                             Icon(
@@ -274,105 +212,19 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 })
         }
 
-        // 🔽 🔥 Diálogo de Lista de Productos (Pantalla Completa)
+        // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
+        ProductSelectionDialog(
+            productList = productList, // Lista de descripciones
+            productMap = productMap, // Mapa de descripción -> (Código, UM)
+            showProductDialog = showProductDialog, // Estado para mostrar el diálogo
+            sku = sku, // Estado del SKU
+            qrCodeContentSku = qrCodeContentSku, // Estado del código escaneado
+            productoDescripcion = productoDescripcion, // Estado de la descripción
+            unidadMedida = unidadMedida, // Pasamos un string vacío o alguna variable que contenga la UM
+            productDescriptions = productDescriptions // Estado de la lista de descripciones
+        )
 
-        if (showProductDialog) {
-            var searchQuery by remember { mutableStateOf("") } // Estado para la búsqueda
-            var isLoading by remember { mutableStateOf(true) } // Estado para mostrar el loading
 
-            // Llamar a la función de búsqueda de productos cuando se abra el diálogo
-
-            LaunchedEffect(Unit) {
-                isLoading = true // 🔥 Muestra el indicador de carga antes de obtener los datos
-                buscarProductos(db) { lista, mapa ->
-                    productList = lista.sorted() // 🔥 Ordena los productos alfabéticamente
-                    productMap = mapa
-                    isLoading = false // 🔥 Oculta el loading cuando se cargan los datos
-                }
-            }
-
-            AlertDialog(
-                onDismissRequest = { showProductDialog = false },
-                confirmButton = {
-                    TextButton(onClick = { showProductDialog = false }) {
-                        Text("Cerrar")
-                    }
-                },
-                title = { Text("Selecciona un Producto") },
-                text = {
-                    Column {
-                        // 🔍 Campo de búsqueda
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            label = { Text("Buscar producto") },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp)
-                        )
-
-                        // 🔥 Mostrar indicador de carga mientras los productos se obtienen
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            // 🔥 Filtrar y ordenar productos por orden alfabético
-                            val filteredProducts = productList.filter { it.contains(searchQuery, ignoreCase = true) }
-
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(vertical = 0.dp) // 🔥 Reduce espacio vertical general
-                            ) {
-                                items(filteredProducts) { descripcion ->
-                                    TextButton(
-                                        onClick = {
-                                            val productoSeleccionado = productMap[descripcion]
-                                            if (productoSeleccionado != null) {
-                                                val (codigoSeleccionado, unidadMedidaSeleccionada) = productoSeleccionado
-                                                sku = codigoSeleccionado
-                                                qrCodeContentSku.value = codigoSeleccionado
-                                                productoDescripcion.value = descripcion
-                                                unidadMedida = unidadMedidaSeleccionada // ✅ Actualiza correctamente la unidad de medida
-                                            }
-                                            showProductDialog = false // 🔥 Cierra el diálogo
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 0.dp, vertical = 0.dp) // 🔥 Espaciado mínimo
-                                    ) {
-                                        Text(
-                                            text = descripcion,
-                                            fontSize = 14.sp,
-                                            color = Color.Black,
-                                            textAlign = TextAlign.Start,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis, // 🔥 Agrega "..." si el texto es muy largo
-                                            modifier = Modifier
-                                                .padding(vertical = 0.dp)
-                                                .fillMaxWidth()
-                                        )
-                                    }
-
-                                    HorizontalDivider(
-                                        color = Color.Gray, // Color de la línea
-                                        thickness = 1.dp, // Grosor de la línea
-                                        modifier = Modifier.padding(horizontal = 8.dp) // Espaciado lateral
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            )
-        }
 
         // 📌 CAMPO DE TEXTO PARA EL LOTE
 
@@ -436,7 +288,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                         errorMessageQuantity = "Formato incorrecto"
                     }
                 },
-                isError = showError && quantity.isEmpty()
+                isError = showError3 && quantity.isEmpty()
             )
 
             if (showErrorQuantity) {
@@ -464,20 +316,21 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         }
 
 
-        // val quantityValue =
-       // quantity.toDoubleOrNull() ?: 0.00  // ✅ Permite decimales y evita errores
-
-
         Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {
-                if (location.isEmpty() || sku.isEmpty() || quantity.isEmpty()) {
+                if (location.value.isEmpty())  {
                     errorMessage = "Campos Obligatorios Vacíos"
                     showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                    showError = true
+                    showErrorLocation.value = true
 
-                } else if (location == "CODIGO NO ENCONTRADO" || sku == "CODIGO NO ENCONTRADO") {
+                }else if(sku.value.isEmpty() || quantity.isEmpty()){
+                    errorMessage3 = "Campos Obligatorios Vacíos"
+                    showDialog3 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                    showError3 = true
+
+                } else if (location.value == "CODIGO NO ENCONTRADO" || sku.value == "CODIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
                     errorMessage1 = "Codigo No Encontrado"
                     showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showError1 = true
@@ -486,33 +339,34 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     lot = "N/A"
                     dateText.value = "N/A"
 
-                } else if (productoDescripcion.value == "Sin descripción") {
+                } else if (productoDescripcion.value == "Producto No Existe") {
                     errorMessage2 = "Producto No Encontrado"
                     showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showError2 = true
 
-
                 } else {
-                    showError = false
+                    showErrorLocation.value = false
                     errorMessage = ""
                     showError1 = false
                     errorMessage1 = ""
                     showError2 = false
                     errorMessage2 = ""
+                    showError3 = false
+                    errorMessage3 = ""
 
                     saveToFirestore(
                         firestore,
-                        location,
-                        sku,
+                        location.value,
+                        sku.value,
                         productoDescripcion.value,
                         lot,
                         dateText.value,
                         quantity.toDoubleOrNull() ?: 0.0,
-                        unidadMedida,
+                        unidadMedida.value,
                         allData
                     )
-                    location = ""
-                    sku = ""
+                    location.value = ""
+                    sku.value = ""
                     lot = ""
                     dateText.value = ""
                     quantity = ""
@@ -533,7 +387,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             AlertDialog(onDismissRequest = {
                 showDialog = true
             }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Campos Obligatorios") },
+                title = { Text("Campos Obligatorios"); Color.Red },
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog = false }) {
@@ -545,7 +399,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             AlertDialog(onDismissRequest = {
                 showDialog1 = true
             }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Codigo No Encontrado") },
+                title = { Text("Codigo No Encontrado"); Color.Red },
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog1 = false }) {
