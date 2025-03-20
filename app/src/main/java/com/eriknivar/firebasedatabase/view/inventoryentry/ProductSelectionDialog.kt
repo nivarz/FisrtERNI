@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -50,7 +49,7 @@ fun ProductSelectionDialog(
         LaunchedEffect(Unit) {
             isLoading = true // ✅ Activar loading antes de la carga
 
-            buscarProductos(db) { lista, mapa ->
+            findProducts(db) { lista, mapa ->
                 productList.value = lista.sorted() // 📌 Ordenar productos alfabéticamente
                 productMap.value = mapa
                 isLoading = false // ✅ Desactivar loading cuando los datos estén listos

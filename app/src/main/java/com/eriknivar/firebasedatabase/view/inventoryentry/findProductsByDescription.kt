@@ -4,7 +4,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 // 🔥 Función para buscar productos en Firestore
 
-fun buscarProductos(db: FirebaseFirestore, onResult: (List<String>, Map<String, Pair<String, String>>) -> Unit) {
+fun findProducts(db: FirebaseFirestore, onResult: (List<String>, Map<String, Pair<String, String>>) -> Unit) {
     db.collection("productos")
         .get()
         .addOnSuccessListener { result ->

@@ -33,6 +33,7 @@ fun OutlinedTextFieldsInputsSku(
     productList: MutableState<List<String>>,
     productMap: MutableState<Map<String, Pair<String, String>>>,
     showProductDialog: MutableState<Boolean>,
+    unidadMedida: MutableState<String>
 
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
@@ -52,6 +53,13 @@ fun OutlinedTextFieldsInputsSku(
 
     LaunchedEffect(qrCodeContentSku.value) {
         sku.value = qrCodeContentSku.value.uppercase()
+
+        if (sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
+            findProductDescription(db, sku.value) { descripcion, unidadMedidaObtenida ->
+                productoDescripcion.value = descripcion // ✅ Actualiza la descripción
+                unidadMedida.value = unidadMedidaObtenida // ✅ Actualiza la unidad de medida
+            }
+        }
     }
 
     Row(
@@ -84,7 +92,7 @@ fun OutlinedTextFieldsInputsSku(
                     // 📌 Botón para abrir la lista de productos
                     IconButton(
                         onClick = {
-                            buscarProductos(db) { lista, mapa ->
+                            findProducts(db) { lista, mapa ->
                                 productList.value = lista
                                 productMap.value = mapa
                                 showProductDialog.value = true // 🔥 Abre el diálogo de productos

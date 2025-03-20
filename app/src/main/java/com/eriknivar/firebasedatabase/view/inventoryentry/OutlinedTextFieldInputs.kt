@@ -34,7 +34,6 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val unidadMedida = remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
-    val productDescriptions = remember { mutableStateOf(emptyList<String>()) }
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
 
@@ -95,7 +94,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             productoDescripcion,
             productList,
             productMap,
-            showProductDialog
+            showProductDialog,
+            unidadMedida
         )
 
         // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
@@ -117,7 +117,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
         // 📌 CAMPO DE TEXTO PARA LA FECHA
 
-        DatePickerTextField(dateText)// FUNCION PARA EL CALENDARIO
+        DatePickerTextField(dateText, unidadMedida)// FUNCION PARA EL CALENDARIO
 
         // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 
@@ -139,14 +139,16 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showError1 = true
 
-                } else if (lot.value == "CODIGO NO ENCONTRADO" || dateText.value.isEmpty()) {
+                } else if (lot.value == "CODIGO NO ENCONTRADO" || lot.value.isEmpty()) {
                     lot.value = "N/A"
+
+                } else if (dateText.value.isEmpty()) {
                     dateText.value = "N/A"
 
                 } else if (productoDescripcion.value == "Producto No Existe") {
                     errorMessage2 = "Producto No Encontrado"
                     showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                    showError1 = true
+                    showErrorSku.value = true
 
                 } else {
                     showErrorLocation.value = false
@@ -176,6 +178,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     dateText.value = ""
                     quantity.value = ""
                     productoDescripcion.value = ""
+                    unidadMedida.value = ""
                 }
 
             },
