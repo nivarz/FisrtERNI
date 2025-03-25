@@ -103,10 +103,12 @@ fun MessageCard(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
+    // 📌 FUNCION PARA LOS CARDS
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
 

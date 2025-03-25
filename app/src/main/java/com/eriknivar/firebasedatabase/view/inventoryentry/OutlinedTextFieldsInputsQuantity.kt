@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -29,8 +30,10 @@ fun OutlinedTextFieldsInputsQuantity(
     quantity: MutableState<String>,
     showErrorQuantity: MutableState<Boolean>,
     errorMessageQuantity: MutableState<String>,
+    lote: MutableState<String>,
+    expirationDate: MutableState<String>
 
-){
+) {
 
     val qrCodeContentQuantity = remember { mutableStateOf("") }
 
@@ -47,7 +50,13 @@ fun OutlinedTextFieldsInputsQuantity(
         OutlinedTextField(
             modifier = Modifier
                 .size(222.dp, 70.dp)
-                .padding(2.dp),
+                .padding(2.dp)
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        lote.value = "N/A"
+                        expirationDate.value = "N/A"
+                    }
+                },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),// ACTIVA EL TECLADO NUMERICO
             label = { Text(text = "Cantidad") },

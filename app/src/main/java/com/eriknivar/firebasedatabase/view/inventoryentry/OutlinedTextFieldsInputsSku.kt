@@ -19,6 +19,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -33,7 +35,8 @@ fun OutlinedTextFieldsInputsSku(
     productList: MutableState<List<String>>,
     productMap: MutableState<Map<String, Pair<String, String>>>,
     showProductDialog: MutableState<Boolean>,
-    unidadMedida: MutableState<String>
+    unidadMedida: MutableState<String>,
+    focusRequester: FocusRequester // 👈 NUEVO parámetro
 
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
@@ -48,8 +51,9 @@ fun OutlinedTextFieldsInputsSku(
 
     val qrCodeScannerSku = remember { QRCodeScanner(qrScanLauncherSku) }
     val context = LocalContext.current
-
     val db = FirebaseFirestore.getInstance()
+
+
 
     LaunchedEffect(qrCodeContentSku.value) {
         sku.value = qrCodeContentSku.value.uppercase()
@@ -68,6 +72,7 @@ fun OutlinedTextFieldsInputsSku(
         OutlinedTextField(modifier = Modifier
             .weight(2f)
             .padding(2.dp)
+            .focusRequester(focusRequester) // 👈 Aquí aplicas el focus
             .onFocusChanged { focusState ->
                 if (!focusState.isFocused && sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
                     findProductDescription(db, sku.value) { descripcion ->

@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.Firebase
@@ -31,7 +32,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
-    val unidadMedida = remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
+    val unidadMedida =
+        remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
@@ -40,6 +42,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     val quantity = remember { mutableStateOf("") }
     val showErrorQuantity = remember { mutableStateOf(false) }
     val errorMessageQuantity = remember { mutableStateOf("") }
+    var showDialogValueQuantityCero by remember { mutableStateOf(false) }
 
     val firestore = Firebase.firestore
     val allData = remember { mutableStateListOf<DataFields>() }
@@ -62,6 +65,18 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     var errorMessage2 by remember { mutableStateOf("") }
     var errorMessage3 by remember { mutableStateOf("") }
 
+    val shouldRequestFocus = remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(shouldRequestFocus.value) {
+        if (shouldRequestFocus.value) {
+            focusRequester.requestFocus()
+            shouldRequestFocus.value = false
+        }
+    }
+
+
+
 
     LaunchedEffect(Unit) {
         fetchDataFromFirestore(firestore, allData)
@@ -71,19 +86,15 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         modifier = Modifier
             .fillMaxWidth(0.9f)
             .padding(
-                8.dp,
-                0.dp,
-                40.dp,
-                0.dp
+                8.dp, 0.dp, 40.dp, 0.dp
             )// 📌 Ajusta el padding, digase la columna donde estan los campos
     ) {
 
-        // 📌 CAMPO DE TEXTO PARA LA UBICACION
 
+        // 📌 FUNCION PARA LA UBICACION
         OutlinedTextFieldsInputsLocation(
-            location,
-            showErrorLocation
-        ) // 📌 FUNCION PARA LA UBICACION
+            location, showErrorLocation
+        )
 
         // 📌 CAMPO DE TEXTO PARA EL SKU
 
@@ -94,7 +105,9 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             productList,
             productMap,
             showProductDialog,
-            unidadMedida
+            unidadMedida,
+            focusRequester = focusRequester // ✅ Aquí pasas la instancia correctamente
+
         )
 
         // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
@@ -107,7 +120,6 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             qrCodeContentSku = qrCodeContentSku, // Estado del código escaneado
             productoDescripcion = productoDescripcion, // Estado de la descripción
             unidadMedida = unidadMedida // Pasamos un string vacío o alguna variable que contenga la UM
-            //productDescriptions = productDescriptions // Estado de la lista de descripciones
         )
 
         // 📌 CAMPO DE TEXTO PARA EL LOTE
@@ -120,7 +132,9 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
         // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 
-        OutlinedTextFieldsInputsQuantity(quantity,showErrorQuantity,errorMessageQuantity)
+        OutlinedTextFieldsInputsQuantity(
+            quantity, showErrorQuantity, errorMessageQuantity, lot, dateText
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -151,6 +165,10 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showErrorSku.value = true
 
+                } else if (quantity.value == "0") {
+                    errorMessage = "No Admite cantidades 0"
+                    showDialogValueQuantityCero = true
+
                 } else {
                     showErrorLocation.value = false
                     showErrorSku.value = false
@@ -161,6 +179,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     errorMessage2 = ""
                     showError3 = false
                     errorMessage3 = ""
+                    shouldRequestFocus.value = true
+
 
                     saveToFirestore(
                         firestore,
@@ -180,12 +200,14 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     quantity.value = ""
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
+
+
                 }
 
             },
 
-            modifier = Modifier.fillMaxHeight(0.18f)
 
+            modifier = Modifier.fillMaxHeight(0.18f)
         )
 
         {
@@ -220,7 +242,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             AlertDialog(onDismissRequest = {
                 showDialog2 = true
             }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Producto No Encontrado")  },
+                title = { Text("Producto No Encontrado") },
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog2 = false }) {
@@ -228,6 +250,20 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     }
                 })
         }
+        if (showDialogValueQuantityCero) {
+            AlertDialog(onDismissRequest = {
+                showDialogValueQuantityCero = true
+            }, // No se cierra al tocar fuera del cuadro
+                title = { Text("No Admite cantidades 0") },
+                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+                confirmButton = {
+                    Button(onClick = { showDialogValueQuantityCero = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+
+
 
         Spacer(modifier = Modifier.height(8.dp))
     }
