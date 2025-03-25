@@ -19,16 +19,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.R
-import com.eriknivar.firebasedatabase.view.inventoryentry.NetworkBanner
+import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 
 @Composable
 fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>) {
     val customColorBackGroundScreenLogin = Color(0xFF527782)
 
-    Column {
-        if (!isConnected.value) {
-            NetworkBanner()
-        }
+    ScreenWithNetworkBanner(isConnected) {
 
         Scaffold { innerPadding ->
             Box(

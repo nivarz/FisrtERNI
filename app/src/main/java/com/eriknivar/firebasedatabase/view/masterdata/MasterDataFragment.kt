@@ -3,7 +3,6 @@ package com.eriknivar.firebasedatabase.view.masterdata
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -16,16 +15,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
-import com.eriknivar.firebasedatabase.view.inventoryentry.NetworkBanner
+import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 
 
 @Composable
 fun MasterDataFragment(navController: NavHostController, isConnected: State<Boolean>) {
 
-    Column {
-        if (!isConnected.value) {
-            NetworkBanner()
-        }
+    ScreenWithNetworkBanner(isConnected){
 
         NavigationDrawer(navController) {
 

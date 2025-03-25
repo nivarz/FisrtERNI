@@ -18,17 +18,27 @@ import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 
 
+
 @Composable
-fun FirestoreApp(navController: NavHostController, isConnected: State<Boolean>) {
+fun FirestoreApp(
+    navController: NavHostController,
+    isConnected: State<Boolean>,
+    showRestoredBanner: State<Boolean> // ✅ Banner conexión restaurada
+) {
+    val productoDescripcion = remember { mutableStateOf("") }
 
     Column {
+        // 🔴 Mostrar banner si no hay conexión
         if (!isConnected.value) {
-            NetworkBanner()
+            NetworkBanner(message = "¡Sin conexión a Internet!", backgroundColor = Color.Red)
+        }
+
+        // ✅ Mostrar banner de conexión restaurada
+        if (showRestoredBanner.value) {
+            NetworkBanner(message = "¡Conexión restaurada!", backgroundColor = Color(0xFF4CAF50))
         }
 
         NavigationDrawer(navController) {
-            val productoDescripcion = remember { mutableStateOf("") }
-
             Box {
                 if (productoDescripcion.value.isNotBlank()) {
                     Text(
@@ -43,9 +53,8 @@ fun FirestoreApp(navController: NavHostController, isConnected: State<Boolean>) 
                     )
                 }
 
-
                 BackHandler(true) {
-                    Log.i("LOG_TAG", "Clicked back") //Deshabilitar el botón de atrás
+                    Log.i("LOG_TAG", "Clicked back") // Deshabilitar botón de atrás
                 }
             }
 
@@ -57,16 +66,25 @@ fun FirestoreApp(navController: NavHostController, isConnected: State<Boolean>) 
 }
 
 @Composable
-fun NetworkBanner() {
+fun NetworkBanner(
+    message: String,
+    backgroundColor: Color
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Red)
+            .background(backgroundColor)
             .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("¡Sin conexión a Internet!", color = Color.White)
+        Text(
+            text = message,
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
+
+
 
 
