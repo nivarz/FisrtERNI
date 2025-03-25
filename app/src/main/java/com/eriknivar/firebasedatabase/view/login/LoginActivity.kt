@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,48 +19,55 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.R
+import com.eriknivar.firebasedatabase.view.inventoryentry.NetworkBanner
 
 @Composable
-fun LoginScreen(navController: NavHostController) {
+fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>) {
     val customColorBackGroundScreenLogin = Color(0xFF527782)
 
-    Scaffold { innerPadding ->
-        Box(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .background(customColorBackGroundScreenLogin),
-        ) {
-            Column(
+    Column {
+        if (!isConnected.value) {
+            NetworkBanner()
+        }
 
-                horizontalAlignment = Alignment.CenterHorizontally, // 🔹 Centra horizontalmente
+        Scaffold { innerPadding ->
+            Box(
                 modifier = Modifier
+                    .padding(innerPadding)
                     .fillMaxSize()
-                    .padding(8.dp)
+                    .background(customColorBackGroundScreenLogin),
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.logoerni),
-                    contentDescription = "Logo ERNI",
-                )
+                Column(
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Image(
+                    horizontalAlignment = Alignment.CenterHorizontally, // 🔹 Centra horizontalmente
                     modifier = Modifier
-                        .size(50.dp),
-                    painter = painterResource(id = R.drawable.warehouse),
-                    contentDescription = "Logo ERNI",
-                )
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logoerni),
+                        contentDescription = "Logo ERNI",
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // 🔹 Campos de usuario y contraseña
-                TextFieldsLogin(navController)
+                    Image(
+                        modifier = Modifier
+                            .size(50.dp),
+                        painter = painterResource(id = R.drawable.warehouse),
+                        contentDescription = "Logo ERNI",
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp)) // 🔹 Ajuste de espacio
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                // 🔹 Botón colocado dentro de la `Column`
-                LoginButton(navController)
+                    // 🔹 Campos de usuario y contraseña
+                    TextFieldsLogin(navController)
+
+                    Spacer(modifier = Modifier.height(16.dp)) // 🔹 Ajuste de espacio
+
+                    // 🔹 Botón colocado dentro de la `Column`
+                    LoginButton(navController)
+                }
             }
         }
     }

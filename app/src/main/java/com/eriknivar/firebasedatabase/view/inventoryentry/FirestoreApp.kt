@@ -2,15 +2,14 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -20,32 +19,54 @@ import com.eriknivar.firebasedatabase.view.NavigationDrawer
 
 
 @Composable
-fun FirestoreApp(navController: NavHostController) {
+fun FirestoreApp(navController: NavHostController, isConnected: State<Boolean>) {
 
-    NavigationDrawer(navController) {
-
-        val productoDescripcion = remember { mutableStateOf("") }
-
-        Box {
-            Text(
-                text = " ${productoDescripcion.value}", // ✅ Este es el campo de texto que se muestra en la pantalla con la descripcion del producto
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = androidx.compose.ui.graphics.Color.Blue,
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
-
-            BackHandler(true) {
-                Log.i("LOG_TAG", "Clicked back")//Desabilitar el boton de atras
-            }
+    Column {
+        if (!isConnected.value) {
+            NetworkBanner()
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp))
+        NavigationDrawer(navController) {
+            val productoDescripcion = remember { mutableStateOf("") }
 
-        OutlinedTextFieldsInputs(productoDescripcion) //Los campos de texto + botones + Cards
+            Box {
+                if (productoDescripcion.value.isNotBlank()) {
+                    Text(
+                        text = productoDescripcion.value,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Blue,
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
 
+
+                BackHandler(true) {
+                    Log.i("LOG_TAG", "Clicked back") //Deshabilitar el botón de atrás
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp))
+
+            OutlinedTextFieldsInputs(productoDescripcion)
+        }
     }
 }
+
+@Composable
+fun NetworkBanner() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Red)
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("¡Sin conexión a Internet!", color = Color.White)
+    }
+}
+
+

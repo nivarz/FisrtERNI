@@ -21,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.Firebase
@@ -128,18 +127,20 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         Button(
             onClick = {
                 if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                    errorMessage = "Campos Obligatorios Vacíos"
+                    //errorMessage = "Campos Obligatorios Vacíos"
                     showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showErrorLocation.value = true
                     showErrorSku.value = true
                     showErrorQuantity.value = true
 
-                } else if (location.value == "CODIGO NO ENCONTRADO" || sku.value == "CODIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                    errorMessage1 = "Codigo No Encontrado"
+                } else if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
+                    //errorMessage = "Codigo No Encontrado"
                     showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                    showError1 = true
+                    showErrorLocation.value = true
+                    showErrorSku.value = true
 
-                } else if (lot.value == "CODIGO NO ENCONTRADO" || lot.value.isEmpty()) {
+
+                } else if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
                     lot.value = "N/A"
 
                 } else if (dateText.value.isEmpty()) {
@@ -195,7 +196,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             AlertDialog(onDismissRequest = {
                 showDialog = true
             }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Campos Obligatorios"); Color.Red },
+                title = { Text("Campos Obligatorios Vacios") },
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog = false }) {
@@ -207,7 +208,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             AlertDialog(onDismissRequest = {
                 showDialog1 = true
             }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Codigo No Encontrado"); Color.Red },
+                title = { Text("Codigo No Encontrado") },
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog1 = false }) {
@@ -219,7 +220,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             AlertDialog(onDismissRequest = {
                 showDialog2 = true
             }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Producto No Encontrado"); Color.Red },
+                title = { Text("Producto No Encontrado")  },
                 text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                 confirmButton = {
                     Button(onClick = { showDialog2 = false }) {

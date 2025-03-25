@@ -8,8 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.compose.rememberNavController
 
 
 class MainActivity : ComponentActivity() {
@@ -35,18 +33,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
 @Composable
 fun MyApp(requestCameraPermissionLauncher: ActivityResultLauncher<String>) {
-    val navController = rememberNavController()
-    LocalContext.current
-
     LaunchedEffect(Unit) {
-        // Aquí puedes realizar las operaciones de inicialización asíncronas
         requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    // Configura tu NavHostController y otras configuraciones iniciales de tu aplicación
-    NavGraph(navController)
+    NetworkAwareNavGraph() // 🔥 Aquí se usa el wrapper con red
 }
+
+
+
+
 
