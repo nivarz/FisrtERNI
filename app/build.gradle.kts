@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.icons.extended)
     implementation(libs.zxing.android.embedded)
+    implementation(libs.coil.compose)
+
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
