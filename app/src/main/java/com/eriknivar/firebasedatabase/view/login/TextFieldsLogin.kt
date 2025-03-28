@@ -36,7 +36,7 @@ fun TextFieldsLogin(navController: NavHostController) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth() // 🔹 Evita ocupar toda la pantalla
-            .padding(16.dp, 8.dp, 16.dp, 16.dp) // 🔹 Ajuste del espacio superior
+            .padding(16.dp, 0.dp, 16.dp, 16.dp) // 🔹 Ajuste del espacio superior
             .verticalScroll(rememberScrollState())
     ) {
         var username by remember { mutableStateOf("") }

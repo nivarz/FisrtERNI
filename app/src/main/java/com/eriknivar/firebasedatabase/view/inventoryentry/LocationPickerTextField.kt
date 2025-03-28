@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.google.zxing.integration.android.IntentIntegrator
@@ -22,7 +24,8 @@ import com.google.zxing.integration.android.IntentIntegrator
 @Composable
 fun OutlinedTextFieldsInputsLocation(
     location: MutableState<String>,
-    showErrorLocation: MutableState<Boolean> // 🔥 Ahora recibimos un MutableState
+    showErrorLocation: MutableState<Boolean>, // 🔥 Ahora recibimos un MutableState
+    nextFocusRequester: FocusRequester
 ) {
     val qrCodeContentLocation = remember { mutableStateOf("") }
     val qrScanLauncherLocation =
@@ -40,7 +43,15 @@ fun OutlinedTextFieldsInputsLocation(
 
     LaunchedEffect(qrCodeContentLocation.value) {
         location.value = qrCodeContentLocation.value.uppercase()
+        if (location.value.isNotEmpty() && location.value != "CÓDIGO NO ENCONTRADO") {
+            try {
+                nextFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                Log.e("FocusError", "Error al mover el foco: ${e.message}")
+            }
+        }
     }
+
 
     Row(
         modifier = Modifier.fillMaxWidth(),

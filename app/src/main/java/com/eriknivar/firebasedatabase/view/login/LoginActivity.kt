@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -39,23 +38,17 @@ fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>) {
                     horizontalAlignment = Alignment.CenterHorizontally, // 🔹 Centra horizontalmente
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(8.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp) // 🔹 Ajuste fino del padding
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.logoerni),
                         contentDescription = "Logo ERNI",
+                        modifier = Modifier
+                            .height(250.dp) // 🔹 Puedes controlar el tamaño para evitar que se vea tan grande
+                            .padding(bottom = 12.dp) // 🔹 Separación más suave antes del TextField
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    Image(
-                        modifier = Modifier
-                            .size(50.dp),
-                        painter = painterResource(id = R.drawable.warehouse),
-                        contentDescription = "Logo ERNI",
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
 
                     // 🔹 Campos de usuario y contraseña
                     TextFieldsLogin(navController)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -67,6 +68,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
     val shouldRequestFocus = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val focusRequesterSku = remember { FocusRequester() }
+
 
     LaunchedEffect(shouldRequestFocus.value) {
         if (shouldRequestFocus.value) {
@@ -74,8 +77,6 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             shouldRequestFocus.value = false
         }
     }
-
-
 
 
     LaunchedEffect(Unit) {
@@ -93,7 +94,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
         // 📌 FUNCION PARA LA UBICACION
         OutlinedTextFieldsInputsLocation(
-            location, showErrorLocation
+            location, showErrorLocation, nextFocusRequester = focusRequesterSku
+
         )
 
         // 📌 CAMPO DE TEXTO PARA EL SKU
@@ -106,7 +108,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
             productMap,
             showProductDialog,
             unidadMedida,
-            focusRequester = focusRequester // ✅ Aquí pasas la instancia correctamente
+            focusRequester = focusRequester
 
         )
 
@@ -141,14 +143,12 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
         Button(
             onClick = {
                 if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                    //errorMessage = "Campos Obligatorios Vacíos"
                     showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showErrorLocation.value = true
                     showErrorSku.value = true
                     showErrorQuantity.value = true
 
                 } else if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                    //errorMessage = "Codigo No Encontrado"
                     showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showErrorLocation.value = true
                     showErrorSku.value = true
@@ -193,7 +193,6 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                         unidadMedida.value,
                         allData
                     )
-                    location.value = ""
                     sku.value = ""
                     lot.value = ""
                     dateText.value = ""
@@ -263,12 +262,20 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 })
         }
 
-
-
         Spacer(modifier = Modifier.height(8.dp))
     }
+
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(allData.size) {
+        if (allData.isNotEmpty()) {
+            listState.animateScrollToItem(allData.size - 1)
+        }
+    }
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        state = listState
     ) {
         items(allData) { allDataShow ->
             MessageCard(

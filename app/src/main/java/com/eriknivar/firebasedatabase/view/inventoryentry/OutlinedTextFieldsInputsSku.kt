@@ -5,6 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
@@ -23,9 +25,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.coroutines.delay
 
 @Composable
 fun OutlinedTextFieldsInputsSku(
@@ -36,7 +40,8 @@ fun OutlinedTextFieldsInputsSku(
     productMap: MutableState<Map<String, Pair<String, String>>>,
     showProductDialog: MutableState<Boolean>,
     unidadMedida: MutableState<String>,
-    focusRequester: FocusRequester // 👈 NUEVO parámetro
+    focusRequester: FocusRequester, // 👈 NUEVO parámetro
+
 
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
@@ -63,6 +68,8 @@ fun OutlinedTextFieldsInputsSku(
                 productoDescripcion.value = descripcion // ✅ Actualiza la descripción
                 unidadMedida.value = unidadMedidaObtenida // ✅ Actualiza la unidad de medida
             }
+            delay(200) // 🔁 Breve espera para estabilidad visual
+
         }
     }
 
@@ -121,7 +128,15 @@ fun OutlinedTextFieldsInputsSku(
                         )
                     }
                 }
-            })
+            },
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = {
+                    // Aquí puedes mover el foco a otro campo si lo deseas
+                }
+            ),
+
+        )
     }
 
 }
