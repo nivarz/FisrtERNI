@@ -68,7 +68,10 @@ fun NetworkAwareNavGraph() {
     NavHost(navController = navController, startDestination = "login") {
         composable("login") { LoginScreen(navController, isConnected) }
         composable("storagetype") { SelectStorageFragment(navController, isConnected) }
-        composable("inventoryentry") {FirestoreApp(navController, isConnected = isConnected, showRestoredBanner)}
+        composable("inventoryentry/{storageType}") { backStackEntry ->
+            val storageType = backStackEntry.arguments?.getString("storageType")
+            FirestoreApp(navController, isConnected = isConnected, showRestoredBanner, storageType.toString())}
+        //composable("inventoryentry") {FirestoreApp(navController, isConnected = isConnected, showRestoredBanner)}
         composable("inventoryreports") { InventoryReportsFragment(navController, isConnected) }
         composable("editscounts") { EditCountsFragment(navController, isConnected) }
         composable("masterdata") { MasterDataFragment(navController, isConnected) }

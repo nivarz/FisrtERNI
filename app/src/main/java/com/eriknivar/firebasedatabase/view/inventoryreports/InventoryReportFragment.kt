@@ -22,7 +22,7 @@ fun InventoryReportsFragment(navController: NavHostController, isConnected: Stat
 
     ScreenWithNetworkBanner(isConnected) {
 
-        NavigationDrawer(navController) {
+        NavigationDrawer(navController, "Reportes del Inventario") {
 
             Box {
                 Text(

@@ -17,13 +17,8 @@ fun SelectStorageFragment(navController: NavHostController, isConnected: State<B
     ScreenWithNetworkBanner(isConnected) {
 
 
-        NavigationDrawer(navController) {
+        NavigationDrawer(navController, "Seleccione un almacén") {
 
-            Text(
-                "Seleccione un almacén para continuar:",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
             DropDownUpScreen(navController)
 
 

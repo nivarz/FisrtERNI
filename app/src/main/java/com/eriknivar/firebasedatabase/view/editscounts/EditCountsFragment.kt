@@ -23,7 +23,7 @@ fun EditCountsFragment(navController: NavHostController, isConnected: State<Bool
 
     ScreenWithNetworkBanner(isConnected) {
 
-        NavigationDrawer(navController) {
+        NavigationDrawer(navController, "Editar Conteo") {
 
             Box {
                 Text(

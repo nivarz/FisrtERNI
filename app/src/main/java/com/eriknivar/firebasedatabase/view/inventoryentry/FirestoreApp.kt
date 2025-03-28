@@ -23,7 +23,8 @@ import com.eriknivar.firebasedatabase.view.NavigationDrawer
 fun FirestoreApp(
     navController: NavHostController,
     isConnected: State<Boolean>,
-    showRestoredBanner: State<Boolean> // ✅ Banner conexión restaurada
+    showRestoredBanner: State<Boolean>, // ✅ Banner conexión restaurada
+    storageType: String,
 ) {
     val productoDescripcion = remember { mutableStateOf("") }
 
@@ -38,7 +39,7 @@ fun FirestoreApp(
             NetworkBanner(message = "¡Conexión restaurada!", backgroundColor = Color(0xFF4CAF50))
         }
 
-        NavigationDrawer(navController) {
+        NavigationDrawer(navController, storageType) {
             Box {
                 if (productoDescripcion.value.isNotBlank()) {
                     Text(

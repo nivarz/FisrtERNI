@@ -62,17 +62,17 @@ fun DropDownUpScreen(navController: NavHostController) {
                 DropdownMenuItem(text = { Text(text = "Almacen 1") }, onClick = {
                     valueText = "Almacen 1"
                     expandedDropdown = false
-                    navController.navigate("inventoryentry")
+                    navController.navigate("inventoryentry/${valueText}")
                 })
                 DropdownMenuItem(text = { Text(text = "Almacen 2") }, onClick = {
                     valueText = "Almacen 2"
                     expandedDropdown = false
-                    navController.navigate("inventoryentry")
+                    navController.navigate("inventoryentry/${valueText}")
                 })
                 DropdownMenuItem(text = { Text(text = "Almacen 3") }, onClick = {
                     valueText = "Almacen 3"
                     expandedDropdown = false
-                    navController.navigate("inventoryentry")
+                    navController.navigate("inventoryentry/${valueText}")
                 })
 
 

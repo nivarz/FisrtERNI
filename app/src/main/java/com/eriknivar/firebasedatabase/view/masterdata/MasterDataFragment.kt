@@ -23,7 +23,7 @@ fun MasterDataFragment(navController: NavHostController, isConnected: State<Bool
 
     ScreenWithNetworkBanner(isConnected){
 
-        NavigationDrawer(navController) {
+        NavigationDrawer(navController, "Datos Maestro") {
 
             Box {
                 Text(
