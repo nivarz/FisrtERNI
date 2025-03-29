@@ -49,7 +49,7 @@ fun OutlinedTextFieldsInputsQuantity(
     ) {
         OutlinedTextField(
             modifier = Modifier
-                .size(222.dp, 70.dp)
+                .size(222.dp, 64.dp)
                 .padding(2.dp)
                 .onFocusChanged { focusState ->
                     if (focusState.isFocused) {

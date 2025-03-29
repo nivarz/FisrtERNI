@@ -4,7 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -77,8 +79,9 @@ fun OutlinedTextFieldsInputsSku(
         modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(modifier = Modifier
-            .weight(2f)
-            .padding(2.dp)
+            .width(275.dp)
+            .height(64.dp)
+            .padding(4.dp)
             .focusRequester(focusRequester) // 👈 Aquí aplicas el focus
             .onFocusChanged { focusState ->
                 if (!focusState.isFocused && sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {

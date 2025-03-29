@@ -5,8 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
@@ -58,8 +60,9 @@ fun OutlinedTextFieldsInputsLocation(
         verticalAlignment = Alignment.CenterVertically // 📌 Asegura alineación vertical
     ) {
         OutlinedTextField(modifier = Modifier
-            .weight(2f) // 📌 Hace que el campo de texto ocupe el espacio disponible
-            .padding(2.dp),
+            .width(275.dp)
+            .height(64.dp)
+            .padding(4.dp),
             singleLine = true,
             label = { Text(text = "Ubicación") },
             value = location.value,

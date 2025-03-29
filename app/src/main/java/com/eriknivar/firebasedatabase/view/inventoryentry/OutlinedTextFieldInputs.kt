@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,6 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.Firebase
@@ -71,6 +75,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     val focusRequesterSku = remember { FocusRequester() }
 
 
+
     LaunchedEffect(shouldRequestFocus.value) {
         if (shouldRequestFocus.value) {
             focusRequester.requestFocus()
@@ -85,10 +90,8 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
     Column(
         modifier = Modifier
-            .fillMaxWidth(0.9f)
-            .padding(
-                8.dp, 0.dp, 40.dp, 0.dp
-            )// 📌 Ajusta el padding, digase la columna donde estan los campos
+            .fillMaxWidth()
+            .padding(8.dp)// 📌 Ajusta el padding, digase la columna donde estan los campos
     ) {
 
 
@@ -199,18 +202,33 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
 
-
                 }
 
             },
 
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF003366), // Azul marino
+                contentColor = Color.White          // Color del texto
+            ),
 
-            modifier = Modifier.fillMaxHeight(0.18f)
+            modifier = Modifier.fillMaxHeight(0.16f)
         )
 
         {
             Text("Grabar Registro")
         }
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                thickness = 2.dp,
+                color = Color.Gray,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
+        }
+
+
 
         if (showDialog) {
             AlertDialog(onDismissRequest = {
@@ -261,7 +279,6 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 })
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
     }
 
     val listState = rememberLazyListState()
