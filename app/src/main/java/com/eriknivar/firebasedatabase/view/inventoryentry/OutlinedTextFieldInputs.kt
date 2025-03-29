@@ -153,7 +153,6 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                     showErrorLocation.value = true
                     showErrorSku.value = true
 
-
                 } else if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
                     lot.value = "N/A"
 
