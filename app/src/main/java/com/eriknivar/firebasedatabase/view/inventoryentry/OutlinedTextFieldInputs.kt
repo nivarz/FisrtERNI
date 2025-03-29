@@ -133,7 +133,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
         // 📌 CAMPO DE TEXTO PARA LA FECHA
 
-        DatePickerTextField(dateText, unidadMedida)// FUNCION PARA EL CALENDARIO
+        DatePickerTextField(dateText)// FUNCION PARA EL CALENDARIO
 
         // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 

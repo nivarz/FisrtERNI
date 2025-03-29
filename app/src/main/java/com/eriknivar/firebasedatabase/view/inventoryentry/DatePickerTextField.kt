@@ -1,12 +1,9 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.app.DatePickerDialog
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Icon
@@ -17,14 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import java.util.Calendar
 
 @Composable
-fun DatePickerTextField(dateText: MutableState<String>, unidadMedida: MutableState<String>) {
+fun DatePickerTextField(dateText: MutableState<String>) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
@@ -57,16 +52,7 @@ fun DatePickerTextField(dateText: MutableState<String>, unidadMedida: MutableSta
             readOnly = true // Para que solo se pueda seleccionar con el ícono
         )
 
-        Spacer(modifier = Modifier.width(4.dp)) // 🔥 Espacio entre el campo y la UM
 
-        // 📌 Texto para mostrar la unidad de medida
-        Text(
-            text = unidadMedida.value, // 🔥 Aquí se muestra la UM
-            fontSize = 22.sp,
-            color = Color.Red,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            modifier = Modifier.padding(8.dp).background(color = Color.Yellow)
-        )
     }
 
 }

@@ -2,7 +2,9 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,9 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
@@ -139,6 +143,17 @@ fun OutlinedTextFieldsInputsSku(
                 }
             ),
 
+        )
+
+        Spacer(modifier = Modifier.width(4.dp)) // 🔥 Espacio entre el campo y la UM
+
+        // 📌 Texto para mostrar la unidad de medida
+        Text(
+            text = unidadMedida.value, // 🔥 Aquí se muestra la UM
+            fontSize = 22.sp,
+            color = Color.Black,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            modifier = Modifier.padding(8.dp).background(color = Color.Red)
         )
     }
 
