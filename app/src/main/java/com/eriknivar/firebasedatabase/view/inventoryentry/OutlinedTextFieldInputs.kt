@@ -49,6 +49,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     val errorMessageQuantity = remember { mutableStateOf("") }
     var showDialogValueQuantityCero by remember { mutableStateOf(false) }
 
+
     val firestore = Firebase.firestore
     val allData = remember { mutableStateListOf<DataFields>() }
     val dateText = remember { mutableStateOf("") }
@@ -69,6 +70,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     var errorMessage1 by remember { mutableStateOf("") }
     var errorMessage2 by remember { mutableStateOf("") }
     var errorMessage3 by remember { mutableStateOf("") }
+
 
     val shouldRequestFocus = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -162,7 +164,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                 } else if (dateText.value.isEmpty()) {
                     dateText.value = "N/A"
 
-                } else if (productoDescripcion.value == "Producto No Existe") {
+                } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
                     errorMessage2 = "Producto No Encontrado"
                     showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showErrorSku.value = true

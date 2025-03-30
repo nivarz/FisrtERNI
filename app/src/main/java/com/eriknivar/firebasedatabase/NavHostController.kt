@@ -39,17 +39,17 @@ fun NetworkAwareNavGraph() {
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                isConnected.value = true // ✅ Primero actualiza conexión
+
                 if (wasDisconnected.value) {
                     showRestoredBanner.value = true
                     wasDisconnected.value = false
 
-                    // Ocultar el banner después de 3 segundos
                     CoroutineScope(Dispatchers.Main).launch {
                         delay(3000)
                         showRestoredBanner.value = false
                     }
                 }
-                isConnected.value = true
             }
 
             override fun onLost(network: Network) {
@@ -65,14 +65,15 @@ fun NetworkAwareNavGraph() {
         }
     }
 
+
     NavHost(navController = navController, startDestination = "login") {
         composable("login") { LoginScreen(navController, isConnected) }
         composable("storagetype") { SelectStorageFragment(navController, isConnected) }
         composable("inventoryentry/{storageType}") { backStackEntry ->
             val storageType = backStackEntry.arguments?.getString("storageType")
-            FirestoreApp(navController, isConnected = isConnected, showRestoredBanner, storageType.toString())}
-        //composable("inventoryentry") {FirestoreApp(navController, isConnected = isConnected, showRestoredBanner)}
-        composable("inventoryreports") { InventoryReportsFragment(navController, isConnected) }
+            FirestoreApp(navController, isConnected = isConnected, storageType = storageType.orEmpty())}
+
+            composable("inventoryreports") { InventoryReportsFragment(navController, isConnected) }
         composable("editscounts") { EditCountsFragment(navController, isConnected) }
         composable("masterdata") { MasterDataFragment(navController, isConnected) }
     }
