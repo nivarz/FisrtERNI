@@ -1,7 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.app.DatePickerDialog
-import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,24 +11,31 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
@@ -37,182 +44,232 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-
 @Composable
 fun InventoryReportFiltersScreen(
     userViewModel: UserViewModel,
     allData: List<DataFields>,
+    tipoUsuario: String
 ) {
     val sku = remember { mutableStateOf("") }
     val location = remember { mutableStateOf("") }
     val startDate = remember { mutableStateOf("") }
     val endDate = remember { mutableStateOf("") }
-    val usuario by userViewModel.nombre.observeAsState("")
+    val filtrosExpandido = remember { mutableStateOf(false) }
 
+    val usuarioFiltro = remember { mutableStateOf("") }
     val filteredData = remember { mutableStateListOf<DataFields>() }
 
     val context = LocalContext.current
     val calendar = remember { Calendar.getInstance() }
     val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
 
+    LaunchedEffect(tipoUsuario, userViewModel.nombre) {
+        if (tipoUsuario != "admin") {
+            usuarioFiltro.value = userViewModel.nombre.value ?: ""
+        }
+    }
+
     val startDatePickerDialog = remember {
-        DatePickerDialog(
-            context,
-            { _, year, month, day ->
-                calendar.set(year, month, day)
-                startDate.value = dateFormatter.format(calendar.time)
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
+        DatePickerDialog(context, { _, y, m, d ->
+            calendar.set(y, m, d)
+            startDate.value = dateFormatter.format(calendar.time)
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
     }
 
     val endDatePickerDialog = remember {
-        DatePickerDialog(
-            context,
-            { _, year, month, day ->
-                calendar.set(year, month, day)
-                endDate.value = dateFormatter.format(calendar.time)
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
+        DatePickerDialog(context, { _, y, m, d ->
+            calendar.set(y, m, d)
+            endDate.value = dateFormatter.format(calendar.time)
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
     }
 
-    // Encabezado con resumen de resultados
-    val totalRegistros = filteredData.size
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
-        elevation = CardDefaults.cardElevation(4.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Total de productos: $totalRegistros", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        }
-    }
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .padding(16.dp)) {
 
-    // LazyColumn para los filtros y resultados
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Filtros de búsqueda
-        item {
+        // 🔽 Encabezado expandible
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { filtrosExpandido.value = !filtrosExpandido.value }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (filtrosExpandido.value) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                contentDescription = null
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Filtros de búsqueda",
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
+                fontSize = 18.sp
             )
+        }
 
-            OutlinedTextField(
-                value = usuario,
-                onValueChange = {},
-                label = { Text("Usuario") },
-                enabled = false,
-                modifier = Modifier.fillMaxWidth()
-            )
+        // 🧩 Filtros dentro de AnimatedVisibility
+        AnimatedVisibility(visible = filtrosExpandido.value) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            OutlinedTextField(
-                value = sku.value,
-                onValueChange = { sku.value = it },
-                label = { Text("SKU o palabra clave") },
-                modifier = Modifier.fillMaxWidth()
-            )
+                fun limpiarFiltros() {
+                    usuarioFiltro.value = if (tipoUsuario == "admin") "" else userViewModel.nombre.value ?: ""
+                    sku.value = ""
+                    location.value = ""
+                    startDate.value = ""
+                    endDate.value = ""
+                    filteredData.clear()
+                    filteredData.addAll(allData.sortedByDescending { it.fechaRegistro?.toDate() })
+                }
 
-            OutlinedTextField(
-                value = location.value,
-                onValueChange = { location.value = it },
-                label = { Text("Ubicación") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = startDate.value,
-                    onValueChange = {},
-                    label = { Text("Desde") },
-                    readOnly = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { startDatePickerDialog.show() }
+                    value = usuarioFiltro.value,
+                    onValueChange = { usuarioFiltro.value = it },
+                    label = { Text("Usuario") },
+                    singleLine = true,
+                    enabled = tipoUsuario == "admin",
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
-                    value = endDate.value,
-                    onValueChange = {},
-                    label = { Text("Hasta") },
-                    readOnly = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { endDatePickerDialog.show() }
+                    value = sku.value,
+                    onValueChange = { sku.value = it },
+                    label = { Text("SKU o palabra clave") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
-            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = {
-                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        filteredData.clear()
+                OutlinedTextField(
+                    value = location.value,
+                    onValueChange = { location.value = it },
+                    label = { Text("Ubicación") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                        filteredData.addAll(
-                            allData.filter { item ->
-                                val matchesSku = sku.value.isBlank() ||
-                                        item.sku.contains(sku.value, true) ||
-                                        item.description.contains(sku.value, true)
-
-                                val matchesLocation = location.value.isBlank() ||
-                                        item.location.contains(location.value, true)
-
-                                val matchesUser = usuario.isBlank() || item.usuario == usuario
-
-                                val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
-                                val matchesDate = try {
-                                    (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
-                                            (endDate.value.isBlank() || dateFormatted <= endDate.value)
-                                } catch (e: Exception) {
-                                    Log.e("Filtro", "Error comparando fechas", e)
-                                    true
-                                }
-
-                                matchesSku && matchesLocation && matchesUser && matchesDate
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = startDate.value,
+                        onValueChange = {},
+                        label = { Text("Desde") },
+                        readOnly = true,
+                        trailingIcon = {
+                            IconButton(onClick = { startDatePickerDialog.show() }) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null)
                             }
-                        )
-                    }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { startDatePickerDialog.show() }
+                    )
+
+                    OutlinedTextField(
+                        value = endDate.value,
+                        onValueChange = {},
+                        label = { Text("Hasta") },
+                        readOnly = true,
+                        trailingIcon = {
+                            IconButton(onClick = { endDatePickerDialog.show() }) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { endDatePickerDialog.show() }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Text("Aplicar filtros")
+
+                    val azulMarino = Color(0xFF001F5B)
+
+                    Button(
+                        onClick = {
+                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                            filteredData.clear()
+                            filteredData.addAll(
+                                allData.filter { item ->
+                                    val matchesSku = sku.value.isBlank() || item.sku.contains(sku.value, true) || item.description.contains(sku.value, true)
+                                    val matchesLocation = location.value.isBlank() || item.location.contains(location.value, true)
+                                    val matchesUser = usuarioFiltro.value.isBlank() || item.usuario.contains(usuarioFiltro.value, true)
+                                    val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
+                                    val matchesDate = try {
+                                        (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
+                                                (endDate.value.isBlank() || dateFormatted <= endDate.value)
+                                    } catch (e: Exception) { true }
+
+                                    matchesSku && matchesLocation && matchesUser && matchesDate
+                                }.sortedByDescending { it.fechaRegistro?.toDate() }
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
+
+                    ) {
+                        Text("Aplicar filtros")
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            val file = exportToExcel(context, filteredData)
+                            file?.let { shareExcelFile(context, it) }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
+
+                    ) {
+                        Text("Exportar Excel")
+                    }
                 }
 
-                Button(onClick = {
-                    val file = exportToExcel(context, filteredData)
-                    file?.let { shareExcelFile(context, it) }
-                }) {
-                    Text("Exportar Excel")
+                val azulMarino = Color(0xFF001F5B)
+
+                Button(
+                    onClick = { limpiarFiltros() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
+                ) {
+                    Text("Limpiar filtros")
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (filteredData.isEmpty()) {
-                Text("No hay resultados")
             }
         }
 
-        // Mostrar los resultados filtrados
-        items(filteredData) { item ->
-            InventoryReportItem(item = item)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 🧾 Total de resultados
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+            elevation = CardDefaults.cardElevation(4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Total de Registros: ${filteredData.size}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 🧩 Lista de resultados (siempre visible)
+        if (filteredData.isEmpty()) {
+            Text("No hay resultados", modifier = Modifier.padding(top = 8.dp))
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(filteredData) { item ->
+                    InventoryReportItem(item = item)
+                }
+            }
         }
     }
 }
+
+
+
 
 

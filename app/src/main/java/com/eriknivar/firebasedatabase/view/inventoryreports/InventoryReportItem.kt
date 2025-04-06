@@ -40,9 +40,10 @@ fun InventoryReportItem(item: DataFields) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "${item.sku} - ${item.description} - $fechaFormateada",
+                text = "$fechaFormateada - ${item.description}",
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                fontSize = 12.sp,
+                color = androidx.compose.ui.graphics.Color.Blue
             )
 
             if (expanded) {
@@ -53,8 +54,6 @@ fun InventoryReportItem(item: DataFields) {
                 InfoRow("Fecha Vencimiento:", item.expirationDate)
                 InfoRow("Cantidad:", "${item.quantity} ${item.unidadMedida}")
                 InfoRow("Unidad de medida:", item.unidadMedida)
-
-                InfoRow("Fecha de registro:", fechaFormateada)
                 }
             }
         }

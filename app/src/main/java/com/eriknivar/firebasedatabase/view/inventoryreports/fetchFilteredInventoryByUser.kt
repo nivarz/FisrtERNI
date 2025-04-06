@@ -37,3 +37,47 @@ fun fetchFilteredInventoryByUser(
             Log.e("Firestore", "Error al obtener datos", e)
         }
 }
+
+fun fetchAllInventory(
+    db: FirebaseFirestore,
+    allData: MutableList<DataFields>
+) {
+    db.collection("inventario")
+        .get()
+        .addOnSuccessListener { result ->
+            allData.clear()
+            for (document in result) {
+                val location = document.getString("ubicacion") ?: ""
+                val sku = document.getString("codigoProducto") ?: ""
+                val lote = document.getString("lote") ?: ""
+                val expirationDate = document.getString("fechaVencimiento") ?: ""
+                val quantity = document.getDouble("cantidad") ?: 0.00
+                val unidadMedida = document.getString("unidadMedida") ?: "N/A"
+                val fechaRegistro = document.getTimestamp("fechaRegistro")
+                val descripcion = document.getString("descripcion") ?: ""
+                val usuario = document.getString("usuario") ?: ""
+
+                allData.add(
+                    DataFields(
+                        document.id,
+                        location,
+                        sku,
+                        lote,
+                        expirationDate,
+                        quantity,
+                        descripcion,
+                        unidadMedida,
+                        fechaRegistro,
+                        usuario
+                    )
+                )
+            }
+        }
+        .addOnFailureListener {
+            println("Error al cargar todos los registros: $it")
+        }
+
+    Log.d("Firestore", "Total registros cargados (admin): ${allData.size}")
+
+}
+

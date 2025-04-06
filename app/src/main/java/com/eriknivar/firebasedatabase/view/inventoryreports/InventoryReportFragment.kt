@@ -22,20 +22,30 @@ fun InventoryReportsFragment(
 ) {
     val allData = remember { mutableStateListOf<DataFields>() }
     val usuario by userViewModel.nombre.observeAsState("")
+    val tipoUsuario by userViewModel.tipo.observeAsState("")
+
 
     ScreenWithNetworkBanner(isConnected) {
         NavigationDrawer(navController, "Reportes del Inventario", userViewModel) {
 
-            LaunchedEffect(usuario) {
+            LaunchedEffect(usuario, tipoUsuario) {
                 if (usuario.isNotEmpty()) {
                     val firestore = Firebase.firestore
-                    fetchFilteredInventoryByUser(firestore, allData, usuario)
+
+                    if (tipoUsuario == "admin") {
+                        // Admin ve todos los registros
+                        fetchAllInventory(firestore, allData)
+                    } else {
+                        // Invitado ve solo los suyos
+                        fetchFilteredInventoryByUser(firestore, allData, usuario)
+                    }
                 }
             }
 
             InventoryReportFiltersScreen(
                 userViewModel = userViewModel,
-                allData = allData
+                allData = allData,
+                tipoUsuario = tipoUsuario
             )
 
         }
