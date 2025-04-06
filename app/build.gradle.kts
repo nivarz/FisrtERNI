@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.eriknivar.firebasedatabase"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -78,6 +78,8 @@ dependencies {
     implementation(libs.zxing.android.embedded)
     implementation(libs.coil.compose)
     implementation(libs.androidx.runtime.livedata)
+    implementation (libs.apache.poi)
+    implementation (libs.poi.ooxml)
 
 
     testImplementation(libs.junit)

@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -19,9 +18,7 @@ import com.google.firebase.firestore.firestore
 
 @Composable
 fun InventoryReportsFragment(
-    navController: NavHostController,
-    isConnected: State<Boolean>,
-    userViewModel: UserViewModel
+    navController: NavHostController, isConnected: State<Boolean>, userViewModel: UserViewModel
 ) {
     val allData = remember { mutableStateListOf<DataFields>() }
     val usuario by userViewModel.nombre.observeAsState("")
@@ -38,14 +35,15 @@ fun InventoryReportsFragment(
 
             InventoryReportFiltersScreen(
                 userViewModel = userViewModel,
-                allData = allData,
-                onExport = {
-                    Log.d("Export", "Exportar PDF/Excel")
-                }
+                allData = allData
             )
+
         }
     }
 }
+
+
+
 
 
 
