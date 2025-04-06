@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -18,11 +19,11 @@ import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFrag
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
 import com.eriknivar.firebasedatabase.view.storagetype.SelectStorageFragment
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-
 
 @Composable
 fun NetworkAwareNavGraph() {
@@ -32,6 +33,8 @@ fun NetworkAwareNavGraph() {
     val showRestoredBanner = remember { mutableStateOf(false) }
 
     val navController = rememberNavController()
+    val userViewModel: UserViewModel = viewModel()
+
 
     DisposableEffect(Unit) {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -67,15 +70,15 @@ fun NetworkAwareNavGraph() {
 
 
     NavHost(navController = navController, startDestination = "login") {
-        composable("login") { LoginScreen(navController, isConnected) }
-        composable("storagetype") { SelectStorageFragment(navController, isConnected) }
+        composable("login") { LoginScreen(navController, isConnected, userViewModel) }
+        composable("storagetype") { SelectStorageFragment(navController, isConnected, userViewModel) }
         composable("inventoryentry/{storageType}") { backStackEntry ->
             val storageType = backStackEntry.arguments?.getString("storageType")
-            FirestoreApp(navController, isConnected = isConnected, storageType = storageType.orEmpty())}
+            FirestoreApp(navController, isConnected = isConnected, storageType = storageType.orEmpty(), userViewModel)}
 
-            composable("inventoryreports") { InventoryReportsFragment(navController, isConnected) }
-        composable("editscounts") { EditCountsFragment(navController, isConnected) }
-        composable("masterdata") { MasterDataFragment(navController, isConnected) }
+            composable("inventoryreports") { InventoryReportsFragment(navController, isConnected, userViewModel) }
+        composable("editscounts") { EditCountsFragment(navController, isConnected, userViewModel) }
+        composable("masterdata") { MasterDataFragment(navController, isConnected, userViewModel) }
     }
 }
 

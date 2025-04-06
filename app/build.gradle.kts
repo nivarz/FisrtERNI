@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.androidx.icons.extended)
     implementation(libs.zxing.android.embedded)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.runtime.livedata)
 
 
     testImplementation(libs.junit)

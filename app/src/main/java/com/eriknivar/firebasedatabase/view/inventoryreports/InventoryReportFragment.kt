@@ -16,13 +16,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
 @Composable
-fun InventoryReportsFragment(navController: NavHostController, isConnected: State<Boolean>) {
+fun InventoryReportsFragment(navController: NavHostController, isConnected: State<Boolean>, userViewModel: UserViewModel) {
 
     ScreenWithNetworkBanner(isConnected) {
 
-        NavigationDrawer(navController, "Reportes del Inventario") {
+        NavigationDrawer(navController, "Reportes del Inventario", userViewModel) {
 
             Box {
                 Text(

@@ -15,11 +15,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,13 +29,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.CoroutineScope
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+
 
 @Composable
-fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
+fun OutlinedTextFieldsInputs(
+    productoDescripcion: MutableState<String>,
+    snackbarHostState: SnackbarHostState,
+    coroutineScope: CoroutineScope,
+    userViewModel: UserViewModel
+) {
 
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
@@ -71,10 +83,15 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
     var errorMessage2 by remember { mutableStateOf("") }
     var errorMessage3 by remember { mutableStateOf("") }
 
-
     val shouldRequestFocus = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusRequesterSku = remember { FocusRequester() }
+
+    val usuario by userViewModel.nombre.observeAsState("")
+    val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
+
+
 
 
 
@@ -87,7 +104,7 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
 
     LaunchedEffect(Unit) {
-        fetchDataFromFirestore(firestore, allData)
+        fetchDataFromFirestore(firestore, allData, usuario)
     }
 
     Column(
@@ -147,6 +164,10 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
 
         Button(
             onClick = {
+
+                focusManager.clearFocus()
+                keyboardController?.hide()
+
                 if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
                     showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                     showErrorLocation.value = true
@@ -195,8 +216,13 @@ fun OutlinedTextFieldsInputs(productoDescripcion: MutableState<String>) {
                         dateText.value,
                         quantity.value.toDoubleOrNull() ?: 0.0,
                         unidadMedida.value,
-                        allData
+                        allData,
+                        usuario = userViewModel.nombre.value ?: "",
+                        snackbarHostState,
+                        coroutineScope
+
                     )
+
                     sku.value = ""
                     lot.value = ""
                     dateText.value = ""

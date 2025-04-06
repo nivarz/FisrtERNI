@@ -31,7 +31,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,16 +49,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.R
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NavigationDrawer(
-    navController: NavHostController, storageType: String, content: @Composable () -> Unit
+    navController: NavHostController,
+    storageType: String,
+    userViewModel: UserViewModel,
+    content: @Composable () -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    val userName by userViewModel.nombre.observeAsState("")
+    val userType by userViewModel.tipo.observeAsState("")
+
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
 
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
         ModalDrawerSheet {
@@ -92,14 +108,35 @@ fun NavigationDrawer(
 
                 }
 
+                Row(
+                    modifier = Modifier
+                        .padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Hola, ",
+                        fontSize = 25.sp,
+                        color = Color.Blue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = userName,
+                        fontSize = 20.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
                 Text(
-                    modifier = Modifier.padding(16.dp, 8.dp, 0.dp, 0.dp),
-                    text = "Hola, Erik",
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Blue,
-                    fontStyle = FontStyle.Normal,
+                    modifier = Modifier.padding(start = 16.dp, top = 0.dp, bottom = 8.dp),
+                    text = userType.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() },
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Gray,
+                    fontStyle = FontStyle.Italic
                 )
+
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
@@ -171,8 +208,11 @@ fun NavigationDrawer(
                     }
                 }
 
-                TextButton(modifier = Modifier.padding(),
-                    onClick = { navController.navigate("login") }) {
+                TextButton(
+                    modifier = Modifier.padding(),
+                    onClick = { showLogoutDialog = true } // 🔔 Mostrar el diálogo de confirmación
+                ) {
+
                     Row(
                         modifier = Modifier.padding(),
                     ) {
@@ -186,56 +226,80 @@ fun NavigationDrawer(
                     }
                 }
             }
+            if (showLogoutDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showLogoutDialog = false },
+                    title = { Text("Cerrar sesión") },
+                    text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showLogoutDialog = false
+                            userViewModel.clearUser() // 🧹 Limpiar los datos del usuario
+                            navController.navigate("login") // ✅ Cierra sesión
+                        }) {
+                            Text("Sí")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLogoutDialog = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
+
         }
     })// El ModalNavigationDrawer tiene que contener el Scaffold
 
 
     {
 
+
         val customColorBackGround = Color(0xFF527782)
 
-        Scaffold(topBar = {
-            TopAppBar(navigationIcon = {
-                IconButton(onClick = {
+        Scaffold(
+            topBar = {
+                TopAppBar(navigationIcon = {
+                    IconButton(onClick = {
 
-                    scope.launch {
-                        if (drawerState.isClosed) {
-                            drawerState.open()
-                        } else {
-                            drawerState.close()
+                        scope.launch {
+                            if (drawerState.isClosed) {
+                                drawerState.open()
+                            } else {
+                                drawerState.close()
+                            }
                         }
+
+
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp),
+                            contentDescription = "Menu"
+
+                        )
                     }
 
+                }, colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = customColorBackGround, titleContentColor = Color.Black,
+                ), title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.weight(0.85f)) // Empuja el texto al centro
 
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        tint = Color.White,
-                        modifier = Modifier.size(30.dp),
-                        contentDescription = "Menu"
+                        Text(
+                            text = storageType,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
 
-                    )
-                }
-
-            }, colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = customColorBackGround, titleContentColor = Color.Black,
-            ), title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.weight(0.85f)) // Empuja el texto al centro
-
-                    Text(
-                        text = storageType,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    )
-
-                    Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
-                }
-            })
-        }) { innerPadding ->
+                        Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
+                    }
+                })
+            }) { innerPadding ->
             Column(
                 modifier = Modifier
                     .padding(innerPadding)

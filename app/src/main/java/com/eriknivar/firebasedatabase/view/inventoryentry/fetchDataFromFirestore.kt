@@ -7,7 +7,8 @@ import java.util.*
 
 fun fetchDataFromFirestore(
     db: FirebaseFirestore,
-    allData: MutableList<DataFields>
+    allData: MutableList<DataFields>,
+    usuario: String
 ) {
 
     val calendar = Calendar.getInstance()
@@ -20,6 +21,7 @@ fun fetchDataFromFirestore(
 
     db.collection("inventario")
         .whereGreaterThanOrEqualTo("fechaRegistro", startOfDay) // 🔥 Filtra solo registros de hoy
+        .whereEqualTo("usuario", usuario)// 👈 Filtra solo los registros del usuario logueado
         .get()
         .addOnSuccessListener { result ->
             allData.clear()
@@ -42,7 +44,8 @@ fun fetchDataFromFirestore(
                         quantity,
                         document.getString("descripcion") ?: "",
                         unidadMedida,
-                        fechaRegistro // ✅ Agregar la fecha al objeto
+                        fechaRegistro, // ✅ Agregar la fecha al objeto
+                        usuario
                     )
                 )
             }

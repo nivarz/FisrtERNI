@@ -63,6 +63,7 @@ fun MessageCard(
     var confirmDeletion by remember { mutableStateOf(false) }
 
 
+
     if (showDialog) {
         AlertDialog(onDismissRequest = { showDialog = true },
             title = { Text("Confirmar eliminación") },
@@ -236,6 +237,7 @@ fun MessageCard(
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
                 onClick = {
                     updateFirestore(
+                        context,
                         db,
                         documentId,
                         editedLocation,

@@ -151,7 +151,7 @@ fun OutlinedTextFieldsInputsSku(
         Text(
             text = unidadMedida.value, // 🔥 Aquí se muestra la UM
             fontSize = 22.sp,
-            color = Color.Black,
+            color = Color.White,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
             modifier = Modifier.padding(8.dp).background(color = Color.Red)
         )

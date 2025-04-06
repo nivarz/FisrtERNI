@@ -16,14 +16,15 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
 
 @Composable
-fun MasterDataFragment(navController: NavHostController, isConnected: State<Boolean>) {
+fun MasterDataFragment(navController: NavHostController, isConnected: State<Boolean>, userViewModel: UserViewModel) {
 
     ScreenWithNetworkBanner(isConnected){
 
-        NavigationDrawer(navController, "Datos Maestro") {
+        NavigationDrawer(navController, "Datos Maestro", userViewModel) {
 
             Box {
                 Text(

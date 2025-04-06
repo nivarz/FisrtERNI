@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,13 +21,18 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.R
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
 @Composable
-fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>) {
+fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>, userViewModel: UserViewModel) {
     val customColorBackGroundScreenLogin = Color(0xFF527782)
 
-    ScreenWithNetworkBanner(isConnected) {
 
+    // 🔹 Estado elevado para compartir entre campos y botón
+    val username = remember { mutableStateOf("") }
+    val password = remember { mutableStateOf("") }
+
+    ScreenWithNetworkBanner(isConnected) {
         Scaffold { innerPadding ->
             Box(
                 modifier = Modifier
@@ -34,31 +41,31 @@ fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>) {
                     .background(customColorBackGroundScreenLogin),
             ) {
                 Column(
-
-                    horizontalAlignment = Alignment.CenterHorizontally, // 🔹 Centra horizontalmente
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 8.dp) // 🔹 Ajuste fino del padding
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.logoerni),
                         contentDescription = "Logo ERNI",
                         modifier = Modifier
-                            .height(250.dp) // 🔹 Puedes controlar el tamaño para evitar que se vea tan grande
-                            .padding(bottom = 12.dp) // 🔹 Separación más suave antes del TextField
+                            .height(250.dp)
+                            .padding(bottom = 12.dp)
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 🔹 Campos de usuario y contraseña
-                    TextFieldsLogin(navController)
+                    // 🔹 Pasa los estados aquí
+                    TextFieldsLogin(username, password)
 
-                    Spacer(modifier = Modifier.height(16.dp)) // 🔹 Ajuste de espacio
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // 🔹 Botón colocado dentro de la `Column`
-                    LoginButton(navController)
+                    // 🔹 Pasa los estados al botón
+                    LoginButton(navController, username, password, userViewModel)
                 }
             }
         }
     }
 }
+

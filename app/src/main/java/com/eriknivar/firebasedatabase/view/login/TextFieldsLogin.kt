@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,31 +28,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 
 @Composable
-fun TextFieldsLogin(navController: NavHostController) {
+fun TextFieldsLogin(
+    username: MutableState<String>,
+    password: MutableState<String>
+) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp), // 🔹 Espaciado uniforme entre elementos
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .fillMaxWidth() // 🔹 Evita ocupar toda la pantalla
-            .padding(16.dp, 0.dp, 16.dp, 16.dp) // 🔹 Ajuste del espacio superior
+            .fillMaxWidth()
+            .padding(16.dp, 0.dp, 16.dp, 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        var username by remember { mutableStateOf("") }
-
         OutlinedTextField(
             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = "User") },
             label = { Text("Usuario", color = Color.White, fontWeight = FontWeight.Thin) },
-            value = username,
-            onValueChange = { username = it.uppercase() },
+            value = username.value,
+            onValueChange = { username.value = it.uppercase() },
             singleLine = true,
             maxLines = 1,
-            modifier = Modifier.fillMaxWidth() // 🔹 Ocupar el ancho disponible
+            modifier = Modifier.fillMaxWidth()
         )
 
-        var password by remember { mutableStateOf("") }
         var showPassword by remember { mutableStateOf(false) }
 
         OutlinedTextField(
@@ -65,12 +65,12 @@ fun TextFieldsLogin(navController: NavHostController) {
                 }
             },
             label = { Text("Contraseña", color = Color.White, fontWeight = FontWeight.Thin) },
-            value = password,
-            onValueChange = { password = it },
+            value = password.value,
+            onValueChange = { password.value = it },
             singleLine = true,
             maxLines = 1,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth() // 🔹 Ocupar el ancho disponible
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

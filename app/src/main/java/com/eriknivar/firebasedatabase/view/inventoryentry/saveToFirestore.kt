@@ -1,8 +1,12 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 fun saveToFirestore(
     db: FirebaseFirestore,
@@ -13,7 +17,11 @@ fun saveToFirestore(
     expirationDate: String,
     quantity: Double,
     unidadMedida: String, // 🆕 Guardamos la UM en Firestore
-    allData: MutableList<DataFields>
+    allData: MutableList<DataFields>,
+    usuario: String,
+    snackbarHostState: SnackbarHostState,
+    coroutineScope: CoroutineScope
+
 ) {
     val data = hashMapOf(
         "ubicacion" to location,
@@ -23,7 +31,8 @@ fun saveToFirestore(
         "fechaVencimiento" to expirationDate,
         "cantidad" to quantity,
         "unidadMedida" to unidadMedida, // 🆕 Guardamos la UM en Firestore
-        "fechaRegistro" to Timestamp.now()
+        "fechaRegistro" to Timestamp.now(),
+        "usuario" to usuario
     )
 
     db.collection("inventario")
@@ -39,9 +48,20 @@ fun saveToFirestore(
                     quantity,
                     description,
                     unidadMedida, // 🆕 Guardamos la UM en Firestore
-                    Timestamp.now()
+                    Timestamp.now(),
+                    usuario
+
                 )
             )
+
+            // ✅ Muestra el snackbar desde un scope seguro
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "Registro guardado exitosamente",
+                    duration = SnackbarDuration.Short
+                )
+            }
+
         }
         .addOnFailureListener { e ->
             println("Error al guardar: $e")
