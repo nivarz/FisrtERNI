@@ -1,48 +1,52 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.util.Log
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
+
 
 @Composable
-fun InventoryReportsFragment(navController: NavHostController, isConnected: State<Boolean>, userViewModel: UserViewModel) {
+fun InventoryReportsFragment(
+    navController: NavHostController,
+    isConnected: State<Boolean>,
+    userViewModel: UserViewModel
+) {
+    val allData = remember { mutableStateListOf<DataFields>() }
+    val usuario by userViewModel.nombre.observeAsState("")
 
     ScreenWithNetworkBanner(isConnected) {
-
         NavigationDrawer(navController, "Reportes del Inventario", userViewModel) {
 
-            Box {
-                Text(
-                    "Reportes del Inventario",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-
-
-
-                BackHandler(true)
-                {
-                    Log.i("LOG_TAG", "Clicked back")//Desabilitar el boton de atras
+            LaunchedEffect(usuario) {
+                if (usuario.isNotEmpty()) {
+                    val firestore = Firebase.firestore
+                    fetchFilteredInventoryByUser(firestore, allData, usuario)
                 }
             }
+
+            InventoryReportFiltersScreen(
+                userViewModel = userViewModel,
+                allData = allData,
+                onExport = {
+                    Log.d("Export", "Exportar PDF/Excel")
+                }
+            )
         }
     }
 }
+
+
+
+

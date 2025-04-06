@@ -2,7 +2,6 @@ package com.eriknivar.firebasedatabase.view.storagetype
 
 import com.google.firebase.Timestamp
 
-
 data class DataFields (
     val documentId: String,
     val location: String,
