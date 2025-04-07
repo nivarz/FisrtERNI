@@ -14,7 +14,4 @@ data class DataFields (
     val fechaRegistro: Timestamp?, // 🔥 Agrega el campo con valor por defecto `null`
     val usuario: String
 
-
-
-
 )

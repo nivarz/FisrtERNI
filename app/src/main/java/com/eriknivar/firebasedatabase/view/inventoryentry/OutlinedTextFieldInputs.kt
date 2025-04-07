@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -49,8 +50,7 @@ fun OutlinedTextFieldsInputs(
 
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
-    val unidadMedida =
-        remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
+    val unidadMedida = remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
@@ -89,10 +89,50 @@ fun OutlinedTextFieldsInputs(
 
     val usuario by userViewModel.nombre.observeAsState("")
     val focusManager = LocalFocusManager.current
-        val keyboardController = LocalSoftwareKeyboardController.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // ✅ Estado para asegurarnos que se restaura solo una vez
+    val restored = remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        userViewModel.nombre.observeForever { nuevoNombre ->
+            if (nuevoNombre.isEmpty()) {
+                if (
+                    sku.value.isNotBlank() ||
+                    lot.value.isNotBlank() ||
+                    quantity.value.isNotBlank() ||
+                    location.value.isNotBlank() ||
+                    dateText.value.isNotBlank()
+                ) {
+                    userViewModel.guardarValoresTemporalmente(
+                        sku.value,
+                        lot.value,
+                        quantity.value,
+                        location.value,
+                        dateText.value
+                    )
+
+                    Log.d("TEMPORAL", "✅ Guardado CORRECTO antes de logout")
+                } else {
+                    Log.d("TEMPORAL", "⚠️ Evitado guardado de campos vacíos")
+                }
+            }
+        }
+    }
 
 
+    LaunchedEffect(Unit) {
+        if (!restored.value) {
+            sku.value = userViewModel.tempSku
+            lot.value = userViewModel.tempLote
+            quantity.value = userViewModel.tempCantidad
+            location.value = userViewModel.tempUbicacion
+            dateText.value = userViewModel.tempFecha
+            restored.value = true
 
+            Log.d("TEMPORAL", "✅ Restauración visual aplicada")
+        }
+    }
 
 
     LaunchedEffect(shouldRequestFocus.value) {
@@ -103,9 +143,12 @@ fun OutlinedTextFieldsInputs(
     }
 
 
-    LaunchedEffect(Unit) {
-        fetchDataFromFirestore(firestore, allData, usuario)
+    LaunchedEffect(usuario) {
+        if (usuario.isNotEmpty()) {
+            fetchDataFromFirestore(firestore, allData, usuario)
+        }
     }
+
 
     Column(
         modifier = Modifier
@@ -230,9 +273,13 @@ fun OutlinedTextFieldsInputs(
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
 
+                    // ✅ Solo si se grabó exitosamente
+                    userViewModel.limpiarValoresTemporales()
                 }
 
+
             },
+
 
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF003366), // Azul marino

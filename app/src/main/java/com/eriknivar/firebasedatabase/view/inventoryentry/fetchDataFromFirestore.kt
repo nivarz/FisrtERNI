@@ -1,8 +1,10 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import java.util.*
 
 fun fetchDataFromFirestore(
@@ -22,6 +24,8 @@ fun fetchDataFromFirestore(
     db.collection("inventario")
         .whereGreaterThanOrEqualTo("fechaRegistro", startOfDay) // 🔥 Filtra solo registros de hoy
         .whereEqualTo("usuario", usuario)// 👈 Filtra solo los registros del usuario logueado
+        .orderBy("fechaRegistro", Query.Direction.DESCENDING)
+
         .get()
         .addOnSuccessListener { result ->
             allData.clear()
@@ -53,5 +57,7 @@ fun fetchDataFromFirestore(
         .addOnFailureListener { e ->
             println("Error al obtener datos: $e")
         }
+    Log.d("Firestore", "Registros cargados: ${allData.size}")
+
 }
 
