@@ -73,7 +73,9 @@ fun FirestoreApp(
                             productoDescripcion = productoDescripcion,
                             userViewModel = userViewModel,
                             snackbarHostState = snackbarHostState,
-                            coroutineScope = coroutineScope
+                            coroutineScope = coroutineScope,
+                            localidad = storageType
+
                         )
                     }
 

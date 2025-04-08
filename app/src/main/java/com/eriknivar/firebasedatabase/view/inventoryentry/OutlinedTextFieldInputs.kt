@@ -45,7 +45,8 @@ fun OutlinedTextFieldsInputs(
     productoDescripcion: MutableState<String>,
     snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+    localidad: String
 ) {
 
     val sku = remember { mutableStateOf("") }
@@ -262,7 +263,8 @@ fun OutlinedTextFieldsInputs(
                         allData,
                         usuario = userViewModel.nombre.value ?: "",
                         snackbarHostState,
-                        coroutineScope
+                        coroutineScope,
+                        localidad = localidad
 
                     )
 

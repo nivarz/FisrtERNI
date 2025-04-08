@@ -20,7 +20,8 @@ fun saveToFirestore(
     allData: MutableList<DataFields>,
     usuario: String,
     snackbarHostState: SnackbarHostState,
-    coroutineScope: CoroutineScope
+    coroutineScope: CoroutineScope,
+    localidad: String
 
 ) {
     val data = hashMapOf(
@@ -32,7 +33,8 @@ fun saveToFirestore(
         "cantidad" to quantity,
         "unidadMedida" to unidadMedida, // 🆕 Guardamos la UM en Firestore
         "fechaRegistro" to Timestamp.now(),
-        "usuario" to usuario
+        "usuario" to usuario,
+        "localidad" to localidad
     )
 
     db.collection("inventario")
@@ -49,7 +51,8 @@ fun saveToFirestore(
                     description,
                     unidadMedida, // 🆕 Guardamos la UM en Firestore
                     Timestamp.now(),
-                    usuario
+                    usuario,
+                    localidad
 
                 )
             )

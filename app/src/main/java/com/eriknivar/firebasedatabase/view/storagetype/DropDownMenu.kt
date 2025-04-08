@@ -14,22 +14,37 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 
 @Composable
 fun DropDownUpScreen(navController: NavHostController) {
+    val firestore = Firebase.firestore
+    val localidades = remember { mutableStateListOf<String>() }
+
+    var valueText by remember { mutableStateOf("") }
+    var expandedDropdown by remember { mutableStateOf(false) }
+
+    // 🔄 Cargar localidades desde Firebase (nueva estructura)
+    LaunchedEffect(Unit) {
+        firestore.collection("localidades")
+            .get()
+            .addOnSuccessListener { result ->
+                localidades.clear()
+                localidades.addAll(result.mapNotNull { it.getString("nombre") })
+            }
+    }
 
     Column(modifier = Modifier.padding()) {
-
-        var valueText by remember { mutableStateOf("") }
-        var expandedDropdown by remember { mutableStateOf(false) }
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -37,9 +52,10 @@ fun DropDownUpScreen(navController: NavHostController) {
         ) {
 
             TextField(
-                label = { Text(text = "Tipos de Almacenes") },
+                label = { Text(text = "Localidades") },
                 modifier = Modifier.fillMaxWidth(),
-                value = valueText, onValueChange = { newText -> valueText = newText },
+                value = valueText,
+                onValueChange = { newText -> valueText = newText },
                 singleLine = true,
                 maxLines = 1,
                 trailingIcon = {
@@ -49,37 +65,26 @@ fun DropDownUpScreen(navController: NavHostController) {
                             contentDescription = "Icono desplegable"
                         )
                     }
-
                 }
-
             )
 
             DropdownMenu(
-
                 modifier = Modifier.fillMaxWidth(fraction = 0.91f),
-                expanded = expandedDropdown, onDismissRequest = { expandedDropdown = false }) {
-
-                DropdownMenuItem(text = { Text(text = "Almacen 1") }, onClick = {
-                    valueText = "Almacen 1"
-                    expandedDropdown = false
-                    navController.navigate("inventoryentry/${valueText}")
-                })
-                DropdownMenuItem(text = { Text(text = "Almacen 2") }, onClick = {
-                    valueText = "Almacen 2"
-                    expandedDropdown = false
-                    navController.navigate("inventoryentry/${valueText}")
-                })
-                DropdownMenuItem(text = { Text(text = "Almacen 3") }, onClick = {
-                    valueText = "Almacen 3"
-                    expandedDropdown = false
-                    navController.navigate("inventoryentry/${valueText}")
-                })
-
-
+                expanded = expandedDropdown,
+                onDismissRequest = { expandedDropdown = false }
+            ) {
+                localidades.forEach { localidad ->
+                    DropdownMenuItem(
+                        text = { Text(text = localidad) },
+                        onClick = {
+                            valueText = localidad
+                            expandedDropdown = false
+                            navController.navigate("inventoryentry/${valueText}")
+                        }
+                    )
+                }
             }
-
-
         }
     }
-
 }
+

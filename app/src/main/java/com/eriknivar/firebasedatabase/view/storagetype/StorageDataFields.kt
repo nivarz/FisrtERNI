@@ -12,6 +12,7 @@ data class DataFields (
     val description: String,
     val unidadMedida: String, // 🆕 Unidad de medida
     val fechaRegistro: Timestamp?, // 🔥 Agrega el campo con valor por defecto `null`
-    val usuario: String
+    val usuario: String,
+    val localidad: String
 
 )

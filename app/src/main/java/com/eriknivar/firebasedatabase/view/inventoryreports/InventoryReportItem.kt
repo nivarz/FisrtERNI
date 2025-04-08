@@ -48,16 +48,18 @@ fun InventoryReportItem(item: DataFields) {
 
             if (expanded) {
                 Spacer(modifier = Modifier.height(8.dp))
-                InfoRow("Usuario:", item.usuario)
                 InfoRow("Ubicación:", item.location)
+                InfoRow("Sku:", item.sku)
                 InfoRow("Lote:", item.lote)
                 InfoRow("Fecha Vencimiento:", item.expirationDate)
-                InfoRow("Cantidad:", "${item.quantity} ${item.unidadMedida}")
+                InfoRow("Cantidad:", "${item.quantity}")
                 InfoRow("Unidad de medida:", item.unidadMedida)
-                }
+                InfoRow("Usuario:", item.usuario)
+                InfoRow("Localidad:",item.localidad)
             }
         }
     }
+}
 
 
 

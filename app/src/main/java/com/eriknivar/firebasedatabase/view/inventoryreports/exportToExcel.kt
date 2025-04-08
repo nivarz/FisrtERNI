@@ -13,7 +13,7 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
 
         // Crear encabezado
         val headerRow = sheet.createRow(0)
-        val headers = listOf("SKU", "Descripción", "Usuario", "Ubicación", "Lote", "F.Vencimiento", "Cantidad", "U.Medida", "F.Registro")
+        val headers = listOf("Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento", "Cantidad", "U.Medida", "Usuario", "F.Registro")
         headers.forEachIndexed { index, title ->
             headerRow.createCell(index).setCellValue(title)
         }
@@ -21,14 +21,14 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
         // Agregar los datos
         data.forEachIndexed { rowIndex, item ->
             val row = sheet.createRow(rowIndex + 1)
-            row.createCell(0).setCellValue(item.sku)
-            row.createCell(1).setCellValue(item.description)
-            row.createCell(2).setCellValue(item.usuario)
-            row.createCell(3).setCellValue(item.location)
-            row.createCell(4).setCellValue(item.lote)
-            row.createCell(5).setCellValue(item.expirationDate)
-            row.createCell(6).setCellValue(item.quantity)
-            row.createCell(7).setCellValue(item.unidadMedida)
+            row.createCell(0).setCellValue(item.location)
+            row.createCell(1).setCellValue(item.sku)
+            row.createCell(2).setCellValue(item.description)
+            row.createCell(3).setCellValue(item.lote)
+            row.createCell(4).setCellValue(item.expirationDate)
+            row.createCell(5).setCellValue(item.quantity)
+            row.createCell(6).setCellValue(item.unidadMedida)
+            row.createCell(7).setCellValue(item.usuario)
             row.createCell(8).setCellValue(item.fechaRegistro?.toDate().toString())
         }
 

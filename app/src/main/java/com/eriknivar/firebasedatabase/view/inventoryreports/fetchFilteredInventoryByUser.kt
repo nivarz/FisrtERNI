@@ -5,38 +5,41 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.firestore.FirebaseFirestore
 
-fun fetchFilteredInventoryByUser(
-    db: FirebaseFirestore,
-    allData: SnapshotStateList<DataFields>,
-    usuario: String
-) {
-    db.collection("inventario")
-        .whereEqualTo("usuario", usuario)
-        .get()
-        .addOnSuccessListener { result ->
-            Log.d("Firestore", "Total documentos obtenidos: ${result.size()}")
-            allData.clear()
-            result.documents.forEach { document ->
-                allData.add(
-                    DataFields(
-                        documentId = document.id,
-                        location = document.getString("ubicacion").orEmpty(),
-                        sku = document.getString("codigoProducto").orEmpty(),
-                        lote = document.getString("lote").orEmpty(),
-                        expirationDate = document.getString("fechaVencimiento").orEmpty(),
-                        quantity = document.getDouble("cantidad") ?: 0.0,
-                        description = document.getString("descripcion").orEmpty(),
-                        unidadMedida = document.getString("unidadMedida").orEmpty(),
-                        fechaRegistro = document.getTimestamp("fechaRegistro"),
-                        usuario = document.getString("usuario").orEmpty()
+    fun fetchFilteredInventoryByUser(
+        db: FirebaseFirestore,
+        allData: SnapshotStateList<DataFields>,
+        usuario: String
+    ) {
+        db.collection("inventario")
+            .whereEqualTo("usuario", usuario)
+            .get()
+            .addOnSuccessListener { result ->
+                Log.d("Firestore", "Total documentos obtenidos: ${result.size()}")
+                allData.clear()
+                result.documents.forEach { document ->
+                    allData.add(
+                        DataFields(
+                            documentId = document.id,
+                            location = document.getString("ubicacion").orEmpty(),
+                            sku = document.getString("codigoProducto").orEmpty(),
+                            lote = document.getString("lote").orEmpty(),
+                            expirationDate = document.getString("fechaVencimiento").orEmpty(),
+                            quantity = document.getDouble("cantidad") ?: 0.0,
+                            description = document.getString("descripcion").orEmpty(),
+                            unidadMedida = document.getString("unidadMedida").orEmpty(),
+                            fechaRegistro = document.getTimestamp("fechaRegistro"),
+                            usuario = document.getString("usuario").orEmpty(),
+                            localidad = document.getString("localidad") ?: ""
+
+
+                        )
                     )
-                )
+                }
             }
-        }
-        .addOnFailureListener { e ->
-            Log.e("Firestore", "Error al obtener datos", e)
-        }
-}
+            .addOnFailureListener { e ->
+                Log.e("Firestore", "Error al obtener datos", e)
+            }
+    }
 
 fun fetchAllInventory(
     db: FirebaseFirestore,
@@ -56,6 +59,8 @@ fun fetchAllInventory(
                 val fechaRegistro = document.getTimestamp("fechaRegistro")
                 val descripcion = document.getString("descripcion") ?: ""
                 val usuario = document.getString("usuario") ?: ""
+                val localidad = document.getString("localidad") ?: ""
+
 
                 allData.add(
                     DataFields(
@@ -68,7 +73,8 @@ fun fetchAllInventory(
                         descripcion,
                         unidadMedida,
                         fechaRegistro,
-                        usuario
+                        usuario,
+                        localidad
                     )
                 )
             }
