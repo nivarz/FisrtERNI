@@ -13,7 +13,7 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
 
         // Crear encabezado
         val headerRow = sheet.createRow(0)
-        val headers = listOf("Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento", "Cantidad", "U.Medida", "Usuario", "F.Registro")
+        val headers = listOf("Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento", "Cantidad", "U.Medida", "Usuario", "F.Registro", "Localidad")
         headers.forEachIndexed { index, title ->
             headerRow.createCell(index).setCellValue(title)
         }
@@ -30,6 +30,7 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             row.createCell(6).setCellValue(item.unidadMedida)
             row.createCell(7).setCellValue(item.usuario)
             row.createCell(8).setCellValue(item.fechaRegistro?.toDate().toString())
+            row.createCell(9).setCellValue(item.localidad)
         }
 
         // Guardar archivo

@@ -49,7 +49,8 @@ fun fetchDataFromFirestore(
                         document.getString("descripcion") ?: "",
                         unidadMedida,
                         fechaRegistro, // ✅ Agregar la fecha al objeto
-                        usuario
+                        usuario,
+                        localidad = document.getString("localidad") ?: "",
                     )
                 )
             }

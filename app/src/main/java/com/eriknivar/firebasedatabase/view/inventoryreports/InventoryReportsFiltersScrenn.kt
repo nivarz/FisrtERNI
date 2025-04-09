@@ -271,6 +271,7 @@ fun InventoryReportFiltersScreen(
                                     matchesSku && matchesLocation && matchesUser && matchesDate && matchesLocalidad
                                 }.sortedByDescending { it.fechaRegistro?.toDate() }
                             )
+                            filtrosExpandido.value = false // 🔽 Ocultar filtros al aplicar
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
