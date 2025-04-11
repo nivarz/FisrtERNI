@@ -1,8 +1,10 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -174,7 +176,8 @@ fun OutlinedTextFieldsInputs(
             productMap,
             showProductDialog,
             unidadMedida,
-            focusRequester = focusRequester
+            focusRequester = focusRequester,
+            keyboardController = keyboardController
 
         )
 
@@ -205,6 +208,13 @@ fun OutlinedTextFieldsInputs(
         )
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
 
         Button(
             onClick = {
@@ -294,6 +304,32 @@ fun OutlinedTextFieldsInputs(
         {
             Text("Grabar Registro")
         }
+// 🔘 Botón Limpiar
+            Button(
+                onClick = {
+                    sku.value = ""
+                    lot.value = ""
+                    dateText.value = ""
+                    quantity.value = ""
+                    productoDescripcion.value = ""
+                    unidadMedida.value = ""
+
+                    showErrorLocation.value = false
+                    showErrorSku.value = false
+                    showErrorQuantity.value = false
+
+                    focusRequester.requestFocus()           // ✅ Solicita el foco al campo SKU
+
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.DarkGray,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.fillMaxHeight(0.16f)
+            ) {
+                Text("Limpiar Campos")
+            }
+        }
 
         Box(modifier = Modifier.fillMaxWidth()) {
             HorizontalDivider(
@@ -304,7 +340,6 @@ fun OutlinedTextFieldsInputs(
                     .padding(8.dp)
             )
         }
-
 
 
         if (showDialog) {

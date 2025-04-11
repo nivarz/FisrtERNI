@@ -14,9 +14,9 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AddHome
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -174,22 +174,25 @@ fun NavigationDrawer(
                     }
                 }
 
-                TextButton(onClick = {
-                    navController.navigate("editscounts")
-                    scope.launch { drawerState.close() }
-                }) {
-                    Row(
-                        modifier = Modifier.padding(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.EditNote,
-                            contentDescription = "",
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Editar Conteo", color = Color.Black)
+                if (userViewModel.tipo.value == "admin") {
+                    TextButton(onClick = {
+                        navController.navigate("settings") // o "configuracion", según tu ruta real
+                        scope.launch { drawerState.close() }
+                    }) {
+                        Row(
+                            modifier = Modifier.padding(),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "",
+                                tint = Color.Black
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Configuración", color = Color.Black)
+                        }
                     }
                 }
+
 
                 TextButton(onClick = {
                     navController.navigate("masterdata")
@@ -249,11 +252,11 @@ fun NavigationDrawer(
             }
 
         }
-    })// El ModalNavigationDrawer tiene que contener el Scaffold
+    })
 
+        // El ModalNavigationDrawer tiene que contener el Scaffold
 
     {
-
 
         val customColorBackGround = Color(0xFF527782)
 

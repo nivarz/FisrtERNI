@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.eriknivar.firebasedatabase.view.editscounts.EditCountsFragment
+import com.eriknivar.firebasedatabase.view.editscounts.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
 import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFragment
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
@@ -37,7 +37,6 @@ fun NetworkAwareNavGraph(
     val wasDisconnected = remember { mutableStateOf(false) }
     val showRestoredBanner = remember { mutableStateOf(false) }
 
-
     val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
     val isInitialized = userViewModel.isInitialized.observeAsState(false).value
 
@@ -48,8 +47,6 @@ fun NetworkAwareNavGraph(
             }
         }
     }
-
-
 
     DisposableEffect(Unit) {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -92,7 +89,7 @@ fun NetworkAwareNavGraph(
             FirestoreApp(navController, isConnected = isConnected, storageType = storageType.orEmpty(), userViewModel)}
 
             composable("inventoryreports") { InventoryReportsFragment(navController, isConnected, userViewModel) }
-        composable("editscounts") { EditCountsFragment(navController, isConnected, userViewModel) }
+        composable("settings") { SettingsFragment(navController, isConnected, userViewModel) }
         composable("masterdata") { MasterDataFragment(navController, isConnected, userViewModel) }
         composable("splash") { SplashScreen(navController, userViewModel) }
     }

@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.app.DatePickerDialog
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eriknivar.firebasedatabase.view.inventoryentry.updateFirestore
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -95,22 +97,36 @@ fun InventoryReportFiltersScreen(
     }
 
     val startDatePickerDialog = remember {
-        DatePickerDialog(context, { _, y, m, d ->
-            calendar.set(y, m, d)
-            startDate.value = dateFormatter.format(calendar.time)
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+        DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                calendar.set(y, m, d)
+                startDate.value = dateFormatter.format(calendar.time)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
     }
 
     val endDatePickerDialog = remember {
-        DatePickerDialog(context, { _, y, m, d ->
-            calendar.set(y, m, d)
-            endDate.value = dateFormatter.format(calendar.time)
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+        DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                calendar.set(y, m, d)
+                endDate.value = dateFormatter.format(calendar.time)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
     }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
 
         // 🔽 Encabezado expandible
         Row(
@@ -137,11 +153,13 @@ fun InventoryReportFiltersScreen(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
                 fun limpiarFiltros() {
-                    usuarioFiltro.value = if (tipoUsuario == "admin") "" else userViewModel.nombre.value ?: ""
+                    usuarioFiltro.value =
+                        if (tipoUsuario == "admin") "" else userViewModel.nombre.value ?: ""
                     sku.value = ""
                     location.value = ""
                     startDate.value = ""
                     endDate.value = ""
+                    localidadSeleccionada.value = ""
                     filteredData.clear()
                     filteredData.addAll(allData.sortedByDescending { it.fechaRegistro?.toDate() })
                 }
@@ -254,18 +272,35 @@ fun InventoryReportFiltersScreen(
                             filteredData.clear()
                             filteredData.addAll(
                                 allData.filter { item ->
-                                    val matchesSku = sku.value.isBlank() || item.sku.contains(sku.value, true) || item.description.contains(sku.value, true)
-                                    val matchesLocation = location.value.isBlank() || item.location.contains(location.value, true)
-                                    val matchesUser = usuarioFiltro.value.isBlank() || item.usuario.contains(usuarioFiltro.value, true)
-                                    val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
+                                    val matchesSku = sku.value.isBlank() || item.sku.contains(
+                                        sku.value,
+                                        true
+                                    ) || item.description.contains(sku.value, true)
+                                    val matchesLocation =
+                                        location.value.isBlank() || item.location.contains(
+                                            location.value,
+                                            true
+                                        )
+                                    val matchesUser =
+                                        usuarioFiltro.value.isBlank() || item.usuario.contains(
+                                            usuarioFiltro.value,
+                                            true
+                                        )
+                                    val dateFormatted =
+                                        item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
 
                                     val matchesDate = try {
                                         (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
                                                 (endDate.value.isBlank() || dateFormatted <= endDate.value)
-                                    } catch (e: Exception) { true }
+                                    } catch (e: Exception) {
+                                        true
+                                    }
 
                                     val matchesLocalidad = localidadSeleccionada.value.isBlank() ||
-                                            item.localidad.equals(localidadSeleccionada.value, ignoreCase = true)
+                                            item.localidad.equals(
+                                                localidadSeleccionada.value,
+                                                ignoreCase = true
+                                            )
 
 
                                     matchesSku && matchesLocation && matchesUser && matchesDate && matchesLocalidad
@@ -274,7 +309,10 @@ fun InventoryReportFiltersScreen(
                             filtrosExpandido.value = false // 🔽 Ocultar filtros al aplicar
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = azulMarino,
+                            contentColor = Color.White
+                        )
 
                     ) {
                         Text("Aplicar filtros")
@@ -288,7 +326,10 @@ fun InventoryReportFiltersScreen(
                             file?.let { shareExcelFile(context, it) }
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = azulMarino,
+                            contentColor = Color.White
+                        )
 
                     ) {
                         Text("Exportar Excel")
@@ -300,7 +341,10 @@ fun InventoryReportFiltersScreen(
                 Button(
                     onClick = { limpiarFiltros() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = azulMarino, contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = azulMarino,
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Limpiar filtros")
                 }
@@ -316,7 +360,11 @@ fun InventoryReportFiltersScreen(
             elevation = CardDefaults.cardElevation(4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Total de Registros: ${filteredData.size}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(
+                    "Total de Registros: ${filteredData.size}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
             }
         }
 
@@ -326,14 +374,46 @@ fun InventoryReportFiltersScreen(
         if (filteredData.isEmpty()) {
             Text("No hay resultados", modifier = Modifier.padding(top = 8.dp))
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
+
+            LazyColumn {
                 items(filteredData) { item ->
-                    InventoryReportItem(item = item)
+                    InventoryReportItem(
+                        item = item,
+                        tipoUsuario = userViewModel.tipo.value ?: "",
+                        onDelete = { documentId ->
+                            Firebase.firestore.collection("inventario").document(documentId)
+                                .delete()
+                                .addOnSuccessListener {
+                                    Toast.makeText(
+                                        context,
+                                        "Registro eliminado",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    filteredData.removeIf { it.documentId == documentId }
+                                }
+                                .addOnFailureListener {
+                                    Toast.makeText(context, "Error al eliminar", Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                        },
+                        onEdit = { updatedItem ->
+                            updateFirestore(
+                                context,
+                                Firebase.firestore,
+                                updatedItem.documentId,
+                                updatedItem.location,
+                                updatedItem.sku,
+                                updatedItem.lote,
+                                updatedItem.expirationDate,
+                                updatedItem.quantity,
+                                filteredData
+                            )
+                        }
+                    )
                 }
             }
+
+
         }
     }
 }

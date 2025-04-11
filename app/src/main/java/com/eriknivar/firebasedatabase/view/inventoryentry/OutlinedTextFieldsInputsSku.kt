@@ -37,6 +37,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -50,15 +51,14 @@ import kotlinx.coroutines.delay
 @Composable
 fun OutlinedTextFieldsInputsSku(
     sku: MutableState<String>,
-    showErrorSku: MutableState<Boolean>,// 🔥 Ahora recibimos un MutableState
+    showErrorSku: MutableState<Boolean>,
     productoDescripcion: MutableState<String>,
     productList: MutableState<List<String>>,
     productMap: MutableState<Map<String, Pair<String, String>>>,
     showProductDialog: MutableState<Boolean>,
     unidadMedida: MutableState<String>,
-    focusRequester: FocusRequester, // 👈 NUEVO parámetro
-
-
+    focusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController? // 🔥 NUEVO parámetro
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
     val qrScanLauncherSku =
@@ -75,8 +75,6 @@ fun OutlinedTextFieldsInputsSku(
     val db = FirebaseFirestore.getInstance()
     val isLoadingProductos = remember { mutableStateOf(false) }
 
-
-
     LaunchedEffect(qrCodeContentSku.value) {
         sku.value = qrCodeContentSku.value.uppercase()
 
@@ -86,7 +84,6 @@ fun OutlinedTextFieldsInputsSku(
                 unidadMedida.value = unidadMedidaObtenida // ✅ Actualiza la unidad de medida
             }
             delay(200) // 🔁 Breve espera para estabilidad visual
-
         }
     }
 
@@ -101,6 +98,9 @@ fun OutlinedTextFieldsInputsSku(
                 .padding(4.dp)
                 .focusRequester(focusRequester)
                 .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        keyboardController?.hide() // 🔥 Oculta el teclado manualmente al enfocar
+                    }
                     if (!focusState.isFocused && sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
                         findProductDescription(db, sku.value) { descripcion ->
                             productoDescripcion.value = descripcion
@@ -203,8 +203,6 @@ fun OutlinedTextFieldsInputsSku(
             }
         }
 
-
-
         Spacer(modifier = Modifier.width(4.dp)) // 🔥 Espacio entre el campo y la UM
 
         // 📌 Texto para mostrar la unidad de medida
@@ -218,5 +216,5 @@ fun OutlinedTextFieldsInputsSku(
                 .background(color = Color.Red)
         )
     }
-
 }
+
