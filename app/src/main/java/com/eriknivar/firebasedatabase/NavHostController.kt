@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.eriknivar.firebasedatabase.view.editscounts.SettingsFragment
+import com.eriknivar.firebasedatabase.view.settings.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
 import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFragment
 import com.eriknivar.firebasedatabase.view.login.LoginScreen

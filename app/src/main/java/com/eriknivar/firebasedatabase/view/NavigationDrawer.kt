@@ -174,7 +174,7 @@ fun NavigationDrawer(
                     }
                 }
 
-                if (userViewModel.tipo.value == "admin") {
+                if (userViewModel.tipo.value == "Admin" || userViewModel.tipo.value == "Superuser") {
                     TextButton(onClick = {
                         navController.navigate("settings") // o "configuracion", según tu ruta real
                         scope.launch { drawerState.close() }

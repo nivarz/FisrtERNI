@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view.editscounts
+package com.eriknivar.firebasedatabase.view.settings
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -22,7 +22,7 @@ fun SettingsFragment(
         NavigationDrawer(navController, "Configuración", userViewModel) { // ✅ Aquí está el Drawer
 
             Box(modifier = Modifier.fillMaxSize()) {
-                ConfiguracionUsuariosScreen()
+                ConfiguracionUsuariosScreen(userViewModel = userViewModel)
 
                 BackHandler(true) {
                     Log.i("LOG_TAG", "Clicked back") // Desactiva el botón atrás

@@ -66,7 +66,6 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
 
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.crashlytics)
@@ -80,7 +79,7 @@ dependencies {
     implementation(libs.androidx.runtime.livedata)
     implementation (libs.apache.poi)
     implementation (libs.poi.ooxml)
-
+    implementation(libs.androidx.material3.v121)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
