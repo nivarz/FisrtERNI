@@ -3,6 +3,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +22,9 @@ fun saveToFirestore(
     usuario: String,
     snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
-    localidad: String
+    localidad: String,
+    tipoUsuarioCreador: String,
+    userViewModel: UserViewModel
 
 ) {
     val data = hashMapOf(
@@ -34,7 +37,9 @@ fun saveToFirestore(
         "unidadMedida" to unidadMedida, // 🆕 Guardamos la UM en Firestore
         "fechaRegistro" to Timestamp.now(),
         "usuario" to usuario,
-        "localidad" to localidad
+        "localidad" to localidad,
+        "tipoUsuarioCreador" to userViewModel.tipo.value.orEmpty() // ✅ aquí va
+
     )
 
     db.collection("inventario")
@@ -52,7 +57,8 @@ fun saveToFirestore(
                     unidadMedida, // 🆕 Guardamos la UM en Firestore
                     Timestamp.now(),
                     usuario,
-                    localidad
+                    localidad,
+                    tipoUsuarioCreador
 
                 )
             )

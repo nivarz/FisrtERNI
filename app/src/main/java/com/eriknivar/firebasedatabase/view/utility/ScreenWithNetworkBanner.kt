@@ -1,50 +1,40 @@
 package com.eriknivar.firebasedatabase.view.utility
 
-
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
-import kotlinx.coroutines.delay
 
 @Composable
 fun ScreenWithNetworkBanner(
-    isConnected: State<Boolean>,
+    showDisconnectedBanner: Boolean,
+    showRestoredBanner: Boolean,
+    onCloseDisconnected: () -> Unit,
+    onCloseRestored: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    val showRestoredBanner = remember { mutableStateOf(false) }
-    val wasDisconnected = remember { mutableStateOf(false) }
-
-    LaunchedEffect(isConnected.value) {
-        if (!isConnected.value) {
-            wasDisconnected.value = true
-        } else if (wasDisconnected.value) {
-            showRestoredBanner.value = true
-            wasDisconnected.value = false
-
-            delay(3000)
-            showRestoredBanner.value = false
-
-
-        }
-    }
-
     Column {
-        when {
-            !isConnected.value -> {
-                // 🔴 Mostrar banner rojo si no hay conexión
-                NetworkBanner(message = "¡Sin conexión a Internet!", backgroundColor = Color.Red)
-            }
+        if (showDisconnectedBanner && !showRestoredBanner) {
+            NetworkBanner(
+                message = "¡Sin conexión a Internet!",
+                backgroundColor = Color.Red,
+                onClose = onCloseDisconnected
+            )
+        }
 
-            showRestoredBanner.value -> {
-                // ✅ Mostrar banner verde cuando se recupere la conexión
-                NetworkBanner(message = "¡Conexión restaurada!", backgroundColor = Color(0xFF4CAF50))
-            }
+        if (showRestoredBanner && !showDisconnectedBanner) {
+            NetworkBanner(
+                message = "¡Conexión restaurada!",
+                backgroundColor = Color(0xFF4CAF50),
+                onClose = onCloseRestored
+            )
         }
 
         content()
     }
-
 }
+
+
+
 
 
 

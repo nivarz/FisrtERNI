@@ -20,19 +20,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.R
-import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
 @Composable
-fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>, userViewModel: UserViewModel) {
+fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) {
     val customColorBackGroundScreenLogin = Color(0xFF527782)
-
 
     // 🔹 Estado elevado para compartir entre campos y botón
     val username = remember { mutableStateOf("") }
     val password = remember { mutableStateOf("") }
 
-    ScreenWithNetworkBanner(isConnected) {
         Scaffold { innerPadding ->
             Box(
                 modifier = Modifier
@@ -67,5 +64,5 @@ fun LoginScreen(navController: NavHostController, isConnected: State<Boolean>, u
             }
         }
     }
-}
+
 

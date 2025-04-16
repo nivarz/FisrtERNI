@@ -91,7 +91,7 @@ fun InventoryReportFiltersScreen(
 
 
     LaunchedEffect(tipoUsuario, userViewModel.nombre) {
-        if (tipoUsuario != "admin") {
+        if (tipoUsuario != "admin" && tipoUsuario != "superuser") {
             usuarioFiltro.value = userViewModel.nombre.value ?: ""
         }
     }
@@ -152,9 +152,15 @@ fun InventoryReportFiltersScreen(
         AnimatedVisibility(visible = filtrosExpandido.value) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
+                val tipo = tipoUsuario.lowercase().trim()
+
                 fun limpiarFiltros() {
-                    usuarioFiltro.value =
-                        if (tipoUsuario == "admin") "" else userViewModel.nombre.value ?: ""
+                    usuarioFiltro.value = if (tipo == "invitado") {
+                        userViewModel.nombre.value ?: ""
+                    } else {
+                        ""
+                    }
+
                     sku.value = ""
                     location.value = ""
                     startDate.value = ""
@@ -164,12 +170,13 @@ fun InventoryReportFiltersScreen(
                     filteredData.addAll(allData.sortedByDescending { it.fechaRegistro?.toDate() })
                 }
 
+
                 OutlinedTextField(
                     value = usuarioFiltro.value,
                     onValueChange = { usuarioFiltro.value = it },
                     label = { Text("Usuario") },
                     singleLine = true,
-                    enabled = tipoUsuario == "admin",
+                    enabled = tipoUsuario.lowercase().trim() in listOf("admin", "superuser"),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -326,14 +333,17 @@ fun InventoryReportFiltersScreen(
                             file?.let { shareExcelFile(context, it) }
                         },
                         modifier = Modifier.weight(1f),
+                        enabled = tipo != "invitado", // ✅ deshabilitado para invitados
                         colors = ButtonDefaults.buttonColors(
                             containerColor = azulMarino,
-                            contentColor = Color.White
+                            contentColor = Color.White,
+                            disabledContainerColor = Color.LightGray, // opcional: color deshabilitado
+                            disabledContentColor = Color.DarkGray      // opcional: texto deshabilitado
                         )
-
                     ) {
                         Text("Exportar Excel")
                     }
+
                 }
 
                 val azulMarino = Color(0xFF001F5B)
@@ -379,7 +389,7 @@ fun InventoryReportFiltersScreen(
                 items(filteredData) { item ->
                     InventoryReportItem(
                         item = item,
-                        tipoUsuario = userViewModel.tipo.value ?: "",
+                        userViewModel = userViewModel, // ✅ aquí el cambio
                         onDelete = { documentId ->
                             Firebase.firestore.collection("inventario").document(documentId)
                                 .delete()

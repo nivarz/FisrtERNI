@@ -65,6 +65,7 @@ fun MyApp(
 ) {
     val navController = rememberNavController()
 
+
     // Solicita permiso de cámara y arranca el timer
     LaunchedEffect(Unit) {
         requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)

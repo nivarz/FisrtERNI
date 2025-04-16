@@ -13,9 +13,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -57,8 +58,11 @@ fun ConfiguracionUsuariosScreen(
     var usuario by remember { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
     var tipo by remember { mutableStateOf("") }
-    val tipoOpciones = listOf("Admin", "Invitado")
+    val tipoOpciones = listOf("admin", "invitado")
     var expandedTipo by remember { mutableStateOf(false) }
+
+    val navyBlue = Color(0xFF001F5B)
+
 
     // 🔁 Cargar usuarios al iniciar
     LaunchedEffect(Unit) {
@@ -73,7 +77,7 @@ fun ConfiguracionUsuariosScreen(
                     val tipoDoc = document.getString("tipo") ?: ""
 
                     val tipoUsuarioActual = userViewModel.tipo.value ?: ""
-                    if (tipoUsuarioActual == "Admin" && tipoDoc == "Superuser") continue
+                    if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
                     usuarios.add(Usuario(document.id, nombreDoc, usuarioDoc, contrasenaDoc, tipoDoc))
                 }
@@ -84,7 +88,10 @@ fun ConfiguracionUsuariosScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Button(
+        ElevatedButton(
+            colors = ButtonDefaults.buttonColors(
+                containerColor = navyBlue, contentColor = Color.White
+            ),
             onClick = {
                 selectedUser = null
                 nombre = ""
@@ -127,7 +134,7 @@ fun ConfiguracionUsuariosScreen(
                                 append(user.tipo)
                             })
                         }
-                        if (user.tipo != "Superuser") {
+                        if (user.tipo != "superuser") {
                             Row {
                                 IconButton(onClick = {
                                     selectedUser = user

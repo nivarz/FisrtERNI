@@ -29,13 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
 fun InventoryReportItem(
     item: DataFields,
-    tipoUsuario: String,
+    userViewModel: UserViewModel,
     onDelete: (String) -> Unit,
     onEdit: (DataFields) -> Unit
 ) {
@@ -82,7 +83,7 @@ fun InventoryReportItem(
                 InfoRow("Usuario:", item.usuario)
                 InfoRow("Localidad:", item.localidad)
 
-                if (tipoUsuario == "admin") {
+                if (userViewModel.puedeModificarRegistro(item.usuario, item.tipoUsuarioCreador)) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

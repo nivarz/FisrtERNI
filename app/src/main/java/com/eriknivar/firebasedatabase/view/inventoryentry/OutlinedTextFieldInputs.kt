@@ -53,6 +53,7 @@ fun OutlinedTextFieldsInputs(
 
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
+    val qrCodeContentLot = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val unidadMedida = remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
@@ -216,109 +217,114 @@ fun OutlinedTextFieldsInputs(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
 
-        Button(
-            onClick = {
+            Button(
+                onClick = {
 
-                focusManager.clearFocus()
-                keyboardController?.hide()
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
 
-                if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                    showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                    showErrorLocation.value = true
-                    showErrorSku.value = true
-                    showErrorQuantity.value = true
+                    if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
+                        showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showErrorLocation.value = true
+                        showErrorSku.value = true
+                        showErrorQuantity.value = true
 
-                } else if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                    showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                    showErrorLocation.value = true
-                    showErrorSku.value = true
+                    } else if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
+                        showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showErrorLocation.value = true
+                        showErrorSku.value = true
 
-                } else if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
-                    lot.value = "N/A"
+                    } else if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
+                        lot.value = "N/A"
 
-                } else if (dateText.value.isEmpty()) {
-                    dateText.value = "N/A"
+                    } else if (dateText.value.isEmpty()) {
+                        dateText.value = "N/A"
 
-                } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
-                    errorMessage2 = "Producto No Encontrado"
-                    showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                    showErrorSku.value = true
+                    } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
+                        errorMessage2 = "Producto No Encontrado"
+                        showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showErrorSku.value = true
 
-                } else if (quantity.value == "0") {
-                    errorMessage = "No Admite cantidades 0"
-                    showDialogValueQuantityCero = true
+                    } else if (quantity.value == "0") {
+                        errorMessage = "No Admite cantidades 0"
+                        showDialogValueQuantityCero = true
 
-                } else {
-                    showErrorLocation.value = false
-                    showErrorSku.value = false
-                    errorMessage = ""
-                    showError1 = false
-                    errorMessage1 = ""
-                    showError2 = false
-                    errorMessage2 = ""
-                    showError3 = false
-                    errorMessage3 = ""
-                    shouldRequestFocus.value = true
-
-
-                    saveToFirestore(
-                        firestore,
-                        location.value,
-                        sku.value,
-                        productoDescripcion.value,
-                        lot.value,
-                        dateText.value,
-                        quantity.value.toDoubleOrNull() ?: 0.0,
-                        unidadMedida.value,
-                        allData,
-                        usuario = userViewModel.nombre.value ?: "",
-                        snackbarHostState,
-                        coroutineScope,
-                        localidad = localidad
-
-                    )
-
-                    sku.value = ""
-                    lot.value = ""
-                    dateText.value = ""
-                    quantity.value = ""
-                    productoDescripcion.value = ""
-                    unidadMedida.value = ""
-
-                    // ✅ Solo si se grabó exitosamente
-                    userViewModel.limpiarValoresTemporales()
-                }
+                    } else {
+                        showErrorLocation.value = false
+                        showErrorSku.value = false
+                        errorMessage = ""
+                        showError1 = false
+                        errorMessage1 = ""
+                        showError2 = false
+                        errorMessage2 = ""
+                        showError3 = false
+                        errorMessage3 = ""
+                        shouldRequestFocus.value = true
 
 
-            },
+                        saveToFirestore(
+                            firestore,
+                            location.value,
+                            sku.value,
+                            productoDescripcion.value,
+                            lot.value,
+                            dateText.value,
+                            quantity.value.toDoubleOrNull() ?: 0.0,
+                            unidadMedida.value,
+                            allData,
+                            usuario = userViewModel.nombre.value ?: "",
+                            snackbarHostState,
+                            coroutineScope,
+                            localidad = localidad,
+                            tipoUsuarioCreador = userViewModel.tipo.value ?: "",
+                            userViewModel
+
+                        )
+
+                        sku.value = ""
+                        lot.value = ""
+                        dateText.value = ""
+                        quantity.value = ""
+                        productoDescripcion.value = ""
+                        unidadMedida.value = ""
+
+                        // ✅ Solo si se grabó exitosamente
+                        userViewModel.limpiarValoresTemporales()
+                    }
 
 
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF003366), // Azul marino
-                contentColor = Color.White          // Color del texto
-            ),
+                },
 
-            modifier = Modifier.fillMaxHeight(0.16f)
-        )
 
-        {
-            Text("Grabar Registro")
-        }
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF003366), // Azul marino
+                    contentColor = Color.White          // Color del texto
+                ),
+
+                modifier = Modifier.fillMaxHeight(0.16f)
+            )
+
+            {
+                Text("Grabar Registro")
+            }
 // 🔘 Botón Limpiar
             Button(
                 onClick = {
+                    location.value = ""
                     sku.value = ""
                     lot.value = ""
                     dateText.value = ""
                     quantity.value = ""
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
+                    qrCodeContentSku.value = "" // 🔥 Esto elimina "Código No Encontrado"
+                    qrCodeContentLot.value = "" // 🔥 Esto elimina "Código No Encontrado"
 
                     showErrorLocation.value = false
                     showErrorSku.value = false
                     showErrorQuantity.value = false
 
-                    focusRequester.requestFocus()           // ✅ Solicita el foco al campo SKU
+                    focusRequester.requestFocus() // ✅ Solicita el foco al campo SKU
 
                 },
                 colors = ButtonDefaults.buttonColors(

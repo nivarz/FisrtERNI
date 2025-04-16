@@ -18,13 +18,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
-import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
 @Composable
 fun FirestoreApp(
     navController: NavHostController,
-    isConnected: State<Boolean>,
     storageType: String,
     userViewModel: UserViewModel
 ) {
@@ -32,7 +30,6 @@ fun FirestoreApp(
     val coroutineScope = rememberCoroutineScope()
     val productoDescripcion = remember { mutableStateOf("") }
 
-    ScreenWithNetworkBanner(isConnected = isConnected) {
         NavigationDrawer(navController, storageType, userViewModel) {
             Scaffold(
                 // ❌ Quitamos snackbarHost aquí, lo colocaremos manualmente en el centro
@@ -93,7 +90,7 @@ fun FirestoreApp(
             }
         }
     }
-}
+
 
 
 

@@ -5,48 +5,63 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.firestore.FirebaseFirestore
 
-    fun fetchFilteredInventoryByUser(
-        db: FirebaseFirestore,
-        allData: SnapshotStateList<DataFields>,
-        usuario: String
-    ) {
-        db.collection("inventario")
-            .whereEqualTo("usuario", usuario)
-            .get()
-            .addOnSuccessListener { result ->
-                Log.d("Firestore", "Total documentos obtenidos: ${result.size()}")
-                allData.clear()
-                result.documents.forEach { document ->
-                    allData.add(
-                        DataFields(
-                            documentId = document.id,
-                            location = document.getString("ubicacion").orEmpty(),
-                            sku = document.getString("codigoProducto").orEmpty(),
-                            lote = document.getString("lote").orEmpty(),
-                            expirationDate = document.getString("fechaVencimiento").orEmpty(),
-                            quantity = document.getDouble("cantidad") ?: 0.0,
-                            description = document.getString("descripcion").orEmpty(),
-                            unidadMedida = document.getString("unidadMedida").orEmpty(),
-                            fechaRegistro = document.getTimestamp("fechaRegistro"),
-                            usuario = document.getString("usuario").orEmpty(),
-                            localidad = document.getString("localidad") ?: ""
+fun fetchFilteredInventoryByUser(
+    db: FirebaseFirestore,
+    allData: SnapshotStateList<DataFields>,
+    usuario: String,
+    tipoActual: String // 👈 se lo pasamos
+) {
+    db.collection("inventario")
+        .whereEqualTo("usuario", usuario)
+        .get()
+        .addOnSuccessListener { result ->
+            allData.clear()
+            for (document in result) {
+                val tipoCreador = document.getString("tipo")?.lowercase()?.trim() ?: ""
 
-
-                        )
-                    )
+                // 🔐 Si el usuario actual es admin, ignorar registros de superuser
+                if (tipoActual.lowercase().trim() == "admin" && tipoCreador == "superuser") {
+                    continue
                 }
+
+                allData.add(
+                    DataFields(
+                        documentId = document.id,
+                        location = document.getString("ubicacion").orEmpty(),
+                        sku = document.getString("codigoProducto").orEmpty(),
+                        lote = document.getString("lote").orEmpty(),
+                        expirationDate = document.getString("fechaVencimiento").orEmpty(),
+                        quantity = document.getDouble("cantidad") ?: 0.0,
+                        description = document.getString("descripcion").orEmpty(),
+                        unidadMedida = document.getString("unidadMedida").orEmpty(),
+                        fechaRegistro = document.getTimestamp("fechaRegistro"),
+                        usuario = document.getString("usuario").orEmpty(),
+                        localidad = document.getString("localidad") ?: "",
+                        tipoUsuarioCreador = tipoCreador
+                    )
+                )
             }
-            .addOnFailureListener { e ->
-                Log.e("Firestore", "Error al obtener datos", e)
-            }
-    }
+        }
+        .addOnFailureListener { e ->
+            Log.e("Firestore", "Error al obtener datos filtrados", e)
+        }
+}
+
 
 fun fetchAllInventory(
     db: FirebaseFirestore,
-    allData: MutableList<DataFields>
+    allData: SnapshotStateList<DataFields>,
+    tipoActual: String
 ) {
-    db.collection("inventario")
-        .get()
+    val query = if (tipoActual.lowercase().trim() == "admin") {
+        // ✅ Admin NO debe ver registros de superuser
+        db.collection("inventario").whereNotEqualTo("tipoUsuarioCreador", "superuser")
+    } else {
+        // ✅ Superuser ve todos
+        db.collection("inventario")
+    }
+
+    query.get()
         .addOnSuccessListener { result ->
             allData.clear()
             for (document in result) {
@@ -60,7 +75,7 @@ fun fetchAllInventory(
                 val descripcion = document.getString("descripcion") ?: ""
                 val usuario = document.getString("usuario") ?: ""
                 val localidad = document.getString("localidad") ?: ""
-
+                val tipoUsuarioCreador = document.getString("tipoUsuarioCreador") ?: ""
 
                 allData.add(
                     DataFields(
@@ -74,16 +89,15 @@ fun fetchAllInventory(
                         unidadMedida,
                         fechaRegistro,
                         usuario,
-                        localidad
+                        localidad,
+                        tipoUsuarioCreador
                     )
                 )
             }
+
+            Log.d("Firestore", "Total registros cargados ($tipoActual): ${allData.size}")
         }
         .addOnFailureListener {
-            println("Error al cargar todos los registros: $it")
+            Log.e("Firestore", "Error al obtener todos los registros", it)
         }
-
-    Log.d("Firestore", "Total registros cargados (admin): ${allData.size}")
-
 }
-

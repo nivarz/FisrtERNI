@@ -70,8 +70,20 @@ class UserViewModel : ViewModel() {
         tempFecha = ""
     }
 
+
+fun puedeModificarRegistro(registroUsuario: String, registroTipo: String): Boolean {
+    val actualTipo = tipo.value?.lowercase()?.trim() ?: ""
+    val actualNombre = nombre.value?.trim() ?: ""
+
+    return when (actualTipo) {
+        "superuser" -> true
+        "admin" -> registroTipo.lowercase() != "superuser"
+        "invitado" -> registroUsuario == actualNombre
+        else -> false
+    }
 }
 
+}
 
 
 

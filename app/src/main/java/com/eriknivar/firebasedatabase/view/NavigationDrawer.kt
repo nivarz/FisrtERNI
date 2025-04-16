@@ -174,7 +174,7 @@ fun NavigationDrawer(
                     }
                 }
 
-                if (userViewModel.tipo.value == "Admin" || userViewModel.tipo.value == "Superuser") {
+                //if (userViewModel.tipo.value == "admin" && userViewModel.tipo.value == "superuser") {
                     TextButton(onClick = {
                         navController.navigate("settings") // o "configuracion", según tu ruta real
                         scope.launch { drawerState.close() }
@@ -191,7 +191,7 @@ fun NavigationDrawer(
                             Text("Configuración", color = Color.Black)
                         }
                     }
-                }
+               // }
 
 
                 TextButton(onClick = {
