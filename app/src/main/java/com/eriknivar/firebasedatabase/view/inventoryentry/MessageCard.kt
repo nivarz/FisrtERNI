@@ -131,6 +131,7 @@ fun MessageCard(
             value = editedSku,
             onValueChange = { editedSku = it },
             singleLine = true,
+            enabled = false,
             label = { Text("Editar Codigo de Producto", fontWeight = FontWeight.Bold) },
             modifier = Modifier.fillMaxWidth(),
         )

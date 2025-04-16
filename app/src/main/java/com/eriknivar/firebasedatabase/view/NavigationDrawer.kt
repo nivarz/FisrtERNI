@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AddHome
@@ -39,16 +37,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.R
+import com.eriknivar.firebasedatabase.view.utility.EditableProfileImage
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -97,16 +92,28 @@ fun NavigationDrawer(
                         )
                     }
 
-                    Image(
+                    EditableProfileImage(userName = userName)
+
+
+
+                    /*Image(
                         painter = painterResource(id = R.drawable.erik),
                         contentDescription = "",
                         modifier = Modifier
                             .size(70.dp)
                             .clip(CircleShape),
                         contentScale = ContentScale.Fit
-                    )
+                    )*/
 
                 }
+
+                fun capitalizarNombreCompleto(nombre: String): String {
+                    return nombre
+                        .lowercase()
+                        .split(" ")
+                        .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                }
+
 
                 Row(
                     modifier = Modifier
@@ -116,13 +123,13 @@ fun NavigationDrawer(
                 ) {
                     Text(
                         text = "Hola, ",
-                        fontSize = 25.sp,
+                        fontSize = 20.sp,
                         color = Color.Blue,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = userName,
-                        fontSize = 20.sp,
+                        text = capitalizarNombreCompleto(userName),
+                        fontSize = 16.sp,
                         color = Color.Black,
                         fontWeight = FontWeight.Medium
                     )

@@ -80,6 +80,8 @@ dependencies {
     implementation (libs.apache.poi)
     implementation (libs.poi.ooxml)
     implementation(libs.androidx.material3.v121)
+    implementation(libs.coil.compose.v250)
+
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
