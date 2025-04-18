@@ -3,6 +3,8 @@ package com.eriknivar.firebasedatabase.view.inventoryreports
 import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,16 +18,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -44,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,6 +84,9 @@ fun InventoryReportFiltersScreen(
     val firestore = Firebase.firestore
     val listaLocalidades = remember { mutableStateListOf<String>() }
     val localidadSeleccionada = remember { mutableStateOf("") }
+
+    val isLoading = remember { mutableStateOf(false) }
+
 
 // 🔄 Cargar localidades desde Firestore
     LaunchedEffect(Unit) {
@@ -172,16 +181,16 @@ fun InventoryReportFiltersScreen(
 
 
                 OutlinedTextField(
-                    value = usuarioFiltro.value,
+                    value = usuarioFiltro.value.uppercase(),
                     onValueChange = { usuarioFiltro.value = it },
-                    label = { Text("Usuario") },
+                    label = { Text("Nombre de Usuario") },
                     singleLine = true,
                     enabled = tipoUsuario.lowercase().trim() in listOf("admin", "superuser"),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
-                    value = sku.value,
+                    value = sku.value.uppercase(),
                     onValueChange = { sku.value = it },
                     label = { Text("SKU o palabra clave") },
                     singleLine = true,
@@ -189,7 +198,7 @@ fun InventoryReportFiltersScreen(
                 )
 
                 OutlinedTextField(
-                    value = location.value,
+                    value = location.value.uppercase(),
                     onValueChange = { location.value = it },
                     label = { Text("Ubicación") },
                     singleLine = true,
@@ -276,54 +285,57 @@ fun InventoryReportFiltersScreen(
                     Button(
                         onClick = {
                             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                            filteredData.clear()
-                            filteredData.addAll(
-                                allData.filter { item ->
-                                    val matchesSku = sku.value.isBlank() || item.sku.contains(
-                                        sku.value,
-                                        true
-                                    ) || item.description.contains(sku.value, true)
-                                    val matchesLocation =
-                                        location.value.isBlank() || item.location.contains(
-                                            location.value,
-                                            true
-                                        )
-                                    val matchesUser =
-                                        usuarioFiltro.value.isBlank() || item.usuario.contains(
-                                            usuarioFiltro.value,
-                                            true
-                                        )
-                                    val dateFormatted =
-                                        item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
+                            isLoading.value = true
 
-                                    val matchesDate = try {
-                                        (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
-                                                (endDate.value.isBlank() || dateFormatted <= endDate.value)
-                                    } catch (e: Exception) {
-                                        true
-                                    }
-
-                                    val matchesLocalidad = localidadSeleccionada.value.isBlank() ||
-                                            item.localidad.equals(
-                                                localidadSeleccionada.value,
-                                                ignoreCase = true
-                                            )
-
-
-                                    matchesSku && matchesLocation && matchesUser && matchesDate && matchesLocalidad
-                                }.sortedByDescending { it.fechaRegistro?.toDate() }
+                            val filtros = mapOf(
+                                "usuario" to usuarioFiltro.value.uppercase(),
+                                "localidad" to localidadSeleccionada.value.uppercase()
+                                // Puedes agregar más si tu estructura de Firestore lo permite
                             )
-                            filtrosExpandido.value = false // 🔽 Ocultar filtros al aplicar
+
+                            fetchFilteredInventoryFromFirestore(
+                                db = Firebase.firestore,
+                                filters = filtros,
+                                tipoUsuario = tipoUsuario,
+                                onResult = { nuevosDatos ->
+                                    filteredData.clear()
+                                    filteredData.addAll(
+                                        nuevosDatos.filter { item ->
+                                            val matchesSku = sku.value.isBlank() || item.sku.contains(sku.value, true) || item.description.contains(sku.value, true)
+                                            val matchesLocation = location.value.isBlank() || item.location.contains(location.value, true)
+
+                                            val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
+                                            val matchesDate = try {
+                                                (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
+                                                        (endDate.value.isBlank() || dateFormatted <= endDate.value)
+                                            } catch (e: Exception) {
+                                                true
+                                            }
+
+                                            val matchesLocalidad = localidadSeleccionada.value.isBlank() ||
+                                                    item.localidad.equals(localidadSeleccionada.value, ignoreCase = true)
+
+                                            matchesSku && matchesLocation && matchesDate && matchesLocalidad
+                                        }.sortedByDescending { it.fechaRegistro?.toDate() }
+                                    )
+                                    filtrosExpandido.value = false
+                                    isLoading.value = false
+                                },
+                                onError = {
+                                    isLoading.value = false
+                                    Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
+                                }
+                            )
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = azulMarino,
                             contentColor = Color.White
                         )
-
                     ) {
                         Text("Aplicar filtros")
                     }
+
 
                     Spacer(modifier = Modifier.width(8.dp))
 
@@ -360,6 +372,43 @@ fun InventoryReportFiltersScreen(
                 }
             }
         }
+
+        AnimatedVisibility(
+            visible = isLoading.value,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            AlertDialog(
+                onDismissRequest = {}, // No se puede cerrar manualmente
+                confirmButton = {},
+                title = null,
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color(0xFF001F5B),
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Cargando...",
+                            fontSize = 16.sp,
+                            color = Color.Black,
+                            fontStyle = FontStyle.Italic
+                        )
+                    }
+                },
+                containerColor = Color.Black.copy(alpha = 0.3f), // ✅ Ligero blur
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 4.dp,
+
+            )
+        }
+
 
         Spacer(modifier = Modifier.height(16.dp))
 

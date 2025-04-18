@@ -2,10 +2,15 @@ package com.eriknivar.firebasedatabase.view.storagetype
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -14,6 +19,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -26,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -59,20 +65,23 @@ fun DropDownUpScreen(navController: NavHostController) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
+        val interactionSource = remember { MutableInteractionSource() }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(12.dp))
-                .background(Color.White, shape = RoundedCornerShape(12.dp))
-                .border(2.dp, navyBlue, RoundedCornerShape(12.dp))
-                .padding(4.dp)
+                .background(Color.White, shape = RoundedCornerShape(12.dp)) // ✅ Fondo completo
+                .border(2.dp, navyBlue, RoundedCornerShape(12.dp))            // ✅ Borde visible
         ) {
-            TextField(
+            OutlinedTextField(
                 value = valueText,
-                onValueChange = { newText -> valueText = newText },
-                label = { Text("Selecciona una localidad") },
+                onValueChange = { }, // No editable manualmente
+                placeholder = { Text("Selecciona una localidad", color = Color.Gray) }, // ✅ Ajustado
+                readOnly = true, // ✅ Evita teclado y cursor
                 singleLine = true,
-                maxLines = 1,
+                enabled = true,
+                shape = RoundedCornerShape(12.dp),
                 trailingIcon = {
                     IconButton(onClick = { expandedDropdown = !expandedDropdown }) {
                         Icon(
@@ -82,40 +91,52 @@ fun DropDownUpScreen(navController: NavHostController) {
                         )
                     }
                 },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-
-            ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedTextColor = navyBlue,
+                    unfocusedTextColor = navyBlue,
+                    focusedLabelColor = navyBlue,
+                    unfocusedLabelColor = navyBlue,
+                    focusedContainerColor = Color.Transparent,   // Fondo lo da el Box
+                    unfocusedContainerColor = Color.Transparent
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null
+                    ) {
+                        expandedDropdown = !expandedDropdown // ✅ Solo despliega
+                    },
+                interactionSource = interactionSource
             )
         }
 
-        DropdownMenu(
-            expanded = expandedDropdown,
-            onDismissRequest = { expandedDropdown = false },
-            modifier = Modifier
-                .fillMaxWidth(0.91f)
-                .background(Color.White)
-        ) {
-            localidades.forEach { localidad ->
-                DropdownMenuItem(
-                    text = { Text(text = localidad) },
-                    onClick = {
-                        valueText = localidad
-                        expandedDropdown = false
-                        navController.navigate("inventoryentry/${valueText}")
-                    }
-                )
+
+// 👇 DropdownMenu con fondo crema
+            DropdownMenu(
+                expanded = expandedDropdown,
+                onDismissRequest = { expandedDropdown = false },
+                modifier = Modifier
+                    .width(180.dp) // ✅ Ajusta el ancho aquí
+                    //.heightIn(max = 250.dp)
+                    .background(Color.White) // Color crema claro
+            ) {
+                localidades.forEach { localidad ->
+                    DropdownMenuItem(
+                        text = { Text(localidad) },
+                        onClick = {
+                            valueText = localidad
+                            expandedDropdown = false
+                            navController.navigate("inventoryentry/${valueText}")
+                        }
+                    )
+                }
             }
         }
     }
-}
+
+
 
 
