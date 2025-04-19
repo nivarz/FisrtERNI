@@ -1,7 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.MutableState
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Timestamp
@@ -20,13 +19,15 @@ fun saveToFirestore(
     unidadMedida: String, // 🆕 Guardamos la UM en Firestore
     allData: MutableList<DataFields>,
     usuario: String,
-    snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
     localidad: String,
     tipoUsuarioCreador: String,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+    showSuccessDialog: MutableState<Boolean>
+
 
 ) {
+
     val data = hashMapOf(
         "ubicacion" to location,
         "codigoProducto" to sku,
@@ -63,12 +64,13 @@ fun saveToFirestore(
                 )
             )
 
+            // CAMBIAR POR UN ALERT DIALOG QUE MUESTRE QUE SE GUARDO CORRECTAMENTE Y DURE 2 SEGUNDOS
+
+
             // ✅ Muestra el snackbar desde un scope seguro
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(
-                    message = "Registro guardado exitosamente",
-                    duration = SnackbarDuration.Short
-                )
+                showSuccessDialog.value = true
+
             }
 
         }

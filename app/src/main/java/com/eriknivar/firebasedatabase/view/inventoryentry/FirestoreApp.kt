@@ -69,9 +69,9 @@ fun FirestoreApp(
                         OutlinedTextFieldsInputs(
                             productoDescripcion = productoDescripcion,
                             userViewModel = userViewModel,
-                            snackbarHostState = snackbarHostState,
                             coroutineScope = coroutineScope,
-                            localidad = storageType
+                            localidad = storageType,
+
 
                         )
                     }

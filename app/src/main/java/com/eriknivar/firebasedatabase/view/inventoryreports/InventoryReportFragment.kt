@@ -28,7 +28,9 @@ fun InventoryReportsFragment(
 
             //val tipo = tipoUsuario.lowercase().trim()
 
-            if (tipoUsuario.lowercase().trim() == "admin" || tipoUsuario.lowercase().trim() == "superuser") {
+            if (tipoUsuario.lowercase().trim() == "admin" || tipoUsuario.lowercase()
+                    .trim() == "superuser"
+            ) {
                 fetchAllInventory(firestore, allData, tipoUsuario)
             } else {
                 fetchFilteredInventoryByUser(firestore, allData, usuario, tipoUsuario)
@@ -42,7 +44,10 @@ fun InventoryReportsFragment(
         InventoryReportFiltersScreen(
             userViewModel = userViewModel,
             allData = allData,
-            tipoUsuario = tipoUsuario
+            tipoUsuario = tipoUsuario,
+            puedeModificarRegistro = { usuario, tipoCreador ->
+                userViewModel.puedeModificarRegistro(usuario, tipoCreador)
+            }
         )
     }
 }

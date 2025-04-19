@@ -1,16 +1,21 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
+import androidx.compose.foundation.lazy.LazyListState
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
 fun fetchDataFromFirestore(
     db: FirebaseFirestore,
     allData: MutableList<DataFields>,
-    usuario: String
+    usuario: String,
+    listState: LazyListState // ✅ Parámetro aún presente por compatibilidad
 ) {
 
     val calendar = Calendar.getInstance()
@@ -19,13 +24,12 @@ fun fetchDataFromFirestore(
     calendar.set(Calendar.SECOND, 0)
     calendar.set(Calendar.MILLISECOND, 0)
 
-    val startOfDay = Timestamp(calendar.time) // 🔥 Fecha desde la medianoche de hoy
+    val startOfDay = Timestamp(calendar.time)
 
     db.collection("inventario")
-        .whereGreaterThanOrEqualTo("fechaRegistro", startOfDay) // 🔥 Filtra solo registros de hoy
-        .whereEqualTo("usuario", usuario)// 👈 Filtra solo los registros del usuario logueado
+        .whereGreaterThanOrEqualTo("fechaRegistro", startOfDay)
+        .whereEqualTo("usuario", usuario)
         .orderBy("fechaRegistro", Query.Direction.DESCENDING)
-
         .get()
         .addOnSuccessListener { result ->
             allData.clear()
@@ -36,7 +40,7 @@ fun fetchDataFromFirestore(
                 val expirationDate = document.getString("fechaVencimiento") ?: ""
                 val quantity = document.getDouble("cantidad") ?: 0.00
                 val unidadMedida = document.getString("unidadMedida") ?: "N/A"
-                val fechaRegistro = document.getTimestamp("fechaRegistro") ?: Timestamp.now() // ✅ Obtener la fecha
+                val fechaRegistro = document.getTimestamp("fechaRegistro") ?: Timestamp.now()
 
                 allData.add(
                     DataFields(
@@ -48,18 +52,27 @@ fun fetchDataFromFirestore(
                         quantity,
                         document.getString("descripcion") ?: "",
                         unidadMedida,
-                        fechaRegistro, // ✅ Agregar la fecha al objeto
+                        fechaRegistro,
                         usuario,
                         localidad = document.getString("localidad") ?: "",
                         tipoUsuarioCreador = document.getString("tipoUsuarioCreador") ?: ""
                     )
                 )
             }
+            Log.d("Firestore", "✅ Registros cargados: ${allData.size}")
+
+            // ✅ Scroll automático al tope (registro más reciente)
+            if (allData.isNotEmpty()) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    listState.scrollToItem(0)
+                }
+            }
         }
         .addOnFailureListener { e ->
             println("Error al obtener datos: $e")
         }
-    Log.d("Firestore", "Registros cargados: ${allData.size}")
-
 }
+
+
+
 

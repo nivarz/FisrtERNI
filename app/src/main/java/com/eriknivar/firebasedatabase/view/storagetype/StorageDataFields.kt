@@ -14,7 +14,7 @@ data class DataFields (
     val fechaRegistro: Timestamp?, // 🔥 Agrega el campo con valor por defecto `null`
     val usuario: String,
     val localidad: String,
-    val tipoUsuarioCreador: String // NUEVO
+    val tipoUsuarioCreador: String
 
 
 )

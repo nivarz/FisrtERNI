@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
@@ -40,12 +41,13 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-
+import androidx.compose.ui.window.DialogProperties
+import com.eriknivar.firebasedatabase.view.utility.validarRegistroDuplicado
+import kotlinx.coroutines.delay
 
 @Composable
 fun OutlinedTextFieldsInputs(
     productoDescripcion: MutableState<String>,
-    snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
     userViewModel: UserViewModel,
     localidad: String
@@ -54,7 +56,8 @@ fun OutlinedTextFieldsInputs(
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val qrCodeContentLot = remember { mutableStateOf("") } //esto es para el scanner de QRCode
-    val unidadMedida = remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
+    val unidadMedida =
+        remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
@@ -65,7 +68,8 @@ fun OutlinedTextFieldsInputs(
     val errorMessageQuantity = remember { mutableStateOf("") }
     var showDialogValueQuantityCero by remember { mutableStateOf(false) }
 
-
+    val showDialogRegistroDuplicado = remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val firestore = Firebase.firestore
     val allData = remember { mutableStateListOf<DataFields>() }
     val dateText = remember { mutableStateOf("") }
@@ -97,6 +101,11 @@ fun OutlinedTextFieldsInputs(
 
     // ✅ Estado para asegurarnos que se restaura solo una vez
     val restored = remember { mutableStateOf(false) }
+
+    val showSuccessDialog = remember { mutableStateOf(false) }
+
+    val listState = rememberLazyListState()
+
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -149,9 +158,15 @@ fun OutlinedTextFieldsInputs(
 
     LaunchedEffect(usuario) {
         if (usuario.isNotEmpty()) {
-            fetchDataFromFirestore(firestore, allData, usuario)
+            fetchDataFromFirestore(
+                db = Firebase.firestore,
+                allData = allData,
+                usuario = usuario,
+                listState = listState // 👈 Muy importante
+            )
         }
     }
+
 
 
     Column(
@@ -261,40 +276,62 @@ fun OutlinedTextFieldsInputs(
                         errorMessage3 = ""
                         shouldRequestFocus.value = true
 
-
-                        saveToFirestore(
-                            firestore,
-                            location.value,
-                            sku.value,
-                            productoDescripcion.value,
-                            lot.value,
-                            dateText.value,
-                            quantity.value.toDoubleOrNull() ?: 0.0,
-                            unidadMedida.value,
-                            allData,
+                        validarRegistroDuplicado(
+                            db = firestore,
                             usuario = userViewModel.nombre.value ?: "",
-                            snackbarHostState,
-                            coroutineScope,
+                            ubicacion = location.value,
+                            sku = sku.value,
+                            lote = lot.value,
+                            cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
                             localidad = localidad,
-                            tipoUsuarioCreador = userViewModel.tipo.value ?: "",
-                            userViewModel
+                            onResult = { existeDuplicado ->
+                                if (existeDuplicado) {
+                                    showDialogRegistroDuplicado.value = true
+                                } else {
+                                    saveToFirestore(
+                                        firestore,
+                                        location.value,
+                                        sku.value,
+                                        productoDescripcion.value,
+                                        lot.value,
+                                        dateText.value,
+                                        quantity.value.toDoubleOrNull() ?: 0.0,
+                                        unidadMedida.value,
+                                        allData,
+                                        usuario = userViewModel.nombre.value ?: "",
+                                        coroutineScope,
+                                        localidad = localidad,
+                                        tipoUsuarioCreador = userViewModel.tipo.value ?: "",
+                                        userViewModel,
+                                        showSuccessDialog
 
+                                    )
+
+                                    // ✅ Recargar datos y hacer scroll al top
+                                    fetchDataFromFirestore(
+                                        db = firestore,
+                                        allData = allData,
+                                        usuario = usuario,
+                                        listState = listState
+                                    )
+
+                                    sku.value = ""
+                                    lot.value = ""
+                                    dateText.value = ""
+                                    quantity.value = ""
+                                    productoDescripcion.value = ""
+                                    unidadMedida.value = ""
+                                    qrCodeContentSku.value = "" // 🔥 Esto elimina "Código No Encontrado"
+                                    qrCodeContentLot.value = "" // 🔥 Esto elimina "Código No Encontrado"
+                                    userViewModel.limpiarValoresTemporales()
+                                }
+                            },
+                            onError = {
+                                Toast.makeText(context, "Error al validar duplicados", Toast.LENGTH_SHORT).show()
+                            }
                         )
-
-                        sku.value = ""
-                        lot.value = ""
-                        dateText.value = ""
-                        quantity.value = ""
-                        productoDescripcion.value = ""
-                        unidadMedida.value = ""
-
-                        // ✅ Solo si se grabó exitosamente
-                        userViewModel.limpiarValoresTemporales()
                     }
-
-
                 },
-
 
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF003366), // Azul marino
@@ -397,19 +434,26 @@ fun OutlinedTextFieldsInputs(
                 })
         }
 
-    }
-
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(allData.size) {
-        if (allData.isNotEmpty()) {
-            listState.animateScrollToItem(allData.size - 1)
+        if (showDialogRegistroDuplicado.value) {
+            AlertDialog(onDismissRequest = { showDialogRegistroDuplicado.value = true },
+                title = { Text("Registro Duplicado") },
+                text = { Text("Ya existe un registro con los mismos datos. Verifica antes de grabar nuevamente.") },
+                confirmButton = {
+                    Button(onClick = { showDialogRegistroDuplicado.value = false }) {
+                        Text("Aceptar")
+                    }
+                }
+            )
         }
+
+
+
     }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        state = listState
+        state = listState, // 👈 asegúrate que esté conectado
+        reverseLayout = true // ✅ Esto invierte la lista: el más reciente aparece arriba
     ) {
         items(allData) { allDataShow ->
             MessageCard(
@@ -419,10 +463,30 @@ fun OutlinedTextFieldsInputs(
                 allDataShow.lote,
                 allDataShow.expirationDate,
                 allDataShow.quantity,
-                firestore,
+                Firebase.firestore,
                 allData
             )
         }
     }
+
+    if (showSuccessDialog.value) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog.value = false },
+            confirmButton = {},
+            title = { Text("✔️ Registro exitoso") },
+            text = { Text("El registro se guardó correctamente.") },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        )
+
+        LaunchedEffect(showSuccessDialog.value) {
+            delay(2000) // ✅ o el tiempo que prefieras
+            showSuccessDialog.value = false
+        }
+    }
+
+
 }
 

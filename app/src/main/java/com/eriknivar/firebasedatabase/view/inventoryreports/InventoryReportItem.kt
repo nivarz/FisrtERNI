@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.app.DatePickerDialog
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
-import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -45,9 +45,9 @@ import java.util.Locale
 @Composable
 fun InventoryReportItem(
     item: DataFields,
-    userViewModel: UserViewModel,
     onDelete: (String) -> Unit,
-    onEdit: (DataFields) -> Unit
+    onEdit: (DataFields) -> Unit,
+    puedeModificarRegistro: (String, String) -> Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -106,12 +106,18 @@ fun InventoryReportItem(
                 InfoRow("Usuario:", item.usuario)
                 InfoRow("Localidad:", item.localidad)
 
-                if (userViewModel.puedeModificarRegistro(item.usuario, item.tipoUsuarioCreador)) {
+                Log.d("PERMISO", "Evaluando permiso para registro. Usuario del registro: ${item.usuario}, Tipo creador: ${item.tipoUsuarioCreador}")
+
+                if (puedeModificarRegistro(item.usuario, item.tipoUsuarioCreador)) {
+                    Log.d("PERMISO", "✅ PUEDE MODIFICAR este registro")
+
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
-                    ) {
+                    )
+
+                    {
                         Button(
                             onClick = { showEditDialog = true },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
@@ -126,6 +132,10 @@ fun InventoryReportItem(
                         }
                     }
                 }
+                else {
+                    Log.d("PERMISO", "❌ NO PUEDE MODIFICAR este registro")
+                }
+
             }
         }
     }
@@ -175,7 +185,12 @@ fun InventoryReportItem(
                     OutlinedTextField(
                         value = fechaVencimiento,
                         onValueChange = { fechaVencimiento = it },
-                        label = { Text("Editar Fecha de Vencimiento", fontWeight = FontWeight.Bold) },
+                        label = {
+                            Text(
+                                "Editar Fecha de Vencimiento",
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         trailingIcon = {
                             IconButton(onClick = { datePickerDialog.show() }) {

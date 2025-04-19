@@ -77,6 +77,7 @@ fun fetchAllInventory(
                 val localidad = document.getString("localidad") ?: ""
                 val tipoUsuarioCreador = document.getString("tipoUsuarioCreador") ?: ""
 
+
                 allData.add(
                     DataFields(
                         document.id,

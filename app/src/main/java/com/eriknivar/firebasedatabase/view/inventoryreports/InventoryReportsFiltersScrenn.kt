@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,8 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
@@ -31,15 +28,19 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,8 +67,10 @@ import java.util.Locale
 fun InventoryReportFiltersScreen(
     userViewModel: UserViewModel,
     allData: List<DataFields>,
-    tipoUsuario: String
-) {
+    tipoUsuario: String,
+    puedeModificarRegistro: (String, String) -> Boolean
+)
+ {
     val sku = remember { mutableStateOf("") }
     val location = remember { mutableStateOf("") }
     val startDate = remember { mutableStateOf("") }
@@ -205,42 +208,10 @@ fun InventoryReportFiltersScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                var expanded by remember { mutableStateOf(false) }
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    TextField(
-                        value = localidadSeleccionada.value,
-                        onValueChange = { localidadSeleccionada.value = it },
-                        label = { Text("Localidad") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { expanded = !expanded }) {
-                                Icon(
-                                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                    contentDescription = null
-                                )
-                            }
-                        }
-                    )
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        listaLocalidades.forEach { localidad ->
-                            DropdownMenuItem(
-                                text = { Text(localidad) },
-                                onClick = {
-                                    localidadSeleccionada.value = localidad
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
+                LocalidadDropdown(
+                    localidadSeleccionada = localidadSeleccionada,
+                    listaLocalidades = listaLocalidades
+                )
 
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -289,7 +260,7 @@ fun InventoryReportFiltersScreen(
 
                             val filtros = mapOf(
                                 "usuario" to usuarioFiltro.value.uppercase(),
-                                "localidad" to localidadSeleccionada.value.uppercase()
+                                "localidad" to localidadSeleccionada.value
                                 // Puedes agregar más si tu estructura de Firestore lo permite
                             )
 
@@ -302,7 +273,7 @@ fun InventoryReportFiltersScreen(
                                     filteredData.addAll(
                                         nuevosDatos.filter { item ->
                                             val matchesSku = sku.value.isBlank() || item.sku.contains(sku.value, true) || item.description.contains(sku.value, true)
-                                            val matchesLocation = location.value.isBlank() || item.location.contains(location.value, true)
+                                            val matchesLocation = location.value.isBlank() || item.location.equals(location.value, true)
 
                                             val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
                                             val matchesDate = try {
@@ -438,7 +409,7 @@ fun InventoryReportFiltersScreen(
                 items(filteredData) { item ->
                     InventoryReportItem(
                         item = item,
-                        userViewModel = userViewModel, // ✅ aquí el cambio
+                        puedeModificarRegistro = puedeModificarRegistro,
                         onDelete = { documentId ->
                             Firebase.firestore.collection("inventario").document(documentId)
                                 .delete()
@@ -476,6 +447,60 @@ fun InventoryReportFiltersScreen(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LocalidadDropdown(
+    localidadSeleccionada: MutableState<String>,
+    listaLocalidades: List<String>
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            readOnly = true,
+            value = localidadSeleccionada.value,
+            onValueChange = { },
+            label = { Text("Localidad", color = Color.Black) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary, // ✅ Igual al resto
+                unfocusedBorderColor = Color.Gray,
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = Color.Gray,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent
+            )
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            listaLocalidades.forEach { localidad ->
+                DropdownMenuItem(
+                    text = { Text(localidad) },
+                    onClick = {
+                        localidadSeleccionada.value = localidad
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
 
 
 
