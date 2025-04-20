@@ -301,9 +301,9 @@ fun OutlinedTextFieldsInputs(
                                         usuario = userViewModel.nombre.value ?: "",
                                         coroutineScope,
                                         localidad = localidad,
-                                        tipoUsuarioCreador = userViewModel.tipo.value ?: "",
                                         userViewModel,
-                                        showSuccessDialog
+                                        showSuccessDialog,
+                                        listState
 
                                     )
 
@@ -446,27 +446,29 @@ fun OutlinedTextFieldsInputs(
             )
         }
 
-
-
     }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState, // 👈 asegúrate que esté conectado
-        reverseLayout = true // ✅ Esto invierte la lista: el más reciente aparece arriba
+        reverseLayout = false // ✅ Esto invierte la lista: el más reciente aparece arriba
     ) {
-        items(allData) { allDataShow ->
+        items(allData) { item ->
             MessageCard(
-                allDataShow.documentId,
-                allDataShow.location,
-                allDataShow.sku,
-                allDataShow.lote,
-                allDataShow.expirationDate,
-                allDataShow.quantity,
-                Firebase.firestore,
-                allData
+                documentId = item.documentId,
+                location = item.location,
+                sku = item.sku,
+                lote = item.lote,
+                expirationDate = item.expirationDate,
+                quantity = item.quantity,
+                unidadMedida = item.unidadMedida,
+                firestore = Firebase.firestore,
+                allData = allData,
+                fechaRegistro = item.fechaRegistro,
+                descripcion = item.description
             )
         }
+
     }
 
     if (showSuccessDialog.value) {

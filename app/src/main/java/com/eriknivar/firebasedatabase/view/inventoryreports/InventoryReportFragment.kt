@@ -26,8 +26,6 @@ fun InventoryReportsFragment(
         if (usuario.isNotEmpty()) {
             val firestore = Firebase.firestore
 
-            //val tipo = tipoUsuario.lowercase().trim()
-
             if (tipoUsuario.lowercase().trim() == "admin" || tipoUsuario.lowercase()
                     .trim() == "superuser"
             ) {
@@ -35,7 +33,6 @@ fun InventoryReportsFragment(
             } else {
                 fetchFilteredInventoryByUser(firestore, allData, usuario, tipoUsuario)
             }
-
 
         }
     }
