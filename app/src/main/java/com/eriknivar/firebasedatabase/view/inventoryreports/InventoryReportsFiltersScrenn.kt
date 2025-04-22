@@ -410,6 +410,7 @@ fun InventoryReportFiltersScreen(
                     InventoryReportItem(
                         item = item,
                         puedeModificarRegistro = puedeModificarRegistro,
+                        tipoUsuarioActual = userViewModel.tipo.value ?: "", // ✅ Aquí el nuevo parámetro
                         onDelete = { documentId ->
                             Firebase.firestore.collection("inventario").document(documentId)
                                 .delete()
