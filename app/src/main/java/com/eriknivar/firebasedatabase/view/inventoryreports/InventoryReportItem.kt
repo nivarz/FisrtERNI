@@ -47,7 +47,8 @@ fun InventoryReportItem(
     item: DataFields,
     onDelete: (String) -> Unit,
     onEdit: (DataFields) -> Unit,
-    puedeModificarRegistro: (String, String) -> Boolean
+    puedeModificarRegistro: (String, String) -> Boolean,
+    tipoUsuarioActual: String
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -58,6 +59,9 @@ fun InventoryReportItem(
     val calendar = Calendar.getInstance()
     val context = LocalContext.current
     var fechaVencimiento by remember { mutableStateOf(item.expirationDate) }
+
+    val esInvitadoActual = tipoUsuarioActual.lowercase() == "invitado"
+    val backgroundColor = if (expanded) Color(0xFFE3F2FD) else Color.White
 
     val datePickerDialog = DatePickerDialog(
         context,
@@ -76,7 +80,9 @@ fun InventoryReportItem(
             .padding(vertical = 6.dp, horizontal = 8.dp)
             .clickable { expanded = !expanded },
         elevation = CardDefaults.cardElevation(4.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -108,16 +114,14 @@ fun InventoryReportItem(
 
                 Log.d("PERMISO", "Evaluando permiso para registro. Usuario del registro: ${item.usuario}, Tipo creador: ${item.tipoUsuarioCreador}")
 
-                if (puedeModificarRegistro(item.usuario, item.tipoUsuarioCreador)) {
+                if (!esInvitadoActual && puedeModificarRegistro(item.usuario, item.tipoUsuarioCreador)) {
                     Log.d("PERMISO", "✅ PUEDE MODIFICAR este registro")
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
-                    )
-
-                    {
+                    ) {
                         Button(
                             onClick = { showEditDialog = true },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
@@ -131,11 +135,9 @@ fun InventoryReportItem(
                             Text("Eliminar")
                         }
                     }
-                }
-                else {
+                } else {
                     Log.d("PERMISO", "❌ NO PUEDE MODIFICAR este registro")
                 }
-
             }
         }
     }

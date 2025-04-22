@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,6 +40,7 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.eriknivar.firebasedatabase.view.utility.validarRegistroDuplicado
 import kotlinx.coroutines.delay
@@ -223,13 +223,13 @@ fun OutlinedTextFieldsInputs(
             quantity, showErrorQuantity, errorMessageQuantity, lot, dateText
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        //Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
 
             Button(
@@ -338,11 +338,13 @@ fun OutlinedTextFieldsInputs(
                     contentColor = Color.White          // Color del texto
                 ),
 
-                modifier = Modifier.fillMaxHeight(0.16f)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
             )
 
             {
-                Text("Grabar Registro")
+                Text("Grabar Registro", fontSize = 13.sp)
             }
 // 🔘 Botón Limpiar
             Button(
@@ -368,9 +370,11 @@ fun OutlinedTextFieldsInputs(
                     containerColor = Color.DarkGray,
                     contentColor = Color.White
                 ),
-                modifier = Modifier.fillMaxHeight(0.16f)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
             ) {
-                Text("Limpiar Campos")
+                Text("Limpiar Campos", fontSize = 13.sp)
             }
         }
 

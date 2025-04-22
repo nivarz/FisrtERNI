@@ -106,6 +106,7 @@ fun NetworkAwareNavGraph(
         onCloseRestored = { showRestoredBanner = false }
     ) {
         NavHost(navController = navController, startDestination = "splash") {
+            composable("splash") { SplashScreen(navController, userViewModel) }
             composable("login") { LoginScreen(navController, userViewModel) }
             composable("storagetype") { SelectStorageFragment(navController,  userViewModel) }
             composable("inventoryentry/{storageType}") { backStackEntry ->
@@ -115,7 +116,7 @@ fun NetworkAwareNavGraph(
             composable("inventoryreports") { InventoryReportsFragment(navController, userViewModel) }
             composable("settings") { SettingsFragment(navController, userViewModel) }
             composable("masterdata") { MasterDataFragment(navController, userViewModel) }
-            composable("splash") { SplashScreen(navController, userViewModel) }
+
         }
     }
 }

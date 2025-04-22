@@ -70,8 +70,10 @@ fun MessageCard(
     var editedExpirationDate by remember { mutableStateOf(expirationDate) }
     var editedQuantity by remember { mutableStateOf(quantity.toString()) }
 
-    val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
+    val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
     val fechaFormateada = fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
+
+    val backgroundColor = if (isEditing) Color(0xFFFFF3E0) else Color.White
 
     LaunchedEffect(confirmDeletion) {
         if (confirmDeletion) {
@@ -120,7 +122,9 @@ fun MessageCard(
             .fillMaxWidth()
             .padding(vertical = 4.dp, horizontal = 8.dp),
         elevation = CardDefaults.cardElevation(4.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -223,12 +227,12 @@ fun MessageCard(
                             }
                         }
                     } else {
-                        Row { Text("Ubicación: ", fontWeight = FontWeight.Bold, color = Color.Blue); Text(location, fontWeight = FontWeight.Bold, color = Color.Black) }
-                        Row { Text("SKU: ", fontWeight = FontWeight.Bold, color = Color.Blue); Text(sku, fontWeight = FontWeight.Bold, color = Color.Black) }
-                        Row { Text("Lote: ", fontWeight = FontWeight.Bold, color = Color.Blue); Text(lote, fontWeight = FontWeight.Bold, color = Color.Black) }
-                        Row { Text("Fecha Vencimiento: ", fontWeight = FontWeight.Bold, color = Color.Blue); Text(expirationDate, fontWeight = FontWeight.Bold, color = Color.Black) }
-                        Row { Text("Cantidad: ", fontWeight = FontWeight.Bold, color = Color.Blue); Text(quantity.toString(), fontWeight = FontWeight.Bold, color = Color.Black) }
-                        Row { Text("Unidad de Medida: ", fontWeight = FontWeight.Bold, color = Color.Blue); Text(unidadMedida, fontWeight = FontWeight.Bold, color = Color.Black) }
+                        Row { Text("Ubicación: ", fontSize = 13.sp, color = Color.Blue); Text(location, fontSize = 13.sp , color = Color.Black) }
+                        Row { Text("SKU: ", fontSize = 13.sp, color = Color.Blue); Text(sku, fontSize = 13.sp, color = Color.Black) }
+                        Row { Text("Lote: ", fontSize = 13.sp, color = Color.Blue); Text(lote, fontSize = 13.sp, color = Color.Black) }
+                        Row { Text("Fecha Vencimiento: ", fontSize = 13.sp, color = Color.Blue); Text(expirationDate, fontSize = 13.sp, color = Color.Black) }
+                        Row { Text("Cantidad: ", fontSize = 13.sp, color = Color.Blue); Text(quantity.toString(), fontSize = 13.sp, color = Color.Black) }
+                        Row { Text("Unidad de Medida: ", fontSize = 13.sp, color = Color.Blue); Text(unidadMedida, fontSize = 13.sp, color = Color.Black) }
                     }
                 }
 

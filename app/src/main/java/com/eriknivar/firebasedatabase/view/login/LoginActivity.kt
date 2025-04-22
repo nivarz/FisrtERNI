@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -44,19 +43,15 @@ fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) 
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.logoerni),
+                        painter = painterResource(id = R.drawable.logoernilupatransparente),
                         contentDescription = "Logo ERNI",
                         modifier = Modifier
-                            .height(250.dp)
-                            .padding(bottom = 12.dp)
+                            .height(180.dp) //Controla el tamaño de la imagen
+                            .padding(bottom = 4.dp)
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
 
                     // 🔹 Pasa los estados aquí
                     TextFieldsLogin(username, password)
-
-                    Spacer(modifier = Modifier.height(16.dp))
 
                     // 🔹 Pasa los estados al botón
                     LoginButton(navController, username, password, userViewModel)
