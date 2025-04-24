@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -34,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.SoftwareKeyboardController
@@ -58,15 +58,19 @@ fun OutlinedTextFieldsInputsSku(
     showProductDialog: MutableState<Boolean>,
     unidadMedida: MutableState<String>,
     focusRequester: FocusRequester,
-    keyboardController: SoftwareKeyboardController? // 🔥 NUEVO parámetro
+    nextFocusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController?
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
+    val wasScanned = remember { mutableStateOf(false) }
+
     val qrScanLauncherSku =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val data = result.data
             val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
             if (intentResult != null) {
                 qrCodeContentSku.value = intentResult.contents ?: "Código No Encontrado"
+                wasScanned.value = true
             }
         }
 
@@ -75,50 +79,62 @@ fun OutlinedTextFieldsInputsSku(
     val db = FirebaseFirestore.getInstance()
     val isLoadingProductos = remember { mutableStateOf(false) }
 
-    LaunchedEffect(qrCodeContentSku.value) {
-        sku.value = qrCodeContentSku.value.uppercase()
+    LaunchedEffect(qrCodeContentSku.value, wasScanned.value) {
+        if (wasScanned.value) {
+            val scanned = qrCodeContentSku.value.uppercase()
+            sku.value = scanned
 
-        if (sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
-            findProductDescription(db, sku.value) { descripcion, unidadMedidaObtenida ->
-                productoDescripcion.value = descripcion // ✅ Actualiza la descripción
-                unidadMedida.value = unidadMedidaObtenida // ✅ Actualiza la unidad de medida
+            if (scanned.isNotEmpty() && scanned != "CODIGO NO ENCONTRADO") {
+                findProductDescription(db, scanned) { descripcion, unidadMedidaObtenida ->
+                    productoDescripcion.value = descripcion
+                    unidadMedida.value = unidadMedidaObtenida
+                }
+                delay(200)
+                try {
+                    keyboardController?.hide()
+                    nextFocusRequester.requestFocus()
+                } catch (e: Exception) {
+                    Log.e("FocusError", "Error al mover el foco desde SKU: \${e.message}")
+                }
+            } else {
+                productoDescripcion.value = ""
+                unidadMedida.value = ""
             }
-            delay(200) // 🔁 Breve espera para estabilidad visual
+            wasScanned.value = false
         }
     }
 
     Row(
         modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
     ) {
-        // 📌 OutlinedTextField para Código Producto
         OutlinedTextField(
             modifier = Modifier
                 .width(275.dp)
                 .height(64.dp)
                 .padding(4.dp)
-                .focusRequester(focusRequester)
-                .onFocusChanged { focusState ->
-                    if (focusState.isFocused) {
-                        keyboardController?.hide() // 🔥 Oculta el teclado manualmente al enfocar
-                    }
-                    if (!focusState.isFocused && sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
-                        findProductDescription(db, sku.value) { descripcion ->
-                            productoDescripcion.value = descripcion
-                        }
-                    }
-                },
+                .focusRequester(focusRequester),
             singleLine = true,
             label = { Text(text = "Código Producto") },
             value = sku.value,
             onValueChange = { newValue ->
-                sku.value = newValue.uppercase()
-                qrCodeContentSku.value = newValue.uppercase()
+                val upper = newValue.uppercase()
+                sku.value = upper
+                qrCodeContentSku.value = upper
                 showErrorSku.value = false
+
+                if (upper.isBlank()) {
+                    productoDescripcion.value = ""
+                    unidadMedida.value = ""
+                } else {
+                    findProductDescription(db, upper) { descripcion, unidadMedidaObtenida ->
+                        productoDescripcion.value = descripcion
+                        unidadMedida.value = unidadMedidaObtenida
+                    }
+                }
             },
             isError = showErrorSku.value && (sku.value.isEmpty() || sku.value == "CODIGO NO ENCONTRADO"),
             trailingIcon = {
                 Row {
-                    // 🔍 Solo mostrar la lupa si no está cargando
                     if (!isLoadingProductos.value) {
                         IconButton(onClick = {
                             isLoadingProductos.value = true
@@ -136,7 +152,6 @@ fun OutlinedTextFieldsInputsSku(
                         }
                     }
 
-                    // 📷 Escáner QR (opcional ocultar si está cargando)
                     IconButton(onClick = {
                         qrCodeScannerSku.startQRCodeScanner(context as android.app.Activity)
                     }) {
@@ -149,32 +164,27 @@ fun OutlinedTextFieldsInputsSku(
             },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = {
-                // Acción si deseas mover el foco
+                try {
+                    keyboardController?.hide()
+                    nextFocusRequester.requestFocus()
+                } catch (e: Exception) {
+                    Log.e("KeyboardFocus", "Error pasando foco desde SKU: \${e.message}")
+                }
             })
         )
 
-        // ⏳ Loader con texto
-
         if (isLoadingProductos.value) {
             Dialog(onDismissRequest = {},
-                properties = DialogProperties(usePlatformDefaultWidth = false) // 👈 Esto lo hace ocupar toda la pantalla
-
+                properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    // Fondo oscuro difuminado
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.3f)) // 🖤 Fondo transparente
+                        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f))
                     )
-
-                    // Contenido centrado más arriba
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         Card(
@@ -184,9 +194,7 @@ fun OutlinedTextFieldsInputsSku(
                             modifier = Modifier.padding()
                         ) {
                             Column(
-                                modifier = Modifier
-                                    .padding(24.dp)
-                                    .width(200.dp),
+                                modifier = Modifier.padding(24.dp).width(200.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 CircularProgressIndicator()
@@ -203,17 +211,14 @@ fun OutlinedTextFieldsInputsSku(
             }
         }
 
-        Spacer(modifier = Modifier.width(4.dp)) // 🔥 Espacio entre el campo y la UM
+        Spacer(modifier = Modifier.width(4.dp))
 
-        // 📌 Texto para mostrar la unidad de medida
         Text(
-            text = unidadMedida.value, // 🔥 Aquí se muestra la UM
+            text = unidadMedida.value,
             fontSize = 22.sp,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .padding(8.dp)
-                .background(color = Color.Red)
+            modifier = Modifier.padding(8.dp).background(color = Color.Red)
         )
     }
 }

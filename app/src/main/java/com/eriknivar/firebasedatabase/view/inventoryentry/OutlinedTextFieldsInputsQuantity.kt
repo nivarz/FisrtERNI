@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -18,12 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.SoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
 
 @Composable
 fun OutlinedTextFieldsInputsQuantity(
@@ -31,13 +35,13 @@ fun OutlinedTextFieldsInputsQuantity(
     showErrorQuantity: MutableState<Boolean>,
     errorMessageQuantity: MutableState<String>,
     lote: MutableState<String>,
-    expirationDate: MutableState<String>
-
+    expirationDate: MutableState<String>,
+    focusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController?
 ) {
-
     val qrCodeContentQuantity = remember { mutableStateOf("") }
 
-    var showErrorDialog by remember { mutableStateOf(false) } // 🔥 Para el mensaje de error
+    var showErrorDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(qrCodeContentQuantity.value) {
         quantity.value = qrCodeContentQuantity.value.uppercase()
@@ -45,31 +49,34 @@ fun OutlinedTextFieldsInputsQuantity(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically // 📌 Asegura alineación vertical
+        verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(
             modifier = Modifier
                 .size(222.dp, 64.dp)
                 .padding(2.dp)
+                .focusRequester(focusRequester)
                 .onFocusChanged { focusState ->
                     if (focusState.isFocused) {
-                        if (lote.value.isBlank()) {
-                            lote.value = "N/A"
-                        }
-                        if (expirationDate.value.isBlank()) {
-                            expirationDate.value = "N/A"
-                        }
+                        if (lote.value.isBlank()) lote.value = "N/A"
+                        if (expirationDate.value.isBlank()) expirationDate.value = "N/A"
                     }
                 },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),// ACTIVA EL TECLADO NUMERICO
-            label = { Text(text = "Cantidad") },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Decimal,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(onDone = {
+                keyboardController?.hide()
+            }),
+            label = { Text("Cantidad") },
             value = quantity.value,
             onValueChange = { newValue ->
-                if (newValue == ".") { // Si el usuario solo ingresa un punto
+                if (newValue == ".") {
                     showErrorQuantity.value = true
                     errorMessageQuantity.value = "Ingrese un número válido"
-                } else if (newValue.matches(Regex("^\\d*\\.?\\d*\$"))) { // Permite números y un solo punto
+                } else if (newValue.matches(Regex("^\\d*\\.?\\d*\$"))) {
                     showErrorQuantity.value = false
                     quantity.value = newValue
                 } else {
@@ -88,20 +95,19 @@ fun OutlinedTextFieldsInputsQuantity(
                 modifier = Modifier.padding(start = 8.dp, top = 4.dp)
             )
         }
-
     }
 
-    // 🔽 🔥 Diálogo de Campos Obligatorios
-
     if (showErrorDialog) {
-        AlertDialog(onDismissRequest = { showErrorDialog = false },
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
             confirmButton = {
                 TextButton(onClick = { showErrorDialog = false }) {
                     Text("Aceptar")
                 }
             },
             title = { Text("Error") },
-            text = { Text("Campos Obligatorios Vacíos. Completa los datos para continuar.") })
+            text = { Text("Campos Obligatorios Vacíos. Completa los datos para continuar.") }
+        )
     }
-
 }
+

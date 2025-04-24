@@ -11,15 +11,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Calendar
 
 @Composable
-fun DatePickerTextField(dateText: MutableState<String>) {
+fun DatePickerTextField(
+    dateText: MutableState<String>,
+    focusRequester: FocusRequester,
+    nextFocusRequester: FocusRequester
+) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
@@ -27,34 +34,43 @@ fun DatePickerTextField(dateText: MutableState<String>) {
         context,
         { _, year, month, dayOfMonth ->
             dateText.value = "%02d/%02d/%d".format(dayOfMonth, month + 1, year)
+
+            nextFocusRequester.requestFocus()
+
         },
         calendar.get(Calendar.YEAR),
         calendar.get(Calendar.MONTH),
         calendar.get(Calendar.DAY_OF_MONTH)
     )
+
+    LaunchedEffect(focusRequester) {
+        // Solo muestra el date picker cuando reciba el enfoque
+        focusRequester.freeFocus() // En caso de que tenga algo previo
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically // 🔥 Asegura que  esté alineado
+        verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(
             value = dateText.value,
             onValueChange = { dateText.value = it },
             label = { Text("Caducidad") },
-            modifier = Modifier.fillMaxWidth(.80f).padding(2.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.80f)
+                .padding(2.dp)
+                .focusRequester(focusRequester),
             trailingIcon = {
                 IconButton(onClick = { datePickerDialog.show() }) {
                     Icon(
-                        imageVector = Icons.Default.CalendarMonth, // ✅ Cambiado a DateRange
+                        imageVector = Icons.Default.CalendarMonth,
                         contentDescription = "Seleccionar fecha"
                     )
                 }
             },
-            readOnly = true // Para que solo se pueda seleccionar con el ícono
+            readOnly = true
         )
-
-
     }
-
 }
 
 

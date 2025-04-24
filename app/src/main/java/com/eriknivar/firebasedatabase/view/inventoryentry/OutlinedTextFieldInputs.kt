@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -94,6 +93,10 @@ fun OutlinedTextFieldsInputs(
     val shouldRequestFocus = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusRequesterSku = remember { FocusRequester() }
+    val focusRequesterLot =
+        remember { FocusRequester() } // 👈 este sería el que pasas como `nextFocusRequester`
+    val focusRequesterFecha = remember { FocusRequester() }
+    val focusRequesterCantidad = remember { FocusRequester() }
 
     val usuario by userViewModel.nombre.observeAsState("")
     val focusManager = LocalFocusManager.current
@@ -150,10 +153,15 @@ fun OutlinedTextFieldsInputs(
 
     LaunchedEffect(shouldRequestFocus.value) {
         if (shouldRequestFocus.value) {
-            focusRequester.requestFocus()
+            try {
+                focusRequester.requestFocus()
+            } catch (e: Exception) {
+                Log.e("FocusError", "Focus no disponible: ${e.message}")
+            }
             shouldRequestFocus.value = false
         }
     }
+
 
 
     LaunchedEffect(usuario) {
@@ -178,7 +186,9 @@ fun OutlinedTextFieldsInputs(
 
         // 📌 FUNCION PARA LA UBICACION
         OutlinedTextFieldsInputsLocation(
-            location, showErrorLocation, nextFocusRequester = focusRequesterSku
+            location,
+            showErrorLocation,
+            nextFocusRequester = focusRequesterSku
 
         )
 
@@ -192,7 +202,8 @@ fun OutlinedTextFieldsInputs(
             productMap,
             showProductDialog,
             unidadMedida,
-            focusRequester = focusRequester,
+            focusRequester = focusRequesterSku,
+            nextFocusRequester = focusRequesterLot,
             keyboardController = keyboardController
 
         )
@@ -211,16 +222,30 @@ fun OutlinedTextFieldsInputs(
 
         // 📌 CAMPO DE TEXTO PARA EL LOTE
 
-        OutlinedTextFieldsInputsLot(lot)
+        OutlinedTextFieldsInputsLot(
+            lot,
+            focusRequester = focusRequesterLot,
+            nextFocusRequester = focusRequesterFecha
+        )
 
         // 📌 CAMPO DE TEXTO PARA LA FECHA
 
-        DatePickerTextField(dateText)// FUNCION PARA EL CALENDARIO
+        DatePickerTextField(
+            dateText,
+            focusRequester = focusRequesterFecha,
+            nextFocusRequester = focusRequesterCantidad
+        )// FUNCION PARA EL CALENDARIO
 
         // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 
         OutlinedTextFieldsInputsQuantity(
-            quantity, showErrorQuantity, errorMessageQuantity, lot, dateText
+            quantity,
+            showErrorQuantity,
+            errorMessageQuantity,
+            lot,
+            dateText,
+            focusRequester = focusRequesterCantidad,
+            keyboardController = LocalSoftwareKeyboardController.current
         )
 
         //Spacer(modifier = Modifier.height(8.dp))
@@ -321,13 +346,19 @@ fun OutlinedTextFieldsInputs(
                                     quantity.value = ""
                                     productoDescripcion.value = ""
                                     unidadMedida.value = ""
-                                    qrCodeContentSku.value = "" // 🔥 Esto elimina "Código No Encontrado"
-                                    qrCodeContentLot.value = "" // 🔥 Esto elimina "Código No Encontrado"
+                                    qrCodeContentSku.value =
+                                        "" // 🔥 Esto elimina "Código No Encontrado"
+                                    qrCodeContentLot.value =
+                                        "" // 🔥 Esto elimina "Código No Encontrado"
                                     userViewModel.limpiarValoresTemporales()
                                 }
                             },
                             onError = {
-                                Toast.makeText(context, "Error al validar duplicados", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Error al validar duplicados",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
                     }
@@ -495,4 +526,3 @@ fun OutlinedTextFieldsInputs(
 
 
 }
-
