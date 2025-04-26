@@ -51,13 +51,14 @@ fun OutlinedTextFieldsInputs(
     coroutineScope: CoroutineScope,
     userViewModel: UserViewModel,
     localidad: String,
-    onSuccess: () -> Unit
+    onSuccess: () -> Unit,
+    unidadMedida: MutableState<String>, // ✅ Nueva línea
+
 ) {
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val qrCodeContentLot = remember { mutableStateOf("") } //esto es para el scanner de QRCode
-    val unidadMedida =
-        remember { mutableStateOf("") } // ✅ Agrega esto en `OutlinedTextFieldsInputs`
+
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
@@ -498,7 +499,7 @@ fun OutlinedTextFieldsInputs(
     ) {
         items(allData) { item ->
             MessageCard(
-                documentId = item.documentId ?: "",
+                documentId = item.documentId,
                 location = item.location,
                 sku = item.sku,
                 lote = item.lote,

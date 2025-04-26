@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
@@ -148,5 +150,26 @@ fun OutlinedTextFieldsInputsLot(
                 nextFocusRequester.requestFocus()
             })
         )
+
+        // 🔵 Ícono de borrar separado (afuera del campo)
+        if (lot.value.isNotEmpty()) {
+            IconButton(
+                onClick = {
+                    lot.value = ""
+                    qrCodeContentLot.value = ""
+                },
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(start = 4.dp)
+
+            ) {
+                Icon(
+                    modifier = Modifier.size(48.dp),
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "Borrar texto",
+                    tint = Color.Red
+                )
+            }
+        }
     }
 }

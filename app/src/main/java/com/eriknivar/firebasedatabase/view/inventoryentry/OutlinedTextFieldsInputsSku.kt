@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -213,6 +215,28 @@ fun OutlinedTextFieldsInputsSku(
             })
         )
 
+        // 🔵 Ícono de borrar separado (afuera del campo)
+        if (sku.value.isNotEmpty()) {
+            IconButton(
+                onClick = {
+                    sku.value = ""
+                    qrCodeContentSku.value = ""
+                    productoDescripcion.value = ""
+                    unidadMedida.value = ""
+                },
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(start = 4.dp)
+
+            ) {
+                Icon(
+                    modifier = Modifier.size(48.dp),
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "Borrar texto",
+                    tint = Color.Red
+                )
+            }
+        }
         if (isLoadingProductos.value) {
             Dialog(onDismissRequest = {},
                 properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -251,15 +275,6 @@ fun OutlinedTextFieldsInputsSku(
             }
         }
 
-        Spacer(modifier = Modifier.width(4.dp))
-
-        Text(
-            text = unidadMedida.value,
-            fontSize = 22.sp,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(8.dp).background(color = Color.Red)
-        )
     }
 }
 

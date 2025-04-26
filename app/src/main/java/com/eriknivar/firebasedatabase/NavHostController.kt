@@ -31,7 +31,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun NetworkAwareNavGraph(
     navController: NavHostController,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+
 ) {
     val context = LocalContext.current
     val isConnected = remember { mutableStateOf(true) }

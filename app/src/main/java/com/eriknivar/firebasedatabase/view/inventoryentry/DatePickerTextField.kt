@@ -4,8 +4,10 @@ import android.app.DatePickerDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Calendar
@@ -70,6 +73,26 @@ fun DatePickerTextField(
             },
             readOnly = true
         )
+
+        // 🔵 Ícono de borrar separado (afuera del campo)
+        if (dateText.value.isNotEmpty()) {
+            IconButton(
+                onClick = {
+                    dateText.value = ""
+                },
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(start = 4.dp)
+
+            ) {
+                Icon(
+                    modifier = Modifier.size(48.dp),
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "Borrar texto",
+                    tint = Color.Red
+                )
+            }
+        }
     }
 }
 

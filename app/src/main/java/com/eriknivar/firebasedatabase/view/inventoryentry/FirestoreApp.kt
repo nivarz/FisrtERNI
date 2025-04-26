@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
@@ -27,11 +26,13 @@ import kotlinx.coroutines.delay
 fun FirestoreApp(
     navController: NavHostController,
     storageType: String,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val productoDescripcion = remember { mutableStateOf("") }
+    val unidadMedida = remember { mutableStateOf("") } // ✅ Nueva línea
+
     var showSuccessDialog by remember { mutableStateOf(false) } // ✅ Aquí también
 
     if (showSuccessDialog) {
@@ -69,16 +70,29 @@ fun FirestoreApp(
                     ) {
                         Box {
                             if (productoDescripcion.value.isNotBlank()) {
-                                Text(
-                                    text = productoDescripcion.value,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Blue,
+                                Column (
+                                    horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
-                                        .padding(16.dp)
-                                        .fillMaxWidth(),
-                                    textAlign = TextAlign.Center
-                                )
+                                        .padding(4.dp)
+                                        .fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = productoDescripcion.value,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Blue
+                                    )
+
+                                    if (unidadMedida.value.isNotBlank()) {
+                                        Spacer(modifier = Modifier.width(4.dp)) // Espacio entre descripción y unidad
+                                        Text(
+                                            text = "(${unidadMedida.value})",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
                             }
 
                             BackHandler(true) {
@@ -90,16 +104,16 @@ fun FirestoreApp(
 
                         OutlinedTextFieldsInputs(
                             productoDescripcion = productoDescripcion,
+                            unidadMedida = unidadMedida,
                             userViewModel = userViewModel,
                             coroutineScope = coroutineScope,
                             localidad = storageType,
                             onSuccess = {
                                 showSuccessDialog = true
                             }
-
-
                         )
                     }
+
 
                     // ✅ Snackbar centrado en pantalla
                     Box(
