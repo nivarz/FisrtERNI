@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -69,8 +68,10 @@ fun MessageCard(
     descripcion: String,
     onSuccess: () -> Unit,
     listState: LazyListState,
-    index: Int
-) {
+    index: Int,
+    expandedStates: MutableMap<String, Boolean>,
+
+    ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
     var confirmDeletion by remember { mutableStateOf(false) }
@@ -126,23 +127,23 @@ fun MessageCard(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-    val expanded = remember { mutableStateOf(false) }
+    val isExpanded = expandedStates[documentId] ?: false
     val rotationAngle by animateFloatAsState(
-        targetValue = if (expanded.value) 180f else 0f,
+        targetValue = if (isExpanded) 180f else 0f,
         label = "RotationAnimation"
     )
 
     // ✅ Hacemos scroll SOLO si expanded pasa a true
-    LaunchedEffect(expanded.value) {
-        if (expanded.value) {
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
             // Le damos un pequeño delay para que Compose reacomode y sea más suave
             delay(200)
             listState.animateScrollToItem(index)
         }
     }
 
-    val backgroundColorCard = if (expanded.value) Color(0xFFE3F2FD) else Color.White
-    val borderColor = if (expanded.value) Color(0xFF2196F3) else Color.Transparent
+    val backgroundColorCard = if (isExpanded) Color(0xFFE3F2FD) else Color.White
+    //val borderColor = if (isExpanded) Color(0xFF2196F3) else Color.Transparent
 
     Card(
         modifier = Modifier
@@ -150,10 +151,10 @@ fun MessageCard(
             .padding(vertical = 4.dp, horizontal = 8.dp)
             .border(
                 width = 2.dp,
-                color = borderColor,
+                color = if (isExpanded) Color(0xFF2196F3) else Color.Transparent,
                 shape = RoundedCornerShape(12.dp) // 🔵 Bordes suaves tipo SAP Fiori
             )
-            .clickable { expanded.value = !expanded.value },
+            .clickable { expandedStates[documentId] = !(expandedStates[documentId] ?: false) },
         elevation = CardDefaults.cardElevation(4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColorCard)
@@ -180,21 +181,24 @@ fun MessageCard(
                     color = Color.Blue
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    imageVector = Icons.Default.ExpandMore,
-                    contentDescription = "Expandir/Contraer",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .graphicsLayer {
-                            rotationZ = rotationAngle
-                        },
-                    tint = Color.Blue
-                )
+
+                if (!isEditing) { // ✅ Solo mostramos ExpandMore si NO estamos editando
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = "Expandir/Contraer",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .graphicsLayer {
+                                rotationZ = rotationAngle
+                            },
+                        tint = Color.Blue
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            AnimatedVisibility(visible = expanded.value) {
+            AnimatedVisibility(visible = isExpanded) {
                 Column { // ✅ Debe empezar con Column, no con Row
                     // Datos
                     Row(modifier = Modifier.fillMaxWidth()) {

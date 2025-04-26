@@ -24,6 +24,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -488,6 +489,8 @@ fun OutlinedTextFieldsInputs(
         }
     }
 
+    val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState, // 👈 asegúrate que esté conectado
@@ -495,7 +498,7 @@ fun OutlinedTextFieldsInputs(
     ) {
         items(allData) { item ->
             MessageCard(
-                documentId = item.documentId,
+                documentId = item.documentId ?: "",
                 location = item.location,
                 sku = item.sku,
                 lote = item.lote,
@@ -508,7 +511,9 @@ fun OutlinedTextFieldsInputs(
                 descripcion = item.description,
                 onSuccess = onSuccess,
                 listState = listState,
-                index = allData.indexOf(item)
+                index = allData.indexOf(item),
+                expandedStates = expandedStates // 👈 pasa aquí el mapa
+
             )
         }
 
