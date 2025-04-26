@@ -31,7 +31,9 @@ fun FirestoreApp(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val productoDescripcion = remember { mutableStateOf("") }
-    val unidadMedida = remember { mutableStateOf("") } // ✅ Nueva línea
+    val unidadMedida = remember { mutableStateOf("") }
+    //val expandedFields = remember { mutableStateOf(true) } // ✅ Formulario visible al inicio
+
 
     var showSuccessDialog by remember { mutableStateOf(false) } // ✅ Aquí también
 
@@ -101,6 +103,25 @@ fun FirestoreApp(
                         }
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp))
+/*
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { expandedFields.value = !expandedFields.value }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                imageVector = Icons.Default.ExpandMore,
+                                contentDescription = if (expandedFields.value) "Ocultar formulario" else "Mostrar formulario",
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .graphicsLayer { rotationZ = if (expandedFields.value) 0f else 180f }, // 🔥 Anima la rotación
+                                tint = Color.Blue
+                            )
+                        }
+*/
 
                         OutlinedTextFieldsInputs(
                             productoDescripcion = productoDescripcion,
