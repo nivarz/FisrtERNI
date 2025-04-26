@@ -32,10 +32,12 @@ import kotlinx.coroutines.delay
 fun OutlinedTextFieldsInputsLocation(
     location: MutableState<String>,
     showErrorLocation: MutableState<Boolean>,
-    nextFocusRequester: FocusRequester
+    nextFocusRequester: FocusRequester,
+    shouldRequestFocusAfterClear: MutableState<Boolean>
 ) {
     val qrCodeContentLocation = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
+    val isZebraScan = remember { mutableStateOf(false) }
 
     val qrScanLauncherLocation =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -52,9 +54,8 @@ fun OutlinedTextFieldsInputsLocation(
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // ✅ Controla el paso de foco solamente después del escaneo
+    // ✅ Escaneo desde launcher (cámara)
     LaunchedEffect(qrCodeContentLocation.value, wasScanned.value) {
-        Log.d("FocusDebug", "wasScanned: ${wasScanned.value}, value: ${qrCodeContentLocation.value}")
         if (wasScanned.value) {
             location.value = qrCodeContentLocation.value.uppercase()
             if (location.value.isNotEmpty() && location.value != "CÓDIGO NO ENCONTRADO") {
@@ -62,7 +63,7 @@ fun OutlinedTextFieldsInputsLocation(
                 try {
                     keyboardController?.hide()
                     nextFocusRequester.requestFocus()
-                    Log.d("FocusDebug", "Foco pasado al siguiente campo")
+                    Log.d("FocusDebug", "Foco pasado al siguiente campo (QR launcher)")
                 } catch (e: Exception) {
                     Log.e("FocusError", "Error al mover el foco: ${e.message}")
                 }
@@ -70,6 +71,35 @@ fun OutlinedTextFieldsInputsLocation(
             wasScanned.value = false
         }
     }
+
+    // ✅ Escaneo directo tipo Zebra (entrada rápida)
+    LaunchedEffect(isZebraScan.value) {
+        if (isZebraScan.value) {
+            delay(100) // Pequeña pausa para asegurar estabilidad
+            try {
+                keyboardController?.hide()
+                nextFocusRequester.requestFocus()
+                Log.d("ZebraScan", "Foco pasado tras escaneo Zebra")
+            } catch (e: Exception) {
+                Log.e("ZebraFocus", "Error al pasar foco con Zebra: ${e.message}")
+            }
+            isZebraScan.value = false
+        }
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(shouldRequestFocusAfterClear.value) {
+        if (shouldRequestFocusAfterClear.value) {
+            delay(100) // ⏳ Esperar a que Compose termine de recomponer
+            try {
+                focusRequester.requestFocus()
+            } catch (e: Exception) {
+                Log.e("FocusClear", "Error al pasar foco tras limpiar: ${e.message}")
+            }
+            shouldRequestFocusAfterClear.value = false
+        }
+    }
+
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -84,12 +114,21 @@ fun OutlinedTextFieldsInputsLocation(
             label = { Text(text = "Ubicación") },
             value = location.value,
             onValueChange = { newValue ->
-                location.value = newValue.uppercase()
-                qrCodeContentLocation.value = newValue.uppercase()
+                val clean = newValue.trim().uppercase()
+
+                // 🟡 Detectar entrada rápida de Zebra (más de 4 caracteres inyectados de golpe)
+                if (clean.length > 4 && clean.length - location.value.length > 2) {
+                    isZebraScan.value = true
+                    Log.d("ZebraScan", "Entrada tipo Zebra detectada: $clean")
+                }
+
+                location.value = clean
+                qrCodeContentLocation.value = clean
                 wasScanned.value = false
                 showErrorLocation.value = false
             },
-            isError = showErrorLocation.value && (location.value.isEmpty() || location.value == "CODIGO NO ENCONTRADO"),
+            isError = showErrorLocation.value &&
+                    (location.value.isEmpty() || location.value == "CÓDIGO NO ENCONTRADO"),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = {
                 try {
@@ -106,7 +145,7 @@ fun OutlinedTextFieldsInputsLocation(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.QrCodeScanner,
-                        contentDescription = "Escanear Código",
+                        contentDescription = "Escanear Código"
                     )
                 }
             }

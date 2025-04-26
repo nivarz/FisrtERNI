@@ -2,6 +2,10 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.app.DatePickerDialog
 import android.icu.text.SimpleDateFormat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,16 +13,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -34,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +52,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
 import com.google.firebase.Timestamp
+import kotlinx.coroutines.delay
 
 @Composable
 fun MessageCard(
@@ -57,7 +66,10 @@ fun MessageCard(
     firestore: FirebaseFirestore,
     allData: MutableList<DataFields>,
     fechaRegistro: Timestamp? = null,
-    descripcion: String
+    descripcion: String,
+    onSuccess: () -> Unit,
+    listState: LazyListState,
+    index: Int
 ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
@@ -72,8 +84,7 @@ fun MessageCard(
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
     val fechaFormateada = fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
-
-    val backgroundColor = if (isEditing) Color(0xFFFFF3E0) else Color.White
+    
 
     LaunchedEffect(confirmDeletion) {
         if (confirmDeletion) {
@@ -84,8 +95,7 @@ fun MessageCard(
     }
 
     if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = true },
+        AlertDialog(onDismissRequest = { showDialog = true },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que deseas borrar este registro?") },
             confirmButton = {
@@ -102,8 +112,7 @@ fun MessageCard(
                 Button(onClick = { showDialog = false }) {
                     Text("No")
                 }
-            }
-        )
+            })
     }
 
     val datePickerDialog = DatePickerDialog(
@@ -117,19 +126,46 @@ fun MessageCard(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
+    val expanded = remember { mutableStateOf(false) }
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (expanded.value) 180f else 0f,
+        label = "RotationAnimation"
+    )
+
+    // ✅ Hacemos scroll SOLO si expanded pasa a true
+    LaunchedEffect(expanded.value) {
+        if (expanded.value) {
+            // Le damos un pequeño delay para que Compose reacomode y sea más suave
+            delay(200)
+            listState.animateScrollToItem(index)
+        }
+    }
+
+    val backgroundColorCard = if (expanded.value) Color(0xFFE3F2FD) else Color.White
+    val borderColor = if (expanded.value) Color(0xFF2196F3) else Color.Transparent
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 8.dp),
+            .padding(vertical = 4.dp, horizontal = 8.dp)
+            .border(
+                width = 2.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(12.dp) // 🔵 Bordes suaves tipo SAP Fiori
+            )
+            .clickable { expanded.value = !expanded.value },
         elevation = CardDefaults.cardElevation(4.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+        colors = CardDefaults.cardColors(containerColor = backgroundColorCard)
 
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
             // ⬆️ Mostrar fecha y descripción en la parte superior
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = fechaFormateada,
                     fontWeight = FontWeight.Bold,
@@ -143,116 +179,171 @@ fun MessageCard(
                     fontSize = 12.sp,
                     color = Color.Blue
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = "Expandir/Contraer",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .graphicsLayer {
+                            rotationZ = rotationAngle
+                        },
+                    tint = Color.Blue
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ⬇️ Resto del contenido dividido en dos columnas
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    if (isEditing) {
-                        // Campos de edición...
-                        OutlinedTextField(
-                            value = editedLocation,
-                            onValueChange = { editedLocation = it },
-                            singleLine = true,
-                            label = { Text("Editar Ubicación", fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = editedLote,
-                            onValueChange = { editedLote = it },
-                            singleLine = true,
-                            label = { Text("Editar Lote", fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = editedExpirationDate,
-                            onValueChange = { editedExpirationDate = it },
-                            label = { Text("Editar Fecha de Vencimiento", fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                IconButton(onClick = { datePickerDialog.show() }) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarMonth,
-                                        contentDescription = "Seleccionar Fecha"
-                                    )
-                                }
-                            },
-                            readOnly = true
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = editedQuantity,
-                            onValueChange = { editedQuantity = it },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            label = { Text("Editar Cantidad", fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+            AnimatedVisibility(visible = expanded.value) {
+                Column { // ✅ Debe empezar con Column, no con Row
+                    // Datos
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Button(onClick = {
-                                updateFirestore(
-                                    context,
-                                    firestore,
-                                    documentId,
-                                    editedLocation,
-                                    sku,
-                                    editedLote,
-                                    editedExpirationDate,
-                                    editedQuantity.toDoubleOrNull() ?: quantity,
-                                    allData
-                                )
-                                isEditing = false
-                            }, colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)) {
-                                Text("Guardar")
+                            Row {
+                                Text("Ubicación: ", fontSize = 13.sp, color = Color.Blue)
+                                Text(location, fontSize = 13.sp, color = Color.Black)
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(onClick = {
-                                isEditing = false
-                                editedLocation = location
-                                editedLote = lote
-                                editedExpirationDate = expirationDate
-                                editedQuantity = quantity.toString()
-                            }, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) {
-                                Text("Cancelar")
+                            Row {
+                                Text("SKU: ", fontSize = 13.sp, color = Color.Blue)
+                                Text(sku, fontSize = 13.sp, color = Color.Black)
+                            }
+                            Row {
+                                Text("Lote: ", fontSize = 13.sp, color = Color.Blue)
+                                Text(lote, fontSize = 13.sp, color = Color.Black)
+                            }
+                            Row {
+                                Text("Fecha Vencimiento: ", fontSize = 13.sp, color = Color.Blue)
+                                Text(expirationDate, fontSize = 13.sp, color = Color.Black)
+                            }
+                            Row {
+                                Text("Cantidad: ", fontSize = 13.sp, color = Color.Blue)
+                                Text(quantity.toString(), fontSize = 13.sp, color = Color.Black)
+                            }
+                            Row {
+                                Text("Unidad de Medida: ", fontSize = 13.sp, color = Color.Blue)
+                                Text(unidadMedida, fontSize = 13.sp, color = Color.Black)
                             }
                         }
-                    } else {
-                        Row { Text("Ubicación: ", fontSize = 13.sp, color = Color.Blue); Text(location, fontSize = 13.sp , color = Color.Black) }
-                        Row { Text("SKU: ", fontSize = 13.sp, color = Color.Blue); Text(sku, fontSize = 13.sp, color = Color.Black) }
-                        Row { Text("Lote: ", fontSize = 13.sp, color = Color.Blue); Text(lote, fontSize = 13.sp, color = Color.Black) }
-                        Row { Text("Fecha Vencimiento: ", fontSize = 13.sp, color = Color.Blue); Text(expirationDate, fontSize = 13.sp, color = Color.Black) }
-                        Row { Text("Cantidad: ", fontSize = 13.sp, color = Color.Blue); Text(quantity.toString(), fontSize = 13.sp, color = Color.Black) }
-                        Row { Text("Unidad de Medida: ", fontSize = 13.sp, color = Color.Blue); Text(unidadMedida, fontSize = 13.sp, color = Color.Black) }
+
+                        // ICONOS A LA DERECHA
+                        Column(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .align(Alignment.CenterVertically),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            if (!isEditing) {
+                                IconButton(onClick = { isEditing = true }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
+                                }
+                                IconButton(onClick = { showDialog = true }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red)
+                                }
+                            }
+                        }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.width(12.dp))
 
-                Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.End
-                ) {
-                    if (!isEditing) {
-                        IconButton(onClick = { isEditing = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
-                        }
-                        IconButton(onClick = { showDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red)
+            // ⬇️ Resto del contenido dividido en dos columnas
+                    Row(modifier = Modifier.fillMaxWidth()) {
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            if (isEditing) {
+                                AlertDialog(onDismissRequest = {
+                                    isEditing = false
+                                    editedLocation = location
+                                    editedLote = lote
+                                    editedExpirationDate = expirationDate
+                                    editedQuantity = quantity.toString()
+                                }, title = {
+                                    Text(
+                                        "Editar Registro", fontWeight = FontWeight.Bold
+                                    )
+                                }, text = {
+                                    Column {
+                                        OutlinedTextField(
+                                            value = editedLocation,
+                                            onValueChange = { editedLocation = it },
+                                            label = { Text("Editar Ubicación") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(value = editedLote,
+                                            onValueChange = { editedLote = it },
+                                            label = { Text("Editar Lote") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(value = editedExpirationDate,
+                                            onValueChange = { editedExpirationDate = it },
+                                            label = { Text("Editar Fecha Vencimiento") },
+                                            readOnly = true,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            trailingIcon = {
+                                                IconButton(onClick = { datePickerDialog.show() }) {
+                                                    Icon(
+                                                        Icons.Default.CalendarMonth,
+                                                        contentDescription = "Seleccionar fecha"
+                                                    )
+                                                }
+                                            })
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(
+                                            value = editedQuantity,
+                                            onValueChange = { editedQuantity = it },
+                                            label = { Text("Editar Cantidad") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }, confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            updateFirestore(
+                                                firestore,
+                                                documentId,
+                                                editedLocation,
+                                                sku,
+                                                editedLote,
+                                                editedExpirationDate,
+                                                editedQuantity.toDoubleOrNull() ?: quantity,
+                                                allData,
+                                                onSuccess = onSuccess
+
+                                            )
+
+                                            isEditing = false
+                                        },
+                                    ) {
+                                        Text("Guardar")
+                                    }
+                                }, dismissButton = {
+                                    Button(onClick = {
+                                        isEditing = false
+                                        editedLocation = location
+                                        editedLote = lote
+                                        editedExpirationDate = expirationDate
+                                        editedQuantity = quantity.toString()
+                                    }) {
+                                        Text("Cancelar")
+                                    }
+                                })
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-}
+

@@ -1,12 +1,10 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import android.content.Context
-import android.widget.Toast
+
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.firestore.FirebaseFirestore
 
 fun updateFirestore(
-    context: Context, // ⬅️ nuevo parámetro
     db: FirebaseFirestore,
     documentId: String,
     location: String,
@@ -14,7 +12,9 @@ fun updateFirestore(
     lote: String,
     expirationDate: String,
     quantity: Double,
-    allData: MutableList<DataFields>
+    allData: MutableList<DataFields>,
+    onSuccess: () -> Unit, // ✅ nuevo callback
+
 ) {
     db.collection("inventario").document(documentId)
         .update(
@@ -25,8 +25,6 @@ fun updateFirestore(
             "cantidad", quantity
         )
         .addOnSuccessListener {
-            Toast.makeText(context, "Registro actualizado correctamente", Toast.LENGTH_SHORT).show()
-
             // Actualiza la lista local para reflejar el cambio en la UI
             val index = allData.indexOfFirst { it.documentId == documentId }
             if (index != -1) {
@@ -39,6 +37,7 @@ fun updateFirestore(
                 )
 
             }
+            onSuccess() // ✅ señal al Composable
         }
         .addOnFailureListener { e ->
             println("Error al actualizar: $e")

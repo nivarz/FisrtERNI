@@ -49,9 +49,9 @@ fun OutlinedTextFieldsInputs(
     productoDescripcion: MutableState<String>,
     coroutineScope: CoroutineScope,
     userViewModel: UserViewModel,
-    localidad: String
+    localidad: String,
+    onSuccess: () -> Unit
 ) {
-
     val sku = remember { mutableStateOf("") }
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val qrCodeContentLot = remember { mutableStateOf("") } //esto es para el scanner de QRCode
@@ -72,7 +72,7 @@ fun OutlinedTextFieldsInputs(
     val firestore = Firebase.firestore
     val allData = remember { mutableStateListOf<DataFields>() }
     val dateText = remember { mutableStateOf("") }
-    val location = remember { mutableStateOf("") } // 🔥 Debe ser MutableState<String>
+    val location = remember { mutableStateOf("") }
 
     // Para ocultar el teclado val focusManager = LocalFocusManager.current
 
@@ -92,6 +92,7 @@ fun OutlinedTextFieldsInputs(
 
     val shouldRequestFocus = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val shouldRequestFocusAfterClear = remember { mutableStateOf(false) }
     val focusRequesterSku = remember { FocusRequester() }
     val focusRequesterLot =
         remember { FocusRequester() } // 👈 este sería el que pasas como `nextFocusRequester`
@@ -162,8 +163,6 @@ fun OutlinedTextFieldsInputs(
         }
     }
 
-
-
     LaunchedEffect(usuario) {
         if (usuario.isNotEmpty()) {
             fetchDataFromFirestore(
@@ -174,8 +173,6 @@ fun OutlinedTextFieldsInputs(
             )
         }
     }
-
-
 
     Column(
         modifier = Modifier
@@ -188,7 +185,8 @@ fun OutlinedTextFieldsInputs(
         OutlinedTextFieldsInputsLocation(
             location,
             showErrorLocation,
-            nextFocusRequester = focusRequesterSku
+            nextFocusRequester = focusRequesterSku,
+            shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
 
         )
 
@@ -204,6 +202,7 @@ fun OutlinedTextFieldsInputs(
             unidadMedida,
             focusRequester = focusRequesterSku,
             nextFocusRequester = focusRequesterLot,
+            shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
             keyboardController = keyboardController
 
         )
@@ -211,13 +210,13 @@ fun OutlinedTextFieldsInputs(
         // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
 
         ProductSelectionDialog(
-            productList = productList, // Lista de descripciones
-            productMap = productMap, // Mapa de descripción -> (Código, UM)
-            showProductDialog = showProductDialog, // Estado para mostrar el diálogo
-            sku = sku, // Estado del SKU
-            qrCodeContentSku = qrCodeContentSku, // Estado del código escaneado
-            productoDescripcion = productoDescripcion, // Estado de la descripción
-            unidadMedida = unidadMedida // Pasamos un string vacío o alguna variable que contenga la UM
+            productList = productList,
+            productMap = productMap,
+            showProductDialog = showProductDialog,
+            sku = sku,
+            qrCodeContentSku = qrCodeContentSku,
+            productoDescripcion = productoDescripcion,
+            unidadMedida = unidadMedida
         )
 
         // 📌 CAMPO DE TEXTO PARA EL LOTE
@@ -225,7 +224,9 @@ fun OutlinedTextFieldsInputs(
         OutlinedTextFieldsInputsLot(
             lot,
             focusRequester = focusRequesterLot,
-            nextFocusRequester = focusRequesterFecha
+            nextFocusRequester = focusRequesterFecha,
+            keyboardController = keyboardController,
+            shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
         )
 
         // 📌 CAMPO DE TEXTO PARA LA FECHA
@@ -247,8 +248,6 @@ fun OutlinedTextFieldsInputs(
             focusRequester = focusRequesterCantidad,
             keyboardController = LocalSoftwareKeyboardController.current
         )
-
-        //Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier
@@ -280,7 +279,7 @@ fun OutlinedTextFieldsInputs(
                     } else if (dateText.value.isEmpty()) {
                         dateText.value = "N/A"
 
-                    } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
+                    } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
                         errorMessage2 = "Producto No Encontrado"
                         showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                         showErrorSku.value = true
@@ -351,6 +350,13 @@ fun OutlinedTextFieldsInputs(
                                     qrCodeContentLot.value =
                                         "" // 🔥 Esto elimina "Código No Encontrado"
                                     userViewModel.limpiarValoresTemporales()
+
+                                    // 👉 Pasar el foco a SKU
+                                    try {
+                                        focusRequesterSku.requestFocus()
+                                    } catch (e: Exception) {
+                                        Log.e("FocusError", "Error al pasar foco a SKU: ${e.message}")
+                                    }
                                 }
                             },
                             onError = {
@@ -377,7 +383,7 @@ fun OutlinedTextFieldsInputs(
             {
                 Text("Grabar Registro", fontSize = 13.sp)
             }
-// 🔘 Botón Limpiar
+            // 🔘 Botón Limpiar
             Button(
                 onClick = {
                     location.value = ""
@@ -394,7 +400,7 @@ fun OutlinedTextFieldsInputs(
                     showErrorSku.value = false
                     showErrorQuantity.value = false
 
-                    focusRequester.requestFocus() // ✅ Solicita el foco al campo SKU
+                    shouldRequestFocusAfterClear.value = true
 
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -480,7 +486,6 @@ fun OutlinedTextFieldsInputs(
                 }
             )
         }
-
     }
 
     LazyColumn(
@@ -500,7 +505,10 @@ fun OutlinedTextFieldsInputs(
                 firestore = Firebase.firestore,
                 allData = allData,
                 fechaRegistro = item.fechaRegistro,
-                descripcion = item.description
+                descripcion = item.description,
+                onSuccess = onSuccess,
+                listState = listState,
+                index = allData.indexOf(item)
             )
         }
 
@@ -523,6 +531,5 @@ fun OutlinedTextFieldsInputs(
             showSuccessDialog.value = false
         }
     }
-
 
 }

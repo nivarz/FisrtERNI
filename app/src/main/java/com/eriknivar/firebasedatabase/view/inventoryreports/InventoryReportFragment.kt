@@ -1,17 +1,23 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.delay
 
 @Composable
 fun InventoryReportsFragment(
@@ -37,11 +43,33 @@ fun InventoryReportsFragment(
         }
     }
 
+    var showSuccessDialog by remember { mutableStateOf(false) }
+
+    // ✅ Dialog visual centrado para confirmación de actualización
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog = false },
+            confirmButton = {},
+            title = { Text("✔️ Registro actualizado.") },
+            text = { Text("Los datos se actualizaron correctamente.") },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        )
+
+        LaunchedEffect(showSuccessDialog) {
+            delay(2000)
+            showSuccessDialog = false
+        }
+    }
+
     NavigationDrawer(navController, "Reportes del Inventario", userViewModel) {
         InventoryReportFiltersScreen(
             userViewModel = userViewModel,
             allData = allData,
             tipoUsuario = tipoUsuario,
+            onSuccess = { showSuccessDialog = true },
             puedeModificarRegistro = { usuario, tipoCreador ->
                 userViewModel.puedeModificarRegistro(usuario, tipoCreador)
             }

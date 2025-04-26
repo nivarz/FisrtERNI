@@ -94,17 +94,6 @@ fun NavigationDrawer(
 
                     EditableProfileImage(userName = userName)
 
-
-
-                    /*Image(
-                        painter = painterResource(id = R.drawable.erik),
-                        contentDescription = "",
-                        modifier = Modifier
-                            .size(70.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Fit
-                    )*/
-
                 }
 
                 fun capitalizarNombreCompleto(nombre: String): String {
@@ -181,7 +170,6 @@ fun NavigationDrawer(
                     }
                 }
 
-                //if (userViewModel.tipo.value == "admin" && userViewModel.tipo.value == "superuser") {
                     TextButton(onClick = {
                         navController.navigate("settings") // o "configuracion", según tu ruta real
                         scope.launch { drawerState.close() }
@@ -260,9 +248,7 @@ fun NavigationDrawer(
 
         }
     })
-
         // El ModalNavigationDrawer tiene que contener el Scaffold
-
     {
 
         val customColorBackGround = Color(0xFF527782)

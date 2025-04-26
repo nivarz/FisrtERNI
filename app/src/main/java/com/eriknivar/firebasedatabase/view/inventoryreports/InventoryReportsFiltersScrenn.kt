@@ -68,9 +68,11 @@ fun InventoryReportFiltersScreen(
     userViewModel: UserViewModel,
     allData: List<DataFields>,
     tipoUsuario: String,
-    puedeModificarRegistro: (String, String) -> Boolean
-)
- {
+    puedeModificarRegistro: (String, String) -> Boolean,
+    onSuccess: () -> Unit // 👈 este es nuevo
+
+
+) {
     val sku = remember { mutableStateOf("") }
     val location = remember { mutableStateOf("") }
     val startDate = remember { mutableStateOf("") }
@@ -272,10 +274,20 @@ fun InventoryReportFiltersScreen(
                                     filteredData.clear()
                                     filteredData.addAll(
                                         nuevosDatos.filter { item ->
-                                            val matchesSku = sku.value.isBlank() || item.sku.contains(sku.value, true) || item.description.contains(sku.value, true)
-                                            val matchesLocation = location.value.isBlank() || item.location.equals(location.value, true)
+                                            val matchesSku =
+                                                sku.value.isBlank() || item.sku.contains(
+                                                    sku.value,
+                                                    true
+                                                ) || item.description.contains(sku.value, true)
+                                            val matchesLocation =
+                                                location.value.isBlank() || item.location.equals(
+                                                    location.value,
+                                                    true
+                                                )
 
-                                            val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
+                                            val dateFormatted =
+                                                item.fechaRegistro?.toDate()?.let { sdf.format(it) }
+                                                    ?: ""
                                             val matchesDate = try {
                                                 (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
                                                         (endDate.value.isBlank() || dateFormatted <= endDate.value)
@@ -283,8 +295,12 @@ fun InventoryReportFiltersScreen(
                                                 true
                                             }
 
-                                            val matchesLocalidad = localidadSeleccionada.value.isBlank() ||
-                                                    item.localidad.equals(localidadSeleccionada.value, ignoreCase = true)
+                                            val matchesLocalidad =
+                                                localidadSeleccionada.value.isBlank() ||
+                                                        item.localidad.equals(
+                                                            localidadSeleccionada.value,
+                                                            ignoreCase = true
+                                                        )
 
                                             matchesSku && matchesLocation && matchesDate && matchesLocalidad
                                         }.sortedByDescending { it.fechaRegistro?.toDate() }
@@ -294,7 +310,11 @@ fun InventoryReportFiltersScreen(
                                 },
                                 onError = {
                                     isLoading.value = false
-                                    Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Error al consultar Firestore",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             )
                         },
@@ -377,7 +397,7 @@ fun InventoryReportFiltersScreen(
                 shape = RoundedCornerShape(16.dp),
                 tonalElevation = 4.dp,
 
-            )
+                )
         }
 
 
@@ -410,7 +430,8 @@ fun InventoryReportFiltersScreen(
                     InventoryReportItem(
                         item = item,
                         puedeModificarRegistro = puedeModificarRegistro,
-                        tipoUsuarioActual = userViewModel.tipo.value ?: "", // ✅ Aquí el nuevo parámetro
+                        tipoUsuarioActual = userViewModel.tipo.value
+                            ?: "", // ✅ Aquí el nuevo parámetro
                         onDelete = { documentId ->
                             Firebase.firestore.collection("inventario").document(documentId)
                                 .delete()
@@ -429,7 +450,6 @@ fun InventoryReportFiltersScreen(
                         },
                         onEdit = { updatedItem ->
                             updateFirestore(
-                                context,
                                 Firebase.firestore,
                                 updatedItem.documentId,
                                 updatedItem.location,
@@ -437,7 +457,8 @@ fun InventoryReportFiltersScreen(
                                 updatedItem.lote,
                                 updatedItem.expirationDate,
                                 updatedItem.quantity,
-                                filteredData
+                                filteredData,
+                                onSuccess = onSuccess
                             )
                         }
                     )

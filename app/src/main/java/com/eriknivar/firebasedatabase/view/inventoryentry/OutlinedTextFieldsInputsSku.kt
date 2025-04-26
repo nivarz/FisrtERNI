@@ -59,10 +59,17 @@ fun OutlinedTextFieldsInputsSku(
     unidadMedida: MutableState<String>,
     focusRequester: FocusRequester,
     nextFocusRequester: FocusRequester,
-    keyboardController: SoftwareKeyboardController?
+    keyboardController: SoftwareKeyboardController?,
+    shouldRequestFocusAfterClear: MutableState<Boolean> // 👈 Nueva bandera
+
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val db = FirebaseFirestore.getInstance()
+    val isLoadingProductos = remember { mutableStateOf(false) }
+    val zebraScanned = remember { mutableStateOf(false) }
+
 
     val qrScanLauncherSku =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -75,9 +82,19 @@ fun OutlinedTextFieldsInputsSku(
         }
 
     val qrCodeScannerSku = remember { QRCodeScanner(qrScanLauncherSku) }
-    val context = LocalContext.current
-    val db = FirebaseFirestore.getInstance()
-    val isLoadingProductos = remember { mutableStateOf(false) }
+
+    // ✅ Foco automático después de limpiar
+    LaunchedEffect(shouldRequestFocusAfterClear.value) {
+        if (shouldRequestFocusAfterClear.value) {
+            delay(100)
+            try {
+                focusRequester.requestFocus()
+            } catch (e: Exception) {
+                Log.e("FocusClear", "Error al pasar foco tras limpiar: ${e.message}")
+            }
+            shouldRequestFocusAfterClear.value = false
+        }
+    }
 
     LaunchedEffect(qrCodeContentSku.value, wasScanned.value) {
         if (wasScanned.value) {
@@ -104,6 +121,23 @@ fun OutlinedTextFieldsInputsSku(
         }
     }
 
+    LaunchedEffect(zebraScanned.value) {
+        if (zebraScanned.value) {
+            delay(150)
+            if (sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
+                try {
+                    keyboardController?.hide()
+                    nextFocusRequester.requestFocus()
+                    Log.d("ZebraFocus", "Foco pasado tras escaneo Zebra")
+                } catch (e: Exception) {
+                    Log.e("ZebraFocus", "Error al pasar foco Zebra: ${e.message}")
+                }
+            }
+            zebraScanned.value = false
+        }
+    }
+
+
     Row(
         modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
     ) {
@@ -118,6 +152,12 @@ fun OutlinedTextFieldsInputsSku(
             value = sku.value,
             onValueChange = { newValue ->
                 val upper = newValue.uppercase()
+                val isZebra = upper.length >= 5 && (upper.length - sku.value.length > 2)
+
+                if (isZebra) {
+                    zebraScanned.value = true
+                }
+
                 sku.value = upper
                 qrCodeContentSku.value = upper
                 showErrorSku.value = false

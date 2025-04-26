@@ -27,18 +27,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.coroutines.delay
 
 @Composable
 fun OutlinedTextFieldsInputsLot(
     lot: MutableState<String>,
     focusRequester: FocusRequester,
-    nextFocusRequester: FocusRequester
+    nextFocusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController?,
+    shouldRequestFocusAfterClear: MutableState<Boolean> // 👈 Nueva bandera
+
 ) {
     val qrCodeContentLot = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
+    val zebraScanned = remember { mutableStateOf(false) }
+
 
     val qrScanLauncherLot =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -51,6 +58,36 @@ fun OutlinedTextFieldsInputsLot(
                 wasScanned.value = true // ✅ Indicamos que vino del escáner
             }
         }
+
+
+    // ✅ Foco automático después de limpiar
+    LaunchedEffect(shouldRequestFocusAfterClear.value) {
+        if (shouldRequestFocusAfterClear.value) {
+            delay(100)
+            try {
+                focusRequester.requestFocus()
+            } catch (e: Exception) {
+                Log.e("FocusClear", "Error al pasar foco tras limpiar: ${e.message}")
+            }
+            shouldRequestFocusAfterClear.value = false
+        }
+    }
+
+    LaunchedEffect(zebraScanned.value) {
+        if (zebraScanned.value) {
+            delay(150)
+            if (lot.value.isNotEmpty() && lot.value != "CODIGO NO ENCONTRADO") {
+                try {
+                    keyboardController?.hide()
+                    nextFocusRequester.requestFocus()
+                    Log.d("ZebraFocus", "Foco pasado tras escaneo Zebra")
+                } catch (e: Exception) {
+                    Log.e("ZebraFocus", "Error al pasar foco Zebra: ${e.message}")
+                }
+            }
+            zebraScanned.value = false
+        }
+    }
 
     val qrCodeScannerLot = remember { QRCodeScanner(qrScanLauncherLot) }
     val context = LocalContext.current
@@ -84,6 +121,13 @@ fun OutlinedTextFieldsInputsLot(
             value = lot.value,
             onValueChange = {
                 val upper = it.trim().uppercase()
+                val isZebra = upper.length >= 5 && (upper.length - lot.value.length > 2)
+
+                if (isZebra) {
+                    zebraScanned.value = true
+                }
+
+
                 lot.value = upper
             },
             trailingIcon = {

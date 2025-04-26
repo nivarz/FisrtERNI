@@ -3,6 +3,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -16,9 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun FirestoreApp(
@@ -29,6 +32,25 @@ fun FirestoreApp(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val productoDescripcion = remember { mutableStateOf("") }
+    var showSuccessDialog by remember { mutableStateOf(false) } // ✅ Aquí también
+
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog = false },
+            confirmButton = {},
+            title = { Text("✔️ Registro actualizado") },
+            text = { Text("Los datos se actualizaron correctamente.") },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        )
+
+        LaunchedEffect(showSuccessDialog) {
+            delay(2000)
+            showSuccessDialog = false
+        }
+    }
 
         NavigationDrawer(navController, storageType, userViewModel) {
             Scaffold(
@@ -71,6 +93,9 @@ fun FirestoreApp(
                             userViewModel = userViewModel,
                             coroutineScope = coroutineScope,
                             localidad = storageType,
+                            onSuccess = {
+                                showSuccessDialog = true
+                            }
 
 
                         )
