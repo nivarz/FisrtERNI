@@ -155,6 +155,7 @@ fun OutlinedTextFieldsInputsSku(
             onValueChange = { newValue ->
                 val upper = newValue.uppercase()
                 val isZebra = upper.length >= 5 && (upper.length - sku.value.length > 2)
+                val cleanSku = newValue.trim().uppercase()
 
                 if (isZebra) {
                     zebraScanned.value = true
@@ -163,6 +164,11 @@ fun OutlinedTextFieldsInputsSku(
                 sku.value = upper
                 qrCodeContentSku.value = upper
                 showErrorSku.value = false
+
+                if (cleanSku.isEmpty()) {
+                    productoDescripcion.value = ""
+                    unidadMedida.value = ""
+                }
 
                 if (upper.isBlank()) {
                     productoDescripcion.value = ""

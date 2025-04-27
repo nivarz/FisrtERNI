@@ -82,7 +82,6 @@ dependencies {
     implementation(libs.androidx.material3.v121)
     implementation(libs.coil.compose.v250)
 
-
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

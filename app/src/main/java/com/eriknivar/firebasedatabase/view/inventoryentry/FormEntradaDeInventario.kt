@@ -2,17 +2,15 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -23,11 +21,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
@@ -40,46 +38,60 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.eriknivar.firebasedatabase.view.utility.validarRegistroDuplicado
 import kotlinx.coroutines.delay
 
 @Composable
-fun OutlinedTextFieldsInputs(
+fun FormEntradaDeInventario(
+    location: MutableState<String>,
+    sku: MutableState<String>,
+    lot: MutableState<String>,
+    dateText: MutableState<String>,
+    quantity: MutableState<String>,
     productoDescripcion: MutableState<String>,
+    unidadMedida: MutableState<String>,
     coroutineScope: CoroutineScope,
     userViewModel: UserViewModel,
     localidad: String,
-    onSuccess: () -> Unit,
-    unidadMedida: MutableState<String>, // ✅ Nueva línea
+    allData: SnapshotStateList<DataFields>,
+    listState: LazyListState,
+    isVisible: Boolean // ✅ Nuevo parámetro para control animado
+
 
 ) {
-    val sku = remember { mutableStateOf("") }
+
     val qrCodeContentSku = remember { mutableStateOf("") } //esto es para el scanner de QRCode
     val qrCodeContentLot = remember { mutableStateOf("") } //esto es para el scanner de QRCode
+
+    val showErrorQuantity = remember { mutableStateOf(false) }
+    val showErrorLocation = remember { mutableStateOf(false) }
+    val showErrorSku = remember { mutableStateOf(false) }
+
+    val errorMessageQuantity = remember { mutableStateOf("") }
+    var showDialogValueQuantityCero by remember { mutableStateOf(false) }
+    val showDialogRegistroDuplicado = remember { mutableStateOf(false) }
 
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
 
-    val lot = remember { mutableStateOf("") }
-    val quantity = remember { mutableStateOf("") }
-    val showErrorQuantity = remember { mutableStateOf(false) }
-    val errorMessageQuantity = remember { mutableStateOf("") }
-    var showDialogValueQuantityCero by remember { mutableStateOf(false) }
+    val shouldRequestFocus = remember { mutableStateOf(false) }
+    val focusRequesterSku = remember { FocusRequester() }
+    val focusRequesterLot = remember { FocusRequester() }
+    val focusRequesterFecha = remember { FocusRequester() }
+    val focusRequesterCantidad = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    val showDialogRegistroDuplicado = remember { mutableStateOf(false) }
+    //NO VEO ESTOS ESTADOS EN LA NUEVA MODIFICACION
+
     val context = LocalContext.current
     val firestore = Firebase.firestore
-    val allData = remember { mutableStateListOf<DataFields>() }
-    val dateText = remember { mutableStateOf("") }
-    val location = remember { mutableStateOf("") }
 
     // Para ocultar el teclado val focusManager = LocalFocusManager.current
-
-    val showErrorLocation = remember { mutableStateOf(false) }// Para validar los campos vacios
-    val showErrorSku = remember { mutableStateOf(false) }
 
     var showError1 by remember { mutableStateOf(false) }
     var showError2 by remember { mutableStateOf(false) }
@@ -92,26 +104,11 @@ fun OutlinedTextFieldsInputs(
     var errorMessage2 by remember { mutableStateOf("") }
     var errorMessage3 by remember { mutableStateOf("") }
 
-    val shouldRequestFocus = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val shouldRequestFocusAfterClear = remember { mutableStateOf(false) }
-    val focusRequesterSku = remember { FocusRequester() }
-    val focusRequesterLot =
-        remember { FocusRequester() } // 👈 este sería el que pasas como `nextFocusRequester`
-    val focusRequesterFecha = remember { FocusRequester() }
-    val focusRequesterCantidad = remember { FocusRequester() }
-
     val usuario by userViewModel.nombre.observeAsState("")
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-
-    // ✅ Estado para asegurarnos que se restaura solo una vez
     val restored = remember { mutableStateOf(false) }
-
     val showSuccessDialog = remember { mutableStateOf(false) }
-
-    val listState = rememberLazyListState()
-
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -176,12 +173,14 @@ fun OutlinedTextFieldsInputs(
         }
     }
 
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)// 📌 Ajusta el padding, digase la columna donde estan los campos
+            .height(if (isVisible) Dp.Unspecified else 0.dp)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
 
         // 📌 FUNCION PARA LA UBICACION
         OutlinedTextFieldsInputsLocation(
@@ -251,6 +250,8 @@ fun OutlinedTextFieldsInputs(
             keyboardController = LocalSoftwareKeyboardController.current
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -265,13 +266,17 @@ fun OutlinedTextFieldsInputs(
                     keyboardController?.hide()
 
                     if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                        showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showDialog =
+                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                         showErrorLocation.value = true
                         showErrorSku.value = true
                         showErrorQuantity.value = true
+                        productoDescripcion.value = ""
+                        unidadMedida.value = ""
 
                     } else if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                        showDialog1 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showDialog1 =
+                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                         showErrorLocation.value = true
                         showErrorSku.value = true
 
@@ -283,8 +288,11 @@ fun OutlinedTextFieldsInputs(
 
                     } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
                         errorMessage2 = "Producto No Encontrado"
-                        showDialog2 = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showDialog2 =
+                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
                         showErrorSku.value = true
+                        productoDescripcion.value = ""
+                        unidadMedida.value = ""
 
                     } else if (quantity.value == "0") {
                         errorMessage = "No Admite cantidades 0"
@@ -357,7 +365,10 @@ fun OutlinedTextFieldsInputs(
                                     try {
                                         focusRequesterSku.requestFocus()
                                     } catch (e: Exception) {
-                                        Log.e("FocusError", "Error al pasar foco a SKU: ${e.message}")
+                                        Log.e(
+                                            "FocusError",
+                                            "Error al pasar foco a SKU: ${e.message}"
+                                        )
                                     }
                                 }
                             },
@@ -373,15 +384,13 @@ fun OutlinedTextFieldsInputs(
                 },
 
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF003366), // Azul marino
-                    contentColor = Color.White          // Color del texto
+                    containerColor = Color(0xFF003366),
+                    contentColor = Color.White
                 ),
-
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
             )
-
             {
                 Text("Grabar Registro", fontSize = 13.sp)
             }
@@ -417,108 +426,79 @@ fun OutlinedTextFieldsInputs(
             }
         }
 
-        Box(modifier = Modifier.fillMaxWidth()) {
-            HorizontalDivider(
-                thickness = 2.dp,
-                color = Color.Gray,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-            )
-        }
 
+        HorizontalDivider(
+            thickness = 2.dp,
+            color = Color.Gray,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        )
+    }
 
-        if (showDialog) {
-            AlertDialog(onDismissRequest = {
-                showDialog = true
-            }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Campos Obligatorios Vacios") },
-                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-                confirmButton = {
-                    Button(onClick = { showDialog = false }) {
-                        Text("Aceptar")
-                    }
-                })
-        }
-        if (showDialog1) {
-            AlertDialog(onDismissRequest = {
-                showDialog1 = true
-            }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Codigo No Encontrado") },
-                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-                confirmButton = {
-                    Button(onClick = { showDialog1 = false }) {
-                        Text("Aceptar")
-                    }
-                })
-        }
-        if (showDialog2) {
-            AlertDialog(onDismissRequest = {
-                showDialog2 = true
-            }, // No se cierra al tocar fuera del cuadro
-                title = { Text("Producto No Encontrado") },
-                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-                confirmButton = {
-                    Button(onClick = { showDialog2 = false }) {
-                        Text("Aceptar")
-                    }
-                })
-        }
-        if (showDialogValueQuantityCero) {
-            AlertDialog(onDismissRequest = {
-                showDialogValueQuantityCero = true
-            }, // No se cierra al tocar fuera del cuadro
-                title = { Text("No Admite cantidades 0") },
-                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-                confirmButton = {
-                    Button(onClick = { showDialogValueQuantityCero = false }) {
-                        Text("Aceptar")
-                    }
-                })
-        }
+    //////
 
-        if (showDialogRegistroDuplicado.value) {
-            AlertDialog(onDismissRequest = { showDialogRegistroDuplicado.value = true },
-                title = { Text("Registro Duplicado") },
-                text = { Text("Ya existe un registro con los mismos datos. Verifica antes de grabar nuevamente.") },
-                confirmButton = {
-                    Button(onClick = { showDialogRegistroDuplicado.value = false }) {
-                        Text("Aceptar")
-                    }
+    if (showDialog) {
+        AlertDialog(onDismissRequest = {
+            showDialog = true
+        }, // No se cierra al tocar fuera del cuadro
+            title = { Text("Campos Obligatorios Vacios") },
+            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+            confirmButton = {
+                Button(onClick = { showDialog = false }) {
+                    Text("Aceptar")
                 }
-            )
-        }
+            })
+    }
+    if (showDialog1) {
+        AlertDialog(onDismissRequest = {
+            showDialog1 = true
+        }, // No se cierra al tocar fuera del cuadro
+            title = { Text("Codigo No Encontrado") },
+            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+            confirmButton = {
+                Button(onClick = { showDialog1 = false }) {
+                    Text("Aceptar")
+                }
+            })
+    }
+    if (showDialog2) {
+        AlertDialog(onDismissRequest = {
+            showDialog2 = true
+        }, // No se cierra al tocar fuera del cuadro
+            title = { Text("Producto No Encontrado") },
+            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+            confirmButton = {
+                Button(onClick = { showDialog2 = false }) {
+                    Text("Aceptar")
+                }
+            })
+    }
+    if (showDialogValueQuantityCero) {
+        AlertDialog(onDismissRequest = {
+            showDialogValueQuantityCero = true
+        }, // No se cierra al tocar fuera del cuadro
+            title = { Text("No Admite cantidades 0") },
+            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+            confirmButton = {
+                Button(onClick = { showDialogValueQuantityCero = false }) {
+                    Text("Aceptar")
+                }
+            })
     }
 
-    val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = listState, // 👈 asegúrate que esté conectado
-        reverseLayout = false // ✅ Esto invierte la lista: el más reciente aparece arriba
-    ) {
-        items(allData) { item ->
-            MessageCard(
-                documentId = item.documentId,
-                location = item.location,
-                sku = item.sku,
-                lote = item.lote,
-                expirationDate = item.expirationDate,
-                quantity = item.quantity,
-                unidadMedida = item.unidadMedida,
-                firestore = Firebase.firestore,
-                allData = allData,
-                fechaRegistro = item.fechaRegistro,
-                descripcion = item.description,
-                onSuccess = onSuccess,
-                listState = listState,
-                index = allData.indexOf(item),
-                expandedStates = expandedStates // 👈 pasa aquí el mapa
-
-            )
-        }
-
+    if (showDialogRegistroDuplicado.value) {
+        AlertDialog(onDismissRequest = { showDialogRegistroDuplicado.value = true },
+            title = { Text("Registro Duplicado") },
+            text = { Text("Ya existe un registro con los mismos datos. Verifica antes de grabar nuevamente.") },
+            confirmButton = {
+                Button(onClick = { showDialogRegistroDuplicado.value = false }) {
+                    Text("Aceptar")
+                }
+            }
+        )
     }
+
 
     if (showSuccessDialog.value) {
         AlertDialog(
@@ -537,5 +517,4 @@ fun OutlinedTextFieldsInputs(
             showSuccessDialog.value = false
         }
     }
-
 }
