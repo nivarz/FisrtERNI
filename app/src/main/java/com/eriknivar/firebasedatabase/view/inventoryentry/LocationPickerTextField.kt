@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -34,6 +35,7 @@ import kotlinx.coroutines.delay
 fun OutlinedTextFieldsInputsLocation(
     location: MutableState<String>,
     showErrorLocation: MutableState<Boolean>,
+    focusRequester: FocusRequester,
     nextFocusRequester: FocusRequester,
     shouldRequestFocusAfterClear: MutableState<Boolean>
 ) {
@@ -89,7 +91,7 @@ fun OutlinedTextFieldsInputsLocation(
         }
     }
 
-    val focusRequester = remember { FocusRequester() }
+   // val focusRequester = remember { FocusRequester() }
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
             delay(100) // ⏳ Esperar a que Compose termine de recomponer
@@ -111,7 +113,8 @@ fun OutlinedTextFieldsInputsLocation(
             modifier = Modifier
                 .width(275.dp)
                 .height(64.dp)
-                .padding(4.dp),
+                .padding(4.dp)
+                .focusRequester(focusRequester),
             singleLine = true,
             label = { Text(text = "Ubicación") },
             value = location.value,

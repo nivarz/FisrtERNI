@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.eriknivar.firebasedatabase.view.utility.validarRegistroDuplicado
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun FormEntradaDeInventario(
@@ -59,7 +60,6 @@ fun FormEntradaDeInventario(
     allData: SnapshotStateList<DataFields>,
     listState: LazyListState,
     isVisible: Boolean // ✅ Nuevo parámetro para control animado
-
 
 ) {
 
@@ -85,6 +85,8 @@ fun FormEntradaDeInventario(
     val focusRequesterCantidad = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequesterLocation = remember { FocusRequester() }
+
 
     //NO VEO ESTOS ESTADOS EN LA NUEVA MODIFICACION
 
@@ -113,19 +115,9 @@ fun FormEntradaDeInventario(
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
             if (nuevoNombre.isEmpty()) {
-                if (
-                    sku.value.isNotBlank() ||
-                    lot.value.isNotBlank() ||
-                    quantity.value.isNotBlank() ||
-                    location.value.isNotBlank() ||
-                    dateText.value.isNotBlank()
-                ) {
+                if (sku.value.isNotBlank() || lot.value.isNotBlank() || quantity.value.isNotBlank() || location.value.isNotBlank() || dateText.value.isNotBlank()) {
                     userViewModel.guardarValoresTemporalmente(
-                        sku.value,
-                        lot.value,
-                        quantity.value,
-                        location.value,
-                        dateText.value
+                        sku.value, lot.value, quantity.value, location.value, dateText.value
                     )
 
                     Log.d("TEMPORAL", "✅ Guardado CORRECTO antes de logout")
@@ -178,14 +170,14 @@ fun FormEntradaDeInventario(
         modifier = Modifier
             .fillMaxWidth()
             .height(if (isVisible) Dp.Unspecified else 0.dp)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
         // 📌 FUNCION PARA LA UBICACION
         OutlinedTextFieldsInputsLocation(
             location,
             showErrorLocation,
+            focusRequester = focusRequesterLocation, // 🔥 Este es el inicial
             nextFocusRequester = focusRequesterSku,
             shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
 
@@ -265,40 +257,56 @@ fun FormEntradaDeInventario(
                     focusManager.clearFocus()
                     keyboardController?.hide()
 
-                    if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                        showDialog =
-                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                        showErrorLocation.value = true
-                        showErrorSku.value = true
-                        showErrorQuantity.value = true
-                        productoDescripcion.value = ""
-                        unidadMedida.value = ""
+                    coroutineScope.launch {
+                        delay(300)
 
-                    } else if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                        showDialog1 =
-                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                        showErrorLocation.value = true
-                        showErrorSku.value = true
 
-                    } else if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
-                        lot.value = "N/A"
+                        if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
+                            showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                            showErrorLocation.value = true
+                            showErrorSku.value = true
+                            showErrorQuantity.value = true
+                            return@launch // 🚨
+                        }
 
-                    } else if (dateText.value.isEmpty()) {
-                        dateText.value = "N/A"
+                        if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
+                            showDialog1 =
+                                true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                            showErrorLocation.value = true
+                            showErrorSku.value = true
+                            return@launch // 🚨
 
-                    } else if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
-                        errorMessage2 = "Producto No Encontrado"
-                        showDialog2 =
-                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                        showErrorSku.value = true
-                        productoDescripcion.value = ""
-                        unidadMedida.value = ""
+                        }
 
-                    } else if (quantity.value == "0") {
-                        errorMessage = "No Admite cantidades 0"
-                        showDialogValueQuantityCero = true
+                        if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
+                            lot.value = "N/A"
+                            return@launch // 🚨
 
-                    } else {
+                        }
+
+                        if (dateText.value.isEmpty()) {
+                            dateText.value = "N/A"
+                            return@launch // 🚨
+
+                        }
+
+                        if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
+                            errorMessage2 = "Producto No Encontrado"
+                            showDialog2 =
+                                true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                            showErrorSku.value = true
+                            return@launch // 🚨
+
+                        }
+
+                        if (quantity.value == "0" || quantity.value.isEmpty() || quantity.value == "") {
+                            errorMessage = "No Admite cantidades 0"
+                            showDialogValueQuantityCero = true
+                            showErrorQuantity.value = true
+                            return@launch
+
+                        }
+
                         showErrorLocation.value = false
                         showErrorSku.value = false
                         errorMessage = ""
@@ -308,7 +316,6 @@ fun FormEntradaDeInventario(
                         errorMessage2 = ""
                         showError3 = false
                         errorMessage3 = ""
-                        shouldRequestFocus.value = true
 
                         validarRegistroDuplicado(
                             db = firestore,
@@ -349,34 +356,31 @@ fun FormEntradaDeInventario(
                                         listState = listState
                                     )
 
+                                    // 👉 Limpieza de campos aquí mismo
                                     sku.value = ""
                                     lot.value = ""
                                     dateText.value = ""
                                     quantity.value = ""
                                     productoDescripcion.value = ""
                                     unidadMedida.value = ""
-                                    qrCodeContentSku.value =
-                                        "" // 🔥 Esto elimina "Código No Encontrado"
-                                    qrCodeContentLot.value =
-                                        "" // 🔥 Esto elimina "Código No Encontrado"
+                                    qrCodeContentSku.value = ""
+                                    qrCodeContentLot.value = ""
                                     userViewModel.limpiarValoresTemporales()
 
-                                    // 👉 Pasar el foco a SKU
-                                    try {
+                                    // 👉 Solo después de grabar, movemos el foco
+                                    /*  try {
                                         focusRequesterSku.requestFocus()
+                                        shouldRequestFocus.value = true
                                     } catch (e: Exception) {
                                         Log.e(
-                                            "FocusError",
-                                            "Error al pasar foco a SKU: ${e.message}"
+                                            "FocusError", "Error al pasar foco a SKU: ${e.message}"
                                         )
-                                    }
+                                    }*/
                                 }
                             },
                             onError = {
                                 Toast.makeText(
-                                    context,
-                                    "Error al validar duplicados",
-                                    Toast.LENGTH_SHORT
+                                    context, "Error al validar duplicados", Toast.LENGTH_SHORT
                                 ).show()
                             }
                         )
@@ -384,34 +388,48 @@ fun FormEntradaDeInventario(
                 },
 
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF003366),
-                    contentColor = Color.White
+                    containerColor = Color(0xFF003366), contentColor = Color.White
                 ),
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
-            )
-            {
+            ) {
                 Text("Grabar Registro", fontSize = 13.sp)
             }
+
+            /* // 👉 Solo después de grabar, movemos el foco
+             try {
+                  focusRequesterSku.requestFocus()
+                  shouldRequestFocus.value = true
+              } catch (e: Exception) {
+                  Log.e(
+                      "FocusError", "Error al pasar foco a SKU: ${e.message}"
+                  )
+              }
+*/
+
             // 🔘 Botón Limpiar
             Button(
                 onClick = {
-                    location.value = ""
-                    sku.value = ""
-                    lot.value = ""
-                    dateText.value = ""
-                    quantity.value = ""
-                    productoDescripcion.value = ""
-                    unidadMedida.value = ""
-                    qrCodeContentSku.value = "" // 🔥 Esto elimina "Código No Encontrado"
-                    qrCodeContentLot.value = "" // 🔥 Esto elimina "Código No Encontrado"
+                        location.value = ""
+                        sku.value = ""
+                        lot.value = ""
+                        dateText.value = ""
+                        quantity.value = ""
+                        productoDescripcion.value = ""
+                        unidadMedida.value = ""
+                        qrCodeContentSku.value = ""
+                        qrCodeContentLot.value = ""
 
-                    showErrorLocation.value = false
-                    showErrorSku.value = false
-                    showErrorQuantity.value = false
+                        showErrorLocation.value = false
+                        showErrorSku.value = false
+                        showErrorQuantity.value = false
 
-                    shouldRequestFocusAfterClear.value = true
+                    coroutineScope.launch {
+                        delay(200) // Deja que Compose recalcule todo
+                        focusRequesterLocation.requestFocus() // ⬅️ Aquí enviamos el foco a Ubicación
+                        keyboardController?.show() // ⬅️ Mostramos el teclado manualmente si quieres
+                    }
 
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -420,23 +438,20 @@ fun FormEntradaDeInventario(
                 ),
                 modifier = Modifier
                     .weight(1f)
-                    .height(40.dp),
+                    .height(40.dp)
             ) {
                 Text("Limpiar Campos", fontSize = 13.sp)
             }
         }
 
 
-        HorizontalDivider(
-            thickness = 2.dp,
-            color = Color.Gray,
-            modifier = Modifier
+            HorizontalDivider(
+            thickness = 2.dp, color = Color.Gray, modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
         )
     }
 
-    //////
 
     if (showDialog) {
         AlertDialog(onDismissRequest = {
@@ -495,8 +510,7 @@ fun FormEntradaDeInventario(
                 Button(onClick = { showDialogRegistroDuplicado.value = false }) {
                     Text("Aceptar")
                 }
-            }
-        )
+            })
     }
 
 
@@ -507,8 +521,7 @@ fun FormEntradaDeInventario(
             title = { Text("✔️ Registro exitoso") },
             text = { Text("El registro se guardó correctamente.") },
             properties = DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false
+                dismissOnBackPress = false, dismissOnClickOutside = false
             )
         )
 
