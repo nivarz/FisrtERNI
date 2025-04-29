@@ -28,6 +28,13 @@ fun InventoryReportsFragment(
     val usuario by userViewModel.nombre.observeAsState("")
     val tipoUsuario by userViewModel.tipo.observeAsState("")
 
+    val dummyLocation = remember { mutableStateOf("") }
+    val dummySku = remember { mutableStateOf("") }
+    val dummyQuantity = remember { mutableStateOf("") }
+    val dummyLot = remember { mutableStateOf("") }
+    val dummyDateText = remember { mutableStateOf("") }
+
+
     LaunchedEffect(usuario, tipoUsuario) {
         if (usuario.isNotEmpty()) {
             val firestore = Firebase.firestore
@@ -64,7 +71,7 @@ fun InventoryReportsFragment(
         }
     }
 
-    NavigationDrawer(navController, "Reportes del Inventario", userViewModel) {
+    NavigationDrawer(navController, "Reportes del Inventario", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
         InventoryReportFiltersScreen(
             userViewModel = userViewModel,
             allData = allData,

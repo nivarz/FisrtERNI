@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +26,12 @@ fun SettingsFragment(
 ) {
     val tipo = userViewModel.tipo.value ?: ""
 
+    val dummyLocation = remember { mutableStateOf("") }
+    val dummySku = remember { mutableStateOf("") }
+    val dummyQuantity = remember { mutableStateOf("") }
+    val dummyLot = remember { mutableStateOf("") }
+    val dummyDateText = remember { mutableStateOf("") }
+
     if (tipo.isNotBlank() && tipo.lowercase() != "admin" && tipo.lowercase() != "superuser") {
         Text(
             "Acceso restringido",
@@ -34,7 +42,7 @@ fun SettingsFragment(
         return
     }
 
-    NavigationDrawer(navController, "Configuración", userViewModel) { // ✅ Aquí está el Drawer
+    NavigationDrawer(navController, "Configuración", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) { // ✅ Aquí está el Drawer
 
         ConfiguracionUsuariosScreen(userViewModel = userViewModel)
 

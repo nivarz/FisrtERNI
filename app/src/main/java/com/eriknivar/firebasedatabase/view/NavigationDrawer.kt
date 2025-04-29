@@ -29,6 +29,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -43,10 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.eriknivar.firebasedatabase.view.inventoryentry.limpiarCampos
 import com.eriknivar.firebasedatabase.view.utility.EditableProfileImage
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
+import androidx.activity.compose.LocalActivity
+import androidx.compose.material3.AlertDialog
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +59,11 @@ fun NavigationDrawer(
     navController: NavHostController,
     storageType: String,
     userViewModel: UserViewModel,
+    location: MutableState<String>,
+    sku: MutableState<String>,
+    quantity: MutableState<String>,
+    lot: MutableState<String>,
+    expirationDate: MutableState<String>,
     content: @Composable () -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -170,23 +179,23 @@ fun NavigationDrawer(
                     }
                 }
 
-                    TextButton(onClick = {
-                        navController.navigate("settings") // o "configuracion", según tu ruta real
-                        scope.launch { drawerState.close() }
-                    }) {
-                        Row(
-                            modifier = Modifier.padding(),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "",
-                                tint = Color.Black
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Configuración", color = Color.Black)
-                        }
+                TextButton(onClick = {
+                    navController.navigate("settings") // o "configuracion", según tu ruta real
+                    scope.launch { drawerState.close() }
+                }) {
+                    Row(
+                        modifier = Modifier.padding(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "",
+                            tint = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Configuración", color = Color.Black)
                     }
-               // }
+                }
+                // }
 
 
                 TextButton(onClick = {
@@ -208,9 +217,10 @@ fun NavigationDrawer(
 
                 TextButton(
                     modifier = Modifier.padding(),
-                    onClick = { showLogoutDialog = true } // 🔔 Mostrar el diálogo de confirmación
+                    onClick = {
+                        showLogoutDialog = true // 🔔 Solo mostrar el diálogo, nada más aquí
+                    }
                 ) {
-
                     Row(
                         modifier = Modifier.padding(),
                     ) {
@@ -223,32 +233,54 @@ fun NavigationDrawer(
                         Text("Salir", color = Color.Black)
                     }
                 }
-            }
-            if (showLogoutDialog) {
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showLogoutDialog = false },
-                    title = { Text("Cerrar sesión") },
-                    text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showLogoutDialog = false
-                            userViewModel.clearUser() // 🧹 Limpiar los datos del usuario
-                            navController.navigate("login") // ✅ Cierra sesión
-                        }) {
-                            Text("Sí")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showLogoutDialog = false }) {
-                            Text("Cancelar")
-                        }
-                    }
-                )
-            }
 
+                if (showLogoutDialog) {
+                    val activity = LocalActivity.current
+
+                    AlertDialog(
+                        onDismissRequest = { showLogoutDialog = false },
+                        title = { Text("Cerrar sesión") },
+                        text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
+                        confirmButton = {
+                            TextButton(
+                                modifier = Modifier.padding(),
+                                onClick = {
+                                    showLogoutDialog = false // 🔵 Cerrar el diálogo
+
+                                    limpiarCampos(
+                                        location,
+                                        sku,
+                                        quantity,
+                                        lot,
+                                        expirationDate
+                                    ) // 🧹 Limpiar campos
+                                    userViewModel.clearUser() // 🧹 Limpiar usuario
+
+                                    activity?.finishAffinity() // 🔥 Cerrar completamente la app
+                                }
+                            ) {
+                                Text("Sí")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                modifier = Modifier.padding(),
+                                onClick = {
+                                    showLogoutDialog =
+                                        false // Solo cierra el diálogo si presiona "Cancelar"
+                                }
+                            ) {
+                                Text("Cancelar")
+                            }
+                        }
+                    )
+                }
+
+
+            }
         }
     })
-        // El ModalNavigationDrawer tiene que contener el Scaffold
+    // El ModalNavigationDrawer tiene que contener el Scaffold
     {
 
         val customColorBackGround = Color(0xFF527782)

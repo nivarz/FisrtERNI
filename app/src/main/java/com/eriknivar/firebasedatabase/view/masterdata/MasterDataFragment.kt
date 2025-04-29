@@ -71,6 +71,12 @@ fun MasterDataFragment(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    val dummyLocation = remember { mutableStateOf("") }
+    val dummySku = remember { mutableStateOf("") }
+    val dummyQuantity = remember { mutableStateOf("") }
+    val dummyLot = remember { mutableStateOf("") }
+    val dummyDateText = remember { mutableStateOf("") }
+
     val navyBlue = Color(0xFF001F5B)
 
     // Solo permitir acceso a admin o superuser
@@ -114,7 +120,7 @@ fun MasterDataFragment(
         onCloseDisconnected = {},
         onCloseRestored = {}
     ) {
-        NavigationDrawer(navController, "Datos Maestro", userViewModel) {
+        NavigationDrawer(navController, "Datos Maestro", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()

@@ -94,7 +94,7 @@ fun FirestoreApp(
     }
 
 
-    NavigationDrawer(navController, storageType, userViewModel) {
+    NavigationDrawer(navController, storageType, userViewModel, location, sku, quantity, lot, dateText) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = { }
