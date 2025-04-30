@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +72,32 @@ fun InventoryReportsFragment(
         }
     }
 
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 1 * 60_000) {
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
+        }
+    }
+
     NavigationDrawer(navController, "Reportes del Inventario", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
         InventoryReportFiltersScreen(
             userViewModel = userViewModel,
@@ -79,7 +106,8 @@ fun InventoryReportsFragment(
             onSuccess = { showSuccessDialog = true },
             puedeModificarRegistro = { usuario, tipoCreador ->
                 userViewModel.puedeModificarRegistro(usuario, tipoCreador)
-            }
+            },
+            onUserInteraction = { actualizarActividad() }
         )
     }
 }

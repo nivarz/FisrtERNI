@@ -93,6 +93,40 @@ fun FirestoreApp(
         }
     }
 
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 1 * 60_000) {
+                // 🧹 Limpiar los campos ANTES de salir
+                sku.value = ""
+                location.value = ""
+                lot.value = ""
+                dateText.value = ""
+                quantity.value = ""
+                productoDescripcion.value = ""
+                unidadMedida.value = ""
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
+        }
+    }
+
 
     NavigationDrawer(navController, storageType, userViewModel, location, sku, quantity, lot, dateText) {
         Scaffold(
@@ -183,7 +217,9 @@ fun FirestoreApp(
                         lot = lot,
                         dateText = dateText,
                         quantity = quantity,
-                        isVisible = expandedForm.value // 👉 solo el contenido interno se oculta
+                        isVisible = expandedForm.value,
+                        onUserInteraction = { actualizarActividad() }
+
                     )
 
 

@@ -41,6 +41,7 @@ fun OutlinedTextFieldsInputsLot(
     focusRequester: FocusRequester,
     nextFocusRequester: FocusRequester,
     keyboardController: SoftwareKeyboardController?,
+    onUserInteraction: () -> Unit = {},
     shouldRequestFocusAfterClear: MutableState<Boolean> // 👈 Nueva bandera
 
 ) {
@@ -128,9 +129,9 @@ fun OutlinedTextFieldsInputsLot(
                 if (isZebra) {
                     zebraScanned.value = true
                 }
-
-
                 lot.value = upper
+
+                onUserInteraction()
             },
             trailingIcon = {
                 IconButton(

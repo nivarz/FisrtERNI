@@ -37,6 +37,7 @@ fun OutlinedTextFieldsInputsLocation(
     showErrorLocation: MutableState<Boolean>,
     focusRequester: FocusRequester,
     nextFocusRequester: FocusRequester,
+    onUserInteraction: () -> Unit = {},
     shouldRequestFocusAfterClear: MutableState<Boolean>
 ) {
     val qrCodeContentLocation = remember { mutableStateOf("") }
@@ -126,6 +127,8 @@ fun OutlinedTextFieldsInputsLocation(
                     isZebraScan.value = true
                     Log.d("ZebraScan", "Entrada tipo Zebra detectada: $clean")
                 }
+
+                onUserInteraction()
 
                 location.value = clean
                 qrCodeContentLocation.value = clean

@@ -62,6 +62,7 @@ fun OutlinedTextFieldsInputsSku(
     focusRequester: FocusRequester,
     nextFocusRequester: FocusRequester,
     keyboardController: SoftwareKeyboardController?,
+    onUserInteraction: () -> Unit = {},
     shouldRequestFocusAfterClear: MutableState<Boolean> // 👈 Nueva bandera
 
 ) {
@@ -179,6 +180,9 @@ fun OutlinedTextFieldsInputsSku(
                         unidadMedida.value = unidadMedidaObtenida
                     }
                 }
+
+                onUserInteraction()
+
             },
             isError = showErrorSku.value && (sku.value.isEmpty() || sku.value == "CODIGO NO ENCONTRADO"),
             trailingIcon = {
@@ -283,4 +287,3 @@ fun OutlinedTextFieldsInputsSku(
 
     }
 }
-

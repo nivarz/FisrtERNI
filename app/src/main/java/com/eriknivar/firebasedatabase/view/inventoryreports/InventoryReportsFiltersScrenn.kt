@@ -69,8 +69,8 @@ fun InventoryReportFiltersScreen(
     allData: List<DataFields>,
     tipoUsuario: String,
     puedeModificarRegistro: (String, String) -> Boolean,
+    onUserInteraction: () -> Unit,
     onSuccess: () -> Unit // 👈 este es nuevo
-
 
 ) {
     val sku = remember { mutableStateOf("") }
@@ -92,7 +92,6 @@ fun InventoryReportFiltersScreen(
 
     val isLoading = remember { mutableStateOf(false) }
 
-
 // 🔄 Cargar localidades desde Firestore
     LaunchedEffect(Unit) {
         firestore.collection("localidades")
@@ -102,7 +101,6 @@ fun InventoryReportFiltersScreen(
                 listaLocalidades.addAll(result.mapNotNull { it.getString("nombre") })
             }
     }
-
 
     LaunchedEffect(tipoUsuario, userViewModel.nombre) {
         if (tipoUsuario != "admin" && tipoUsuario != "superuser") {
@@ -154,7 +152,9 @@ fun InventoryReportFiltersScreen(
                 imageVector = if (filtrosExpandido.value) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
                 contentDescription = null
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(
+                modifier = Modifier
+                    .width(8.dp))
             Text(
                 text = "Filtros de búsqueda",
                 fontWeight = FontWeight.Bold,
@@ -183,7 +183,6 @@ fun InventoryReportFiltersScreen(
                     filteredData.clear()
                     filteredData.addAll(allData.sortedByDescending { it.fechaRegistro?.toDate() })
                 }
-
 
                 OutlinedTextField(
                     value = usuarioFiltro.value.uppercase(),
@@ -215,8 +214,8 @@ fun InventoryReportFiltersScreen(
                     listaLocalidades = listaLocalidades
                 )
 
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = startDate.value,
                         onValueChange = {},
@@ -257,6 +256,9 @@ fun InventoryReportFiltersScreen(
 
                     Button(
                         onClick = {
+
+                            onUserInteraction()
+
                             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                             isLoading.value = true
 
@@ -326,7 +328,6 @@ fun InventoryReportFiltersScreen(
                     ) {
                         Text("Aplicar filtros")
                     }
-
 
                     Spacer(modifier = Modifier.width(8.dp))
 
@@ -400,7 +401,6 @@ fun InventoryReportFiltersScreen(
                 )
         }
 
-
         Spacer(modifier = Modifier.height(16.dp))
 
         // 🧾 Total de resultados
@@ -464,8 +464,6 @@ fun InventoryReportFiltersScreen(
                     )
                 }
             }
-
-
         }
     }
 }

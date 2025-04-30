@@ -37,6 +37,7 @@ fun OutlinedTextFieldsInputsQuantity(
     lote: MutableState<String>,
     expirationDate: MutableState<String>,
     focusRequester: FocusRequester,
+    onUserInteraction: () -> Unit = {},
     keyboardController: SoftwareKeyboardController?
 ) {
     val qrCodeContentQuantity = remember { mutableStateOf("") }
@@ -83,6 +84,7 @@ fun OutlinedTextFieldsInputsQuantity(
                     showErrorQuantity.value = true
                     errorMessageQuantity.value = "Formato incorrecto"
                 }
+                onUserInteraction()
             },
             isError = showErrorQuantity.value && quantity.value.isEmpty()
         )

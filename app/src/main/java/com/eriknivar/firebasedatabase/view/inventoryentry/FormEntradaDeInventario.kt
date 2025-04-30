@@ -59,7 +59,8 @@ fun FormEntradaDeInventario(
     localidad: String,
     allData: SnapshotStateList<DataFields>,
     listState: LazyListState,
-    isVisible: Boolean // ✅ Nuevo parámetro para control animado
+    isVisible: Boolean,
+    onUserInteraction: () -> Unit
 
 ) {
 
@@ -254,6 +255,8 @@ fun FormEntradaDeInventario(
             Button(
                 onClick = {
 
+                    onUserInteraction()
+
                     focusManager.clearFocus()
                     keyboardController?.hide()
 
@@ -411,6 +414,8 @@ fun FormEntradaDeInventario(
             // 🔘 Botón Limpiar
             Button(
                 onClick = {
+
+                    onUserInteraction()
                         location.value = ""
                         sku.value = ""
                         lot.value = ""
