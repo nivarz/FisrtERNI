@@ -7,10 +7,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -22,8 +20,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,7 +36,10 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 
 @Composable
-fun DropDownUpScreen(navController: NavHostController) {
+fun DropDownUpScreen(
+    navController: NavHostController,
+    onUserInteraction: () -> Unit = {},
+) {
     val firestore = Firebase.firestore
     val localidades = remember { mutableStateListOf<String>() }
 
@@ -83,7 +82,9 @@ fun DropDownUpScreen(navController: NavHostController) {
                 enabled = true,
                 shape = RoundedCornerShape(12.dp),
                 trailingIcon = {
-                    IconButton(onClick = { expandedDropdown = !expandedDropdown }) {
+                    IconButton(onClick = {
+                        onUserInteraction()
+                        expandedDropdown = !expandedDropdown }) {
                         Icon(
                             imageVector = if (expandedDropdown) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
                             contentDescription = "Icono desplegable",
@@ -107,6 +108,7 @@ fun DropDownUpScreen(navController: NavHostController) {
                         interactionSource = interactionSource,
                         indication = null
                     ) {
+                        onUserInteraction()
                         expandedDropdown = !expandedDropdown // ✅ Solo despliega
                     },
                 interactionSource = interactionSource
@@ -127,6 +129,7 @@ fun DropDownUpScreen(navController: NavHostController) {
                     DropdownMenuItem(
                         text = { Text(localidad) },
                         onClick = {
+                            onUserInteraction()
                             valueText = localidad
                             expandedDropdown = false
                             navController.navigate("inventoryentry/${valueText}")

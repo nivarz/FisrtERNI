@@ -17,6 +17,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -28,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun SelectStorageFragment(
@@ -40,6 +43,34 @@ fun SelectStorageFragment(
     val dummyQuantity = remember { mutableStateOf("") }
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
+
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 1 * 60_000) {
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
+        }
+    }
+
+
 
     NavigationDrawer(navController, "Seleccionar Almacén", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
         Column(
@@ -94,7 +125,11 @@ fun SelectStorageFragment(
                     )
 
                     // ⬇️ Aquí el selector real
-                    DropDownUpScreen(navController)
+                    DropDownUpScreen(
+                        navController,
+                        onUserInteraction = { actualizarActividad() }
+
+                    )
                 }
             }
         }
