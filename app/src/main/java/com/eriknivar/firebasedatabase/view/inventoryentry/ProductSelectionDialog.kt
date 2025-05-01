@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +38,8 @@ fun ProductSelectionDialog(
     sku: MutableState<String>,
     qrCodeContentSku: MutableState<String>,
     productoDescripcion: MutableState<String>,
+    focusRequesterLote: FocusRequester,
+    onUserInteraction: () -> Unit = {},
     unidadMedida: MutableState<String>
 ) {
     if (showProductDialog.value) {
@@ -99,6 +102,7 @@ fun ProductSelectionDialog(
                             items(filteredProducts) { descripcion ->
                                 TextButton(
                                     onClick = {
+                                        onUserInteraction() // 👈 Llamada a la función de interacción del usuario
                                         val productoSeleccionado = productMap.value[descripcion]
                                         if (productoSeleccionado != null) {
                                             val (codigoSeleccionado, unidadMedidaSeleccionada) = productoSeleccionado
@@ -108,6 +112,8 @@ fun ProductSelectionDialog(
                                             unidadMedida.value = unidadMedidaSeleccionada
                                         }
                                         showProductDialog.value = false // 🔥 Cerrar diálogo
+                                        focusRequesterLote.requestFocus()
+
                                     },
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 0.dp, vertical = 0.dp)
                                 ) {

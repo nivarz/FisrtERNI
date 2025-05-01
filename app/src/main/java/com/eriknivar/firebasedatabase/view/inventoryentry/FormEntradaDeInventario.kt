@@ -2,8 +2,8 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -166,297 +168,284 @@ fun FormEntradaDeInventario(
         }
     }
 
-
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(if (isVisible) Dp.Unspecified else 0.dp)
-            .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        // 📌 FUNCION PARA LA UBICACION
-        OutlinedTextFieldsInputsLocation(
-            location,
-            showErrorLocation,
-            focusRequester = focusRequesterLocation, // 🔥 Este es el inicial
-            nextFocusRequester = focusRequesterSku,
-            shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
-
-        )
-
-        // 📌 CAMPO DE TEXTO PARA EL SKU
-
-        OutlinedTextFieldsInputsSku(
-            sku,
-            showErrorSku,
-            productoDescripcion,
-            productList,
-            productMap,
-            showProductDialog,
-            unidadMedida,
-            focusRequester = focusRequesterSku,
-            nextFocusRequester = focusRequesterLot,
-            shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
-            keyboardController = keyboardController
-
-        )
-
-        // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
-
-        ProductSelectionDialog(
-            productList = productList,
-            productMap = productMap,
-            showProductDialog = showProductDialog,
-            sku = sku,
-            qrCodeContentSku = qrCodeContentSku,
-            productoDescripcion = productoDescripcion,
-            unidadMedida = unidadMedida
-        )
-
-        // 📌 CAMPO DE TEXTO PARA EL LOTE
-
-        OutlinedTextFieldsInputsLot(
-            lot,
-            focusRequester = focusRequesterLot,
-            nextFocusRequester = focusRequesterFecha,
-            keyboardController = keyboardController,
-            shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
-        )
-
-        // 📌 CAMPO DE TEXTO PARA LA FECHA
-
-        DatePickerTextField(
-            dateText,
-            focusRequester = focusRequesterFecha,
-            nextFocusRequester = focusRequesterCantidad
-        )// FUNCION PARA EL CALENDARIO
-
-        // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
-
-        OutlinedTextFieldsInputsQuantity(
-            quantity,
-            showErrorQuantity,
-            errorMessageQuantity,
-            lot,
-            dateText,
-            focusRequester = focusRequesterCantidad,
-            keyboardController = LocalSoftwareKeyboardController.current
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            Button(
-                onClick = {
+            // 📌 FUNCION PARA LA UBICACION
+            OutlinedTextFieldsInputsLocation(
+                location,
+                showErrorLocation,
+                focusRequester = focusRequesterLocation, // 🔥 Este es el inicial
+                nextFocusRequester = focusRequesterSku,
+                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
 
-                    onUserInteraction()
+            )
 
-                    focusManager.clearFocus()
-                    keyboardController?.hide()
+            // 📌 CAMPO DE TEXTO PARA EL SKU
 
-                    coroutineScope.launch {
-                        delay(300)
+            OutlinedTextFieldsInputsSku(
+                sku,
+                showErrorSku,
+                productoDescripcion,
+                productList,
+                productMap,
+                showProductDialog,
+                unidadMedida,
+                focusRequester = focusRequesterSku,
+                nextFocusRequester = focusRequesterLot,
+                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
+                keyboardController = keyboardController
+
+            )
+
+            // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
+
+            ProductSelectionDialog(
+                productList = productList,
+                productMap = productMap,
+                showProductDialog = showProductDialog,
+                sku = sku,
+                qrCodeContentSku = qrCodeContentSku,
+                productoDescripcion = productoDescripcion,
+                unidadMedida = unidadMedida,
+                focusRequesterLote = focusRequesterLot
+            )
+
+            // 📌 CAMPO DE TEXTO PARA EL LOTE
+
+            OutlinedTextFieldsInputsLot(
+                lot,
+                focusRequester = focusRequesterLot,
+                nextFocusRequester = focusRequesterFecha,
+                keyboardController = keyboardController,
+                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
+            )
+
+            // 📌 CAMPO DE TEXTO PARA LA FECHA
+
+            DatePickerTextField(
+                dateText,
+                focusRequester = focusRequesterFecha,
+                nextFocusRequester = focusRequesterCantidad
+            )// FUNCION PARA EL CALENDARIO
+
+            // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
+
+            OutlinedTextFieldsInputsQuantity(
+                quantity,
+                showErrorQuantity,
+                errorMessageQuantity,
+                lot,
+                dateText,
+                focusRequester = focusRequesterCantidad,
+                keyboardController = LocalSoftwareKeyboardController.current
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+
+        Button(
+            onClick = {
+
+                onUserInteraction()
+
+                focusManager.clearFocus()
+                keyboardController?.hide()
+
+                coroutineScope.launch {
+                    delay(300)
+                    focusRequesterSku.requestFocus() // ⬅️ Aquí enviamos el foco al Sku
 
 
-                        if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                            showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                            showErrorLocation.value = true
-                            showErrorSku.value = true
-                            showErrorQuantity.value = true
-                            return@launch // 🚨
-                        }
+                    if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
+                        showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showErrorLocation.value = true
+                        showErrorSku.value = true
+                        showErrorQuantity.value = true
+                        return@launch // 🚨
+                    }
 
-                        if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                            showDialog1 =
-                                true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                            showErrorLocation.value = true
-                            showErrorSku.value = true
-                            return@launch // 🚨
+                    if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
+                        showDialog1 =
+                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showErrorLocation.value = true
+                        showErrorSku.value = true
+                        return@launch // 🚨
 
-                        }
+                    }
 
-                        if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
-                            lot.value = "N/A"
-                            return@launch // 🚨
+                    if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
+                        lot.value = "N/A"
+                        return@launch // 🚨
 
-                        }
+                    }
 
-                        if (dateText.value.isEmpty()) {
-                            dateText.value = "N/A"
-                            return@launch // 🚨
+                    if (dateText.value.isEmpty()) {
+                        dateText.value = "N/A"
+                        return@launch // 🚨
 
-                        }
+                    }
 
-                        if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
-                            errorMessage2 = "Producto No Encontrado"
-                            showDialog2 =
-                                true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                            showErrorSku.value = true
-                            return@launch // 🚨
+                    if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
+                        errorMessage2 = "Producto No Encontrado"
+                        showDialog2 =
+                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                        showErrorSku.value = true
+                        return@launch // 🚨
 
-                        }
+                    }
 
-                        if (quantity.value == "0" || quantity.value.isEmpty() || quantity.value == "") {
-                            errorMessage = "No Admite cantidades 0"
-                            showDialogValueQuantityCero = true
-                            showErrorQuantity.value = true
-                            return@launch
+                    if (quantity.value == "0" || quantity.value.isEmpty() || quantity.value == "") {
+                        errorMessage = "No Admite cantidades 0"
+                        showDialogValueQuantityCero = true
+                        showErrorQuantity.value = true
+                        return@launch
 
-                        }
+                    }
 
-                        showErrorLocation.value = false
-                        showErrorSku.value = false
-                        errorMessage = ""
-                        showError1 = false
-                        errorMessage1 = ""
-                        showError2 = false
-                        errorMessage2 = ""
-                        showError3 = false
-                        errorMessage3 = ""
+                    showErrorLocation.value = false
+                    showErrorSku.value = false
+                    errorMessage = ""
+                    showError1 = false
+                    errorMessage1 = ""
+                    showError2 = false
+                    errorMessage2 = ""
+                    showError3 = false
+                    errorMessage3 = ""
 
-                        validarRegistroDuplicado(
-                            db = firestore,
-                            usuario = userViewModel.nombre.value ?: "",
-                            ubicacion = location.value,
-                            sku = sku.value,
-                            lote = lot.value,
-                            cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
-                            localidad = localidad,
-                            onResult = { existeDuplicado ->
-                                if (existeDuplicado) {
-                                    showDialogRegistroDuplicado.value = true
-                                } else {
-                                    saveToFirestore(
-                                        firestore,
-                                        location.value,
-                                        sku.value,
-                                        productoDescripcion.value,
-                                        lot.value,
-                                        dateText.value,
-                                        quantity.value.toDoubleOrNull() ?: 0.0,
-                                        unidadMedida.value,
-                                        allData,
-                                        usuario = userViewModel.nombre.value ?: "",
-                                        coroutineScope,
-                                        localidad = localidad,
-                                        userViewModel,
-                                        showSuccessDialog,
-                                        listState
+                    validarRegistroDuplicado(
+                        db = firestore,
+                        usuario = userViewModel.nombre.value ?: "",
+                        ubicacion = location.value,
+                        sku = sku.value,
+                        lote = lot.value,
+                        cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
+                        localidad = localidad,
+                        onResult = { existeDuplicado ->
+                            if (existeDuplicado) {
+                                showDialogRegistroDuplicado.value = true
+                            } else {
+                                saveToFirestore(
+                                    firestore,
+                                    location.value,
+                                    sku.value,
+                                    productoDescripcion.value,
+                                    lot.value,
+                                    dateText.value,
+                                    quantity.value.toDoubleOrNull() ?: 0.0,
+                                    unidadMedida.value,
+                                    allData,
+                                    usuario = userViewModel.nombre.value ?: "",
+                                    coroutineScope,
+                                    localidad = localidad,
+                                    userViewModel,
+                                    showSuccessDialog,
+                                    listState
 
-                                    )
+                                )
 
-                                    // ✅ Recargar datos y hacer scroll al top
-                                    fetchDataFromFirestore(
-                                        db = firestore,
-                                        allData = allData,
-                                        usuario = usuario,
-                                        listState = listState
-                                    )
+                                // ✅ Recargar datos y hacer scroll al top
+                                fetchDataFromFirestore(
+                                    db = firestore,
+                                    allData = allData,
+                                    usuario = usuario,
+                                    listState = listState
+                                )
 
-                                    // 👉 Limpieza de campos aquí mismo
-                                    sku.value = ""
-                                    lot.value = ""
-                                    dateText.value = ""
-                                    quantity.value = ""
-                                    productoDescripcion.value = ""
-                                    unidadMedida.value = ""
-                                    qrCodeContentSku.value = ""
-                                    qrCodeContentLot.value = ""
-                                    userViewModel.limpiarValoresTemporales()
+                                // 👉 Limpieza de campos aquí mismo
+                                sku.value = ""
+                                lot.value = ""
+                                dateText.value = ""
+                                quantity.value = ""
+                                productoDescripcion.value = ""
+                                unidadMedida.value = ""
+                                qrCodeContentSku.value = ""
+                                qrCodeContentLot.value = ""
+                                userViewModel.limpiarValoresTemporales()
 
-                                    // 👉 Solo después de grabar, movemos el foco
-                                    /*  try {
-                                        focusRequesterSku.requestFocus()
-                                        shouldRequestFocus.value = true
-                                    } catch (e: Exception) {
-                                        Log.e(
-                                            "FocusError", "Error al pasar foco a SKU: ${e.message}"
-                                        )
-                                    }*/
-                                }
-                            },
-                            onError = {
-                                Toast.makeText(
-                                    context, "Error al validar duplicados", Toast.LENGTH_SHORT
-                                ).show()
                             }
-                        )
-                    }
-                },
+                        },
+                        onError = {
+                            Toast.makeText(
+                                context, "Error al validar duplicados", Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    )
+                }
+            },
 
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF003366), contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp),
-            ) {
-                Text("Grabar Registro", fontSize = 13.sp)
-            }
-
-            /* // 👉 Solo después de grabar, movemos el foco
-             try {
-                  focusRequesterSku.requestFocus()
-                  shouldRequestFocus.value = true
-              } catch (e: Exception) {
-                  Log.e(
-                      "FocusError", "Error al pasar foco a SKU: ${e.message}"
-                  )
-              }
-*/
-
-            // 🔘 Botón Limpiar
-            Button(
-                onClick = {
-
-                    onUserInteraction()
-                        location.value = ""
-                        sku.value = ""
-                        lot.value = ""
-                        dateText.value = ""
-                        quantity.value = ""
-                        productoDescripcion.value = ""
-                        unidadMedida.value = ""
-                        qrCodeContentSku.value = ""
-                        qrCodeContentLot.value = ""
-
-                        showErrorLocation.value = false
-                        showErrorSku.value = false
-                        showErrorQuantity.value = false
-
-                    coroutineScope.launch {
-                        delay(200) // Deja que Compose recalcule todo
-                        focusRequesterLocation.requestFocus() // ⬅️ Aquí enviamos el foco a Ubicación
-                        keyboardController?.show() // ⬅️ Mostramos el teclado manualmente si quieres
-                    }
-
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.DarkGray,
-                    contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-            ) {
-                Text("Limpiar Campos", fontSize = 13.sp)
-            }
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF003366), contentColor = Color.White
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp),
+        ) {
+            Text("Grabar Registro", fontSize = 13.sp)
         }
 
 
-            HorizontalDivider(
-            thickness = 2.dp, color = Color.Gray, modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+        // 🔘 Botón Limpiar
+        Button(
+            onClick = {
+
+                onUserInteraction()
+                location.value = ""
+                sku.value = ""
+                lot.value = ""
+                dateText.value = ""
+                quantity.value = ""
+                productoDescripcion.value = ""
+                unidadMedida.value = ""
+                qrCodeContentSku.value = ""
+                qrCodeContentLot.value = ""
+
+                showErrorLocation.value = false
+                showErrorSku.value = false
+                showErrorQuantity.value = false
+
+                coroutineScope.launch {
+                    delay(200) // Deja que Compose recalcule todo
+                    focusRequesterLocation.requestFocus() // ⬅️ Aquí enviamos el foco a Ubicación
+                    keyboardController?.show() // ⬅️ Mostramos el teclado manualmente si quieres
+                }
+
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.DarkGray,
+                contentColor = Color.White
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp)
+        ) {
+            Text("Limpiar Campos", fontSize = 13.sp)
+        }
     }
 
+    HorizontalDivider(
+        thickness = 2.dp, color = Color.Gray, modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+    )
+
+//////////////////////////////////////////////////////////////
 
     if (showDialog) {
         AlertDialog(onDismissRequest = {
@@ -517,7 +506,6 @@ fun FormEntradaDeInventario(
                 }
             })
     }
-
 
     if (showSuccessDialog.value) {
         AlertDialog(

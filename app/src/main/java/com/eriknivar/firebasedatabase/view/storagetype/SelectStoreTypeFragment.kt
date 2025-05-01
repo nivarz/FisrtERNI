@@ -57,7 +57,7 @@ fun SelectStorageFragment(
             val tiempoActual = System.currentTimeMillis()
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
-            if (tiempoInactivo >= 1 * 60_000) {
+            if (tiempoInactivo >= 10 * 60_000) {
 
                 userViewModel.clearUser()
 

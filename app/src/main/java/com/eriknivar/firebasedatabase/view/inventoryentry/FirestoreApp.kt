@@ -106,7 +106,7 @@ fun FirestoreApp(
             val tiempoActual = System.currentTimeMillis()
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
-            if (tiempoInactivo >= 1 * 60_000) {
+            if (tiempoInactivo >= 10 * 60_000) {
                 // 🧹 Limpiar los campos ANTES de salir
                 sku.value = ""
                 location.value = ""
@@ -126,7 +126,6 @@ fun FirestoreApp(
             }
         }
     }
-
 
     NavigationDrawer(navController, storageType, userViewModel, location, sku, quantity, lot, dateText) {
         Scaffold(
@@ -180,7 +179,7 @@ fun FirestoreApp(
                     if (expandedForm.value && productoDescripcion.value.isNotBlank()) {
                         Column(
                             modifier = Modifier.fillMaxWidth()
-                            .animateContentSize(),
+                                .animateContentSize(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
@@ -226,7 +225,7 @@ fun FirestoreApp(
                     // 🧩 Lista de Cards de Inventario
                     LazyColumn(
                         modifier = Modifier.fillMaxSize()
-                        .background(Color.White),
+                            .background(Color.White),
                         state = listState
                     ) {
                         itemsIndexed(

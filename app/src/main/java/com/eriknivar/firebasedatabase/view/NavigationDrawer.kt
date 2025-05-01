@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
 import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -284,11 +285,13 @@ fun NavigationDrawer(
     {
 
         val customColorBackGround = Color(0xFF527782)
+        val keyboardController = LocalSoftwareKeyboardController.current
 
         Scaffold(
             topBar = {
                 TopAppBar(navigationIcon = {
                     IconButton(onClick = {
+                        keyboardController?.hide() // 🔽 Oculta el teclado si está activo
 
                         scope.launch {
                             if (drawerState.isClosed) {
