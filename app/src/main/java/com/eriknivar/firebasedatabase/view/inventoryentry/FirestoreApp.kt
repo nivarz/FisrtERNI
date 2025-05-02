@@ -1,17 +1,17 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import android.util.Log
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
@@ -27,14 +27,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.view.utility.contarRegistrosDelDia
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -150,27 +154,66 @@ fun FirestoreApp(
                     .padding(innerPadding)
                     .fillMaxSize()
             ){
+
+                val nombre = userViewModel.nombre.observeAsState("").value
+                val cantidadRegistrosHoy by remember(allData, nombre) {
+                    derivedStateOf {
+                        contarRegistrosDelDia(allData, nombre.uppercase())
+                    }
+                }
+
                 // 🔷 TÍTULO Y TOGGLE
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { expandedForm.value = !expandedForm.value },
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween // 👈 Distribuye el texto a la izquierda y el ícono a la derecha
+
                     ) {
-                        Text(
-                            text = "Captura de Inventario",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = Color(0xFF003366),
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center
-                        )
+
+                        // 🎯 Contador animado
+                        AnimatedContent(
+                            targetState = cantidadRegistrosHoy,
+                            transitionSpec = {
+                                slideInVertically { height -> height } + fadeIn() togetherWith
+                                        slideOutVertically { height -> -height } + fadeOut()
+                            },
+                            label = "ContadorAnimado"
+                        ) { targetCount ->
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(
+                                        style = SpanStyle(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp,
+                                            color = Color(0xFF003366)
+                                        )
+                                    ) {
+                                        append("📋 Registros de Hoy : ")
+                                    }
+                                    withStyle(
+                                        style = SpanStyle(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 22.sp,
+                                            color = Color(0xFF1565C0)
+                                        )
+                                    ) {
+                                        append(targetCount.toString())
+                                    }
+                                },
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+
+
                         Icon(
                             imageVector = Icons.Default.ExpandMore,
                             contentDescription = if (expandedForm.value) "Ocultar formulario" else "Mostrar formulario",
@@ -181,7 +224,7 @@ fun FirestoreApp(
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 5.dp))
 
                     if (productoDescripcion.value.isNotBlank()) {
                         Text(
