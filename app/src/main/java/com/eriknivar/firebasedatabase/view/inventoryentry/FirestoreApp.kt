@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
@@ -42,7 +45,8 @@ fun FirestoreApp(
     navController: NavHostController,
     storageType: String,
     userViewModel: UserViewModel,
-) {
+
+    ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -127,31 +131,36 @@ fun FirestoreApp(
         }
     }
 
-    NavigationDrawer(navController, storageType, userViewModel, location, sku, quantity, lot, dateText) {
+    NavigationDrawer(
+        navController,
+        storageType,
+        userViewModel,
+        location,
+        sku,
+        quantity,
+        lot,
+        dateText
+    ) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = { }
         ) { innerPadding ->
-            Box(
+            Column(
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
-            ) {
+            ){
+                // 🔷 TÍTULO Y TOGGLE
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    /*
-                    BackHandler(true) {
-                        Log.i("LOG_TAG", "Clicked back")
-                    }
-                    */
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { expandedForm.value = !expandedForm.value }
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                            .clickable { expandedForm.value = !expandedForm.value },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -162,7 +171,6 @@ fun FirestoreApp(
                             modifier = Modifier.weight(1f),
                             textAlign = TextAlign.Center
                         )
-
                         Icon(
                             imageVector = Icons.Default.ExpandMore,
                             contentDescription = if (expandedForm.value) "Ocultar formulario" else "Mostrar formulario",
@@ -175,34 +183,28 @@ fun FirestoreApp(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp))
 
-                    // 🔵 Esto sí depende de expandedForm
-                    if (expandedForm.value && productoDescripcion.value.isNotBlank()) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                                .animateContentSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
+                    if (productoDescripcion.value.isNotBlank()) {
+                        Text(
+                            text = productoDescripcion.value,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Blue,
+                            textAlign = TextAlign.Center
+                        )
+                        if (unidadMedida.value.isNotBlank()) {
                             Text(
-                                text = productoDescripcion.value,
+                                text = "(${unidadMedida.value})",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Blue,
+                                color = Color.Gray,
                                 textAlign = TextAlign.Center
                             )
-
-                            if (unidadMedida.value.isNotBlank()) {
-                                Text(
-                                    text = "(${unidadMedida.value})",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Gray,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
                         }
                     }
+                }
 
-                    // 🔵 El formulario SIEMPRE debe estar montado, no depende de expandedForm
+                    // 🔷 FORMULARIO (colapsable)
+                Box(modifier = Modifier.fillMaxWidth()) {
                     FormEntradaDeInventario(
                         productoDescripcion = productoDescripcion,
                         unidadMedida = unidadMedida,
@@ -216,54 +218,43 @@ fun FirestoreApp(
                         lot = lot,
                         dateText = dateText,
                         quantity = quantity,
-                        isVisible = expandedForm.value,
+                        isVisible = expandedForm.value, // 🔵 Usamos esto para mostrar/ocultar internamente
                         onUserInteraction = { actualizarActividad() }
-
                     )
+                }
 
-
-                    // 🧩 Lista de Cards de Inventario
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize()
-                            .background(Color.White),
-                        state = listState
-                    ) {
-                        itemsIndexed(
-                            items = allData,
-                            key = { _, item -> item.documentId }
-                        ) { index, item ->
-                            MessageCard(
-                                documentId = item.documentId,
-                                location = item.location,
-                                sku = item.sku,
-                                lote = item.lote,
-                                expirationDate = item.expirationDate,
-                                quantity = item.quantity,
-                                unidadMedida = item.unidadMedida,
-                                firestore = Firebase.firestore,
-                                allData = allData,
-                                fechaRegistro = item.fechaRegistro,
-                                descripcion = item.description,
-                                onSuccess = { showSuccessDialog = true },
-                                listState = listState,
-                                index = index,
-                                expandedStates = expandedStates
-                            )
-                        }
+                // 🔷 LISTA SCROLLABLE
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f) // ⬅️ Solo ocupa el espacio disponible
+                        .background(Color.White),
+                    state = listState
+                ){
+                    itemsIndexed(
+                        items = allData,
+                        key = { _, item -> item.documentId }
+                    ) { index, item ->
+                        MessageCard(
+                            documentId = item.documentId,
+                            location = item.location,
+                            sku = item.sku,
+                            lote = item.lote,
+                            expirationDate = item.expirationDate,
+                            quantity = item.quantity,
+                            unidadMedida = item.unidadMedida,
+                            firestore = Firebase.firestore,
+                            allData = allData,
+                            fechaRegistro = item.fechaRegistro,
+                            descripcion = item.description,
+                            onSuccess = { showSuccessDialog = true },
+                            listState = listState,
+                            index = index,
+                            expandedStates = expandedStates
+                        )
                     }
                 }
             }
-
-
-                // ✅ Snackbar centrado en pantalla
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 500.dp), // 🔼 Ajusta la altura según lo que necesites
-                    contentAlignment = Alignment.BottomCenter // Centrado pero más arriba
-                )
-                {
-                }
-            }
         }
+
     }
+}

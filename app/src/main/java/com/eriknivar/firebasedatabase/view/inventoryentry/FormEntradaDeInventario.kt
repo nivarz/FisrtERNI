@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -171,12 +172,13 @@ fun FormEntradaDeInventario(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (isVisible) Dp.Unspecified else 0.dp)
+            .height(if (isVisible) Dp.Unspecified else 0.dp) // 🔥 Oculta visualmente
+            .padding(horizontal = 8.dp)
     ) {
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp),
+                .padding(bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
@@ -249,278 +251,280 @@ fun FormEntradaDeInventario(
                 focusRequester = focusRequesterCantidad,
                 keyboardController = LocalSoftwareKeyboardController.current
             )
-        }
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-
-        Button(
-            onClick = {
-
-                onUserInteraction()
-
-                focusManager.clearFocus()
-                keyboardController?.hide()
-
-                coroutineScope.launch {
-                    delay(300)
-                    focusRequesterSku.requestFocus() // ⬅️ Aquí enviamos el foco al Sku
 
 
-                    if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
-                        showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                        showErrorLocation.value = true
-                        showErrorSku.value = true
-                        showErrorQuantity.value = true
-                        return@launch // 🚨
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+
+            Button(
+                onClick = {
+
+                    onUserInteraction()
+
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+
+                    coroutineScope.launch {
+                        delay(300)
+                        focusRequesterSku.requestFocus() // ⬅️ Aquí enviamos el foco al Sku
+
+
+                        if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
+                            showDialog = true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                            showErrorLocation.value = true
+                            showErrorSku.value = true
+                            showErrorQuantity.value = true
+                            return@launch // 🚨
+                        }
+
+                        if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
+                            showDialog1 =
+                                true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                            showErrorLocation.value = true
+                            showErrorSku.value = true
+                            return@launch // 🚨
+
+                        }
+
+                        if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
+                            lot.value = "N/A"
+                            return@launch // 🚨
+
+                        }
+
+                        if (dateText.value.isEmpty()) {
+                            dateText.value = "N/A"
+                            return@launch // 🚨
+
+                        }
+
+                        if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
+                            errorMessage2 = "Producto No Encontrado"
+                            showDialog2 =
+                                true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
+                            showErrorSku.value = true
+                            return@launch // 🚨
+
+                        }
+
+                        if (quantity.value == "0" || quantity.value.isEmpty() || quantity.value == "") {
+                            errorMessage = "No Admite cantidades 0"
+                            showDialogValueQuantityCero = true
+                            showErrorQuantity.value = true
+                            return@launch
+
+                        }
+
+                        showErrorLocation.value = false
+                        showErrorSku.value = false
+                        errorMessage = ""
+                        showError1 = false
+                        errorMessage1 = ""
+                        showError2 = false
+                        errorMessage2 = ""
+                        showError3 = false
+                        errorMessage3 = ""
+
+                        validarRegistroDuplicado(
+                            db = firestore,
+                            usuario = userViewModel.nombre.value ?: "",
+                            ubicacion = location.value,
+                            sku = sku.value,
+                            lote = lot.value,
+                            cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
+                            localidad = localidad,
+                            onResult = { existeDuplicado ->
+                                if (existeDuplicado) {
+                                    showDialogRegistroDuplicado.value = true
+                                } else {
+                                    saveToFirestore(
+                                        firestore,
+                                        location.value,
+                                        sku.value,
+                                        productoDescripcion.value,
+                                        lot.value,
+                                        dateText.value,
+                                        quantity.value.toDoubleOrNull() ?: 0.0,
+                                        unidadMedida.value,
+                                        allData,
+                                        usuario = userViewModel.nombre.value ?: "",
+                                        coroutineScope,
+                                        localidad = localidad,
+                                        userViewModel,
+                                        showSuccessDialog,
+                                        listState
+
+                                    )
+
+                                    // ✅ Recargar datos y hacer scroll al top
+                                    fetchDataFromFirestore(
+                                        db = firestore,
+                                        allData = allData,
+                                        usuario = usuario,
+                                        listState = listState
+                                    )
+
+                                    // 👉 Limpieza de campos aquí mismo
+                                    sku.value = ""
+                                    lot.value = ""
+
+                                    dateText.value = ""
+                                    quantity.value = ""
+                                    productoDescripcion.value = ""
+                                    unidadMedida.value = ""
+                                    qrCodeContentSku.value = ""
+                                    qrCodeContentLot.value = ""
+                                    userViewModel.limpiarValoresTemporales()
+
+                                }
+                            },
+                            onError = {
+                                Toast.makeText(
+                                    context, "Error al validar duplicados", Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
                     }
+                },
 
-                    if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {  // Si el valor de la UBICACION y el SKU es "CODIGO NO ENCONTRADO" muestra un mensaje.
-                        showDialog1 =
-                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                        showErrorLocation.value = true
-                        showErrorSku.value = true
-                        return@launch // 🚨
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF003366), contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+            ) {
+                Text("Grabar Registro", fontSize = 13.sp)
+            }
 
-                    }
 
-                    if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
-                        lot.value = "N/A"
-                        return@launch // 🚨
+            // 🔘 Botón Limpiar
+            Button(
+                onClick = {
 
-                    }
-
-                    if (dateText.value.isEmpty()) {
-                        dateText.value = "N/A"
-                        return@launch // 🚨
-
-                    }
-
-                    if (productoDescripcion.value == "Producto No Existe" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
-                        errorMessage2 = "Producto No Encontrado"
-                        showDialog2 =
-                            true // 🔴 Activa el cuadro de diálogo si hay campos vacíos
-                        showErrorSku.value = true
-                        return@launch // 🚨
-
-                    }
-
-                    if (quantity.value == "0" || quantity.value.isEmpty() || quantity.value == "") {
-                        errorMessage = "No Admite cantidades 0"
-                        showDialogValueQuantityCero = true
-                        showErrorQuantity.value = true
-                        return@launch
-
-                    }
+                    onUserInteraction()
+                    location.value = ""
+                    sku.value = ""
+                    lot.value = ""
+                    dateText.value = ""
+                    quantity.value = ""
+                    productoDescripcion.value = ""
+                    unidadMedida.value = ""
+                    qrCodeContentSku.value = ""
+                    qrCodeContentLot.value = ""
 
                     showErrorLocation.value = false
                     showErrorSku.value = false
-                    errorMessage = ""
-                    showError1 = false
-                    errorMessage1 = ""
-                    showError2 = false
-                    errorMessage2 = ""
-                    showError3 = false
-                    errorMessage3 = ""
+                    showErrorQuantity.value = false
 
-                    validarRegistroDuplicado(
-                        db = firestore,
-                        usuario = userViewModel.nombre.value ?: "",
-                        ubicacion = location.value,
-                        sku = sku.value,
-                        lote = lot.value,
-                        cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
-                        localidad = localidad,
-                        onResult = { existeDuplicado ->
-                            if (existeDuplicado) {
-                                showDialogRegistroDuplicado.value = true
-                            } else {
-                                saveToFirestore(
-                                    firestore,
-                                    location.value,
-                                    sku.value,
-                                    productoDescripcion.value,
-                                    lot.value,
-                                    dateText.value,
-                                    quantity.value.toDoubleOrNull() ?: 0.0,
-                                    unidadMedida.value,
-                                    allData,
-                                    usuario = userViewModel.nombre.value ?: "",
-                                    coroutineScope,
-                                    localidad = localidad,
-                                    userViewModel,
-                                    showSuccessDialog,
-                                    listState
+                    coroutineScope.launch {
+                        delay(200) // Deja que Compose recalcule todo
+                        focusRequesterLocation.requestFocus() // ⬅️ Aquí enviamos el foco a Ubicación
+                        keyboardController?.show() // ⬅️ Mostramos el teclado manualmente si quieres
+                    }
 
-                                )
-
-                                // ✅ Recargar datos y hacer scroll al top
-                                fetchDataFromFirestore(
-                                    db = firestore,
-                                    allData = allData,
-                                    usuario = usuario,
-                                    listState = listState
-                                )
-
-                                // 👉 Limpieza de campos aquí mismo
-                                sku.value = ""
-                                lot.value = ""
-                                dateText.value = ""
-                                quantity.value = ""
-                                productoDescripcion.value = ""
-                                unidadMedida.value = ""
-                                qrCodeContentSku.value = ""
-                                qrCodeContentLot.value = ""
-                                userViewModel.limpiarValoresTemporales()
-
-                            }
-                        },
-                        onError = {
-                            Toast.makeText(
-                                context, "Error al validar duplicados", Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    )
-                }
-            },
-
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF003366), contentColor = Color.White
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .height(40.dp),
-        ) {
-            Text("Grabar Registro", fontSize = 13.sp)
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.DarkGray,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+            ) {
+                Text("Limpiar Campos", fontSize = 13.sp)
+            }
         }
 
-
-        // 🔘 Botón Limpiar
-        Button(
-            onClick = {
-
-                onUserInteraction()
-                location.value = ""
-                sku.value = ""
-                lot.value = ""
-                dateText.value = ""
-                quantity.value = ""
-                productoDescripcion.value = ""
-                unidadMedida.value = ""
-                qrCodeContentSku.value = ""
-                qrCodeContentLot.value = ""
-
-                showErrorLocation.value = false
-                showErrorSku.value = false
-                showErrorQuantity.value = false
-
-                coroutineScope.launch {
-                    delay(200) // Deja que Compose recalcule todo
-                    focusRequesterLocation.requestFocus() // ⬅️ Aquí enviamos el foco a Ubicación
-                    keyboardController?.show() // ⬅️ Mostramos el teclado manualmente si quieres
-                }
-
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.DarkGray,
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .height(40.dp)
-        ) {
-            Text("Limpiar Campos", fontSize = 13.sp)
-        }
-    }
-
-    HorizontalDivider(
-        thickness = 2.dp, color = Color.Gray, modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-    )
-
-//////////////////////////////////////////////////////////////
-
-    if (showDialog) {
-        AlertDialog(onDismissRequest = {
-            showDialog = true
-        }, // No se cierra al tocar fuera del cuadro
-            title = { Text("Campos Obligatorios Vacios") },
-            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-            confirmButton = {
-                Button(onClick = { showDialog = false }) {
-                    Text("Aceptar")
-                }
-            })
-    }
-    if (showDialog1) {
-        AlertDialog(onDismissRequest = {
-            showDialog1 = true
-        }, // No se cierra al tocar fuera del cuadro
-            title = { Text("Codigo No Encontrado") },
-            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-            confirmButton = {
-                Button(onClick = { showDialog1 = false }) {
-                    Text("Aceptar")
-                }
-            })
-    }
-    if (showDialog2) {
-        AlertDialog(onDismissRequest = {
-            showDialog2 = true
-        }, // No se cierra al tocar fuera del cuadro
-            title = { Text("Producto No Encontrado") },
-            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-            confirmButton = {
-                Button(onClick = { showDialog2 = false }) {
-                    Text("Aceptar")
-                }
-            })
-    }
-    if (showDialogValueQuantityCero) {
-        AlertDialog(onDismissRequest = {
-            showDialogValueQuantityCero = true
-        }, // No se cierra al tocar fuera del cuadro
-            title = { Text("No Admite cantidades 0") },
-            text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
-            confirmButton = {
-                Button(onClick = { showDialogValueQuantityCero = false }) {
-                    Text("Aceptar")
-                }
-            })
-    }
-
-    if (showDialogRegistroDuplicado.value) {
-        AlertDialog(onDismissRequest = { showDialogRegistroDuplicado.value = true },
-            title = { Text("Registro Duplicado") },
-            text = { Text("Ya existe un registro con los mismos datos. Verifica antes de grabar nuevamente.") },
-            confirmButton = {
-                Button(onClick = { showDialogRegistroDuplicado.value = false }) {
-                    Text("Aceptar")
-                }
-            })
-    }
-
-    if (showSuccessDialog.value) {
-        AlertDialog(
-            onDismissRequest = { showSuccessDialog.value = false },
-            confirmButton = {},
-            title = { Text("✔️ Registro exitoso") },
-            text = { Text("El registro se guardó correctamente.") },
-            properties = DialogProperties(
-                dismissOnBackPress = false, dismissOnClickOutside = false
-            )
+        HorizontalDivider(
+            thickness = 2.dp, color = Color.Gray, modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
         )
 
-        LaunchedEffect(showSuccessDialog.value) {
-            delay(2000) // ✅ o el tiempo que prefieras
-            showSuccessDialog.value = false
+
+        if (showDialog) {
+            AlertDialog(onDismissRequest = {
+                showDialog = true
+            }, // No se cierra al tocar fuera del cuadro
+                title = { Text("Campos Obligatorios Vacios") },
+                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+                confirmButton = {
+                    Button(onClick = { showDialog = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+        if (showDialog1) {
+            AlertDialog(onDismissRequest = {
+                showDialog1 = true
+            }, // No se cierra al tocar fuera del cuadro
+                title = { Text("Codigo No Encontrado") },
+                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+                confirmButton = {
+                    Button(onClick = { showDialog1 = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+        if (showDialog2) {
+            AlertDialog(onDismissRequest = {
+                showDialog2 = true
+            }, // No se cierra al tocar fuera del cuadro
+                title = { Text("Producto No Encontrado") },
+                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+                confirmButton = {
+                    Button(onClick = { showDialog2 = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+        if (showDialogValueQuantityCero) {
+            AlertDialog(onDismissRequest = {
+                showDialogValueQuantityCero = true
+            }, // No se cierra al tocar fuera del cuadro
+                title = { Text("No Admite cantidades 0") },
+                text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
+                confirmButton = {
+                    Button(onClick = { showDialogValueQuantityCero = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+
+        if (showDialogRegistroDuplicado.value) {
+            AlertDialog(onDismissRequest = { showDialogRegistroDuplicado.value = true },
+                title = { Text("Registro Duplicado") },
+                text = { Text("Ya existe un registro con los mismos datos. Verifica antes de grabar nuevamente.") },
+                confirmButton = {
+                    Button(onClick = { showDialogRegistroDuplicado.value = false }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+
+        if (showSuccessDialog.value) {
+            AlertDialog(
+                onDismissRequest = { showSuccessDialog.value = false },
+                confirmButton = {},
+                title = { Text("✔️ Registro exitoso") },
+                text = { Text("El registro se guardó correctamente.") },
+                properties = DialogProperties(
+                    dismissOnBackPress = false, dismissOnClickOutside = false
+                )
+            )
+
+            LaunchedEffect(showSuccessDialog.value) {
+                delay(2000) // ✅ o el tiempo que prefieras
+                showSuccessDialog.value = false
+            }
         }
     }
+}
 }
