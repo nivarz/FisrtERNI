@@ -1,17 +1,25 @@
 package com.eriknivar.firebasedatabase.view.settings
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -79,11 +87,21 @@ fun ConfiguracionUsuariosScreen(
                     val usuarioDoc = document.getString("usuario") ?: ""
                     val contrasenaDoc = document.getString("contrasena") ?: ""
                     val tipoDoc = document.getString("tipo") ?: ""
+                    val sessionIdDoc = document.getString("sessionId") ?: ""
 
                     val tipoUsuarioActual = userViewModel.tipo.value ?: ""
                     if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
-                    usuarios.add(Usuario(document.id, nombreDoc, usuarioDoc, contrasenaDoc, tipoDoc))
+                    usuarios.add(
+                        Usuario(
+                            document.id,
+                            nombreDoc,
+                            usuarioDoc,
+                            contrasenaDoc,
+                            tipoDoc,
+                            sessionIdDoc
+                        )
+                    )
                 }
             }
             .addOnFailureListener {
@@ -105,61 +123,107 @@ fun ConfiguracionUsuariosScreen(
                 tipo = ""
                 showUserDialog = true
             },
-            modifier = Modifier.padding(16.dp).fillMaxWidth()
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
         ) {
             Text("Agregar Usuario")
         }
 
         LazyColumn(modifier = Modifier.padding(16.dp)) {
             items(usuarios) { user ->
+
+
+
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        // 🔹 Fila con LED y Nombre
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(
+                                        color = if (user.sessionId?.isNotBlank() == true) Color.Green else Color.Red,
+                                        shape = CircleShape
+                                    )
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(buildAnnotatedString {
                                 withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Nombre: ") }
                                 append(user.nombre)
                             })
-                            Text(buildAnnotatedString {
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Usuario: ") }
-                                append(user.usuario)
-                            })
-                            Text(buildAnnotatedString {
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Contraseña: ") }
-                                append("********")
-                            })
-                            Text(buildAnnotatedString {
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Tipo: ") }
-                                append(user.tipo)
-                            })
                         }
+
+                        Text(buildAnnotatedString {
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Usuario: ") }
+                            append(user.usuario)
+                        })
+
+                        Text(buildAnnotatedString {
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Contraseña: ") }
+                            append("********")
+                        })
+
+                        Text(buildAnnotatedString {
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Tipo: ") }
+                            append(user.tipo)
+                        })
+
+                        // 🔹 Fila de íconos alineados
                         if (user.tipo != "superuser") {
-                            Row {
-                                IconButton(onClick = {
-                                    selectedUser = user
-                                    nombre = user.nombre
-                                    usuario = user.usuario
-                                    contrasena = user.contrasena
-                                    tipo = user.tipo
-                                    showUserDialog = true
-                                }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row {
+                                    IconButton(onClick = {
+                                        selectedUser = user
+                                        nombre = user.nombre
+                                        usuario = user.usuario
+                                        contrasena = user.contrasena
+                                        tipo = user.tipo
+                                        showUserDialog = true
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
+                                    }
+
+                                    IconButton(onClick = {
+                                        userToDelete = user
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.DarkGray)
+                                    }
                                 }
-                                IconButton(onClick = {
-                                    userToDelete = user
-                                }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red)
+
+                                // ✅ Botón de forzar logout solo visible para superadmin
+                                if ((userViewModel.tipo.value ?: "") == "superuser") {
+                                    IconButton(onClick = {
+                                        Firebase.firestore.collection("usuarios")
+                                            .document(user.id)
+                                            .update("sessionId", "")
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                                            contentDescription = "Forzar Logout",
+                                            tint = Color.Gray
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
+
+
+
+
             }
         }
     }
@@ -211,7 +275,8 @@ fun ConfiguracionUsuariosScreen(
                                                 nuevoUsuario.tipo
                                             )
                                         )
-                                        showUserDialog = false // ✅ solo cerrar el diálogo, no mostrar alerta
+                                        showUserDialog =
+                                            false // ✅ solo cerrar el diálogo, no mostrar alerta
                                     }
 
                             } else {
@@ -237,7 +302,8 @@ fun ConfiguracionUsuariosScreen(
                                         "tipo", nuevoUsuario.tipo
                                     )
                                     .addOnSuccessListener {
-                                        val index = usuarios.indexOfFirst { it.id == selectedUser!!.id }
+                                        val index =
+                                            usuarios.indexOfFirst { it.id == selectedUser!!.id }
                                         if (index != -1) {
                                             usuarios[index] = Usuario(
                                                 selectedUser!!.id,
@@ -247,7 +313,11 @@ fun ConfiguracionUsuariosScreen(
                                                 nuevoUsuario.tipo
                                             )
                                         }
-                                        Toast.makeText(context, "Usuario actualizado", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            "Usuario actualizado",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                         showUserDialog = false
                                     }
                             }

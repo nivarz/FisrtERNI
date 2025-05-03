@@ -5,5 +5,6 @@ data class Usuario(
     val nombre: String,
     val usuario: String,
     val contrasena: String,
-    val tipo: String
+    val tipo: String,
+    val sessionId: String? = ""
 )

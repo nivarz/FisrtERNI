@@ -1,5 +1,7 @@
 package com.eriknivar.firebasedatabase.view.storagetype
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -24,12 +27,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 
 @Composable
@@ -38,6 +44,44 @@ fun SelectStorageFragment(
     userViewModel: UserViewModel
 ) {
     val nombreUsuario = userViewModel.nombre.value ?: ""
+    val context = LocalContext.current
+    val currentUserId = userViewModel.documentId.value ?: ""
+    val currentSessionId = userViewModel.sessionId.value
+
+    DisposableEffect(currentUserId, currentSessionId) {
+        val firestore = Firebase.firestore
+
+        val listenerRegistration = firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreListener", "Error en snapshotListener", error)
+                    return@addSnapshotListener
+                }
+
+                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+
+                if (remoteSessionId != currentSessionId) {
+                    Toast.makeText(
+                        context,
+                        "Tu sesión fue cerrada por el administrador",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    userViewModel.clearUser()
+
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
+
+
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
     val dummyQuantity = remember { mutableStateOf("") }
@@ -69,6 +113,7 @@ fun SelectStorageFragment(
             }
         }
     }
+
 
 
 

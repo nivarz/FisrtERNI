@@ -2,6 +2,8 @@
 package com.eriknivar.firebasedatabase.viewmodel
 
 import android.util.Log
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -37,6 +39,13 @@ class UserViewModel : ViewModel() {
             .addOnFailureListener {
                 Log.e("FOTO_DEBUG", "Error al cargar fotoUrl", it)
             }
+    }
+
+    private val _sessionId = mutableStateOf("")
+    val sessionId: State<String> = _sessionId
+
+    fun setSessionId(newSessionId: String) {
+        _sessionId.value = newSessionId
     }
 
 

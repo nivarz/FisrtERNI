@@ -41,6 +41,7 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
+import java.util.UUID
 
 @Composable
 fun LoginButton(
@@ -131,9 +132,21 @@ fun LoginButton(
 
                                 val documentId = result.documents[0].id
                                 userViewModel.setUser(nombre, tipo, documentId)
+
+                                // 🔑 Genera y guarda el sessionId
+                                val sessionId = UUID.randomUUID().toString()
+                                userViewModel.setUser(nombre, tipo, documentId)
+                                userViewModel.setSessionId(sessionId)
+
+                                // 🔄 Actualiza Firestore con sessionId
+                                Firebase.firestore.collection("usuarios")
+                                    .document(documentId)
+                                    .update("sessionId", sessionId)
+
+
+
+
                                 userViewModel.cargarFotoUrl(documentId)
-
-
                                 nombreUsuario = nombre
                                 showWelcomeDialog = true
                             } else {

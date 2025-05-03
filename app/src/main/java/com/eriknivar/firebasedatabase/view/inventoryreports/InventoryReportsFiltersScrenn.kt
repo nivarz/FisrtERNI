@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.app.DatePickerDialog
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -32,6 +33,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -45,10 +47,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,12 +67,11 @@ import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import androidx.compose.runtime.rememberUpdatedState
-
 
 @Composable
 fun InventoryReportFiltersScreen(
@@ -343,25 +346,41 @@ fun InventoryReportFiltersScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    val coroutineScope = rememberCoroutineScope()
-                    var isLoadingButton by remember { mutableStateOf(false) }
 
-                    Button(
+                    val coroutineScope = rememberCoroutineScope()
+                    var isLoadingExport by remember { mutableStateOf(false) }
+                    var isExportEnabled by remember { mutableStateOf(true) }
+
+                    ElevatedButton(
                         onClick = {
-                            if (!isLoadingButton) {
-                                isLoadingButton = true
-                                coroutineScope.launch {
-                                    try {
-                                        val file = exportToExcel(context, filteredData)
-                                        file?.let { shareExcelFile(context, it) }
-                                    } finally {
-                                        isLoadingButton = false // 🔐 Siempre se desactiva
-                                    }
+                            Log.d("EXPORT_DEBUG", "Botón presionado. Estado isExportEnabled = $isExportEnabled")
+                            if (!isExportEnabled) return@ElevatedButton
+
+                            isExportEnabled = false
+                            isLoadingExport = true
+                            onUserInteraction()
+
+                            coroutineScope.launch {
+                                Log.d("EXPORT_DEBUG", "Ejecutando exportación y share...")
+
+                                try {
+                                    val file = exportToExcel(context, filteredData)
+
+                                    delay(800) // ⏱️ Retardo antes de ejecutar share
+
+                                    file?.let { shareExcelFile(context, it) }
+
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Error al exportar", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    delay(800) // 🔐 Tiempo extra antes de reactivar
+                                    isExportEnabled = true
+                                    isLoadingExport = false
                                 }
                             }
                         },
+                        enabled = tipo != "invitado" && isExportEnabled,
                         modifier = Modifier.weight(1f),
-                        enabled = tipo != "invitado" && !isLoadingButton,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = azulMarino,
                             contentColor = Color.White,
@@ -369,16 +388,30 @@ fun InventoryReportFiltersScreen(
                             disabledContentColor = Color.DarkGray
                         )
                     ) {
-                        if (isLoadingButton) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Exportar Excel")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isLoadingExport) "Exportando..." else "Exportar Excel")
+
+                            if (isLoadingExport) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
+
+
+
+
+
+
+
                 }
 
                 val azulMarino = Color(0xFF001F5B)
