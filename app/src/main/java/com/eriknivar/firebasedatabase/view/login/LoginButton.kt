@@ -129,7 +129,10 @@ fun LoginButton(
                                 val nombre = result.documents[0].getString("nombre") ?: ""
                                 val tipo = result.documents[0].getString("tipo") ?: "invitado"
 
-                                userViewModel.setUser(nombre, tipo)
+                                val documentId = result.documents[0].id
+                                userViewModel.setUser(nombre, tipo, documentId)
+                                userViewModel.cargarFotoUrl(documentId)
+
 
                                 nombreUsuario = nombre
                                 showWelcomeDialog = true

@@ -56,7 +56,7 @@ fun UsuarioDialog(
                 OutlinedTextField(
                     value = nombre.uppercase(),
                     onValueChange = onNombreChange,
-                    label = { Text("Nombre") },
+                    label = { Text("Nombre y Apellido") },
                     singleLine = true
                 )
                 OutlinedTextField(

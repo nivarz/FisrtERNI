@@ -61,6 +61,7 @@ fun fetchDataFromFirestore(
             }
             Log.d("Firestore", "✅ Registros cargados: ${allData.size}")
 
+
             // ✅ Scroll automático al tope (registro más reciente)
             if (allData.isNotEmpty()) {
                 CoroutineScope(Dispatchers.Main).launch {

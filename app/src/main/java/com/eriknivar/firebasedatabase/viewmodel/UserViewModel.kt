@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
 
 class UserViewModel : ViewModel() {
 
@@ -19,6 +20,27 @@ class UserViewModel : ViewModel() {
     private val _isInitialized = MutableLiveData(false)
     val isInitialized: LiveData<Boolean> = _isInitialized
 
+    private val _documentId = MutableLiveData("")
+    val documentId: LiveData<String> = _documentId
+
+    private val _fotoUrl = MutableLiveData<String?>()
+
+    fun cargarFotoUrl(documentId: String) {
+        Firebase.firestore.collection("usuarios")
+            .document(documentId)
+            .get()
+            .addOnSuccessListener { doc ->
+                val url = doc.getString("fotoUrl")
+                _fotoUrl.value = url
+                Log.d("FOTO_DEBUG", "fotoUrl cargada: $url")
+            }
+            .addOnFailureListener {
+                Log.e("FOTO_DEBUG", "Error al cargar fotoUrl", it)
+            }
+    }
+
+
+
     // ✅ Variables temporales para restaurar campos después del logout
     var tempSku = ""
     var tempLote = ""
@@ -26,9 +48,10 @@ class UserViewModel : ViewModel() {
     var tempUbicacion = ""
     var tempFecha = ""
 
-    fun setUser(nombre: String, tipo: String) {
+    fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
         _tipo.value = tipo
+        _documentId.value = documentId
         _isInitialized.value = true
     }
 

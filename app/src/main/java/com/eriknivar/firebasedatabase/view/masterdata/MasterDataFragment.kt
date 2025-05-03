@@ -30,7 +30,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,12 +53,14 @@ import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun MasterDataFragment(
     navController: NavHostController,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+
 ) {
     val context = LocalContext.current
     val firestore = Firebase.firestore
@@ -82,6 +86,33 @@ fun MasterDataFragment(
 
     val navyBlue = Color(0xFF001F5B)
 
+
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 10 * 60_000) {
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
+        }
+    }
+
     // Solo permitir acceso a admin o superuser
     val tipo = userViewModel.tipo.value ?: ""
 
@@ -101,8 +132,6 @@ fun MasterDataFragment(
         }
         return
     }
-
-
 
     fun cargarProductos() {
         isLoading = true
@@ -131,7 +160,16 @@ fun MasterDataFragment(
         onCloseDisconnected = {},
         onCloseRestored = {}
     ) {
-        NavigationDrawer(navController, "Datos Maestro", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
+        NavigationDrawer(
+            navController,
+            "Datos Maestro",
+            userViewModel,
+            dummyLocation,
+            dummySku,
+            dummyQuantity,
+            dummyLot,
+            dummyDateText
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -142,6 +180,7 @@ fun MasterDataFragment(
                         containerColor = navyBlue, contentColor = Color.White
                     ),
                     onClick = {
+                        actualizarActividad()
                         selectedProduct = null
                         codigoInput = ""
                         descripcionInput = ""
@@ -168,7 +207,10 @@ fun MasterDataFragment(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = navyBlue, contentColor = Color.White
                     ),
-                    onClick = { cargarProductos() },
+                    onClick = {
+                        actualizarActividad()
+                        cargarProductos()
+                    },
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth()
                 ) {

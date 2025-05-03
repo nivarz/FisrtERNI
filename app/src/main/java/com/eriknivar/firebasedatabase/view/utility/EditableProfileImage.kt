@@ -3,11 +3,11 @@ package com.eriknivar.firebasedatabase.view.utility
 import android.Manifest
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -24,7 +24,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,32 +33,56 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberAsyncImagePainter
+import coil.compose.AsyncImage
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 
 @Composable
-fun EditableProfileImage(userName: String) {
+fun EditableProfileImage(
+    userName: String,
+    documentId: String
+) {
     val context = LocalContext.current
-    val imageManager = remember { ProfileImageManager(context) }
+    val storage = FirebaseStorage.getInstance()
+    val firestore = FirebaseFirestore.getInstance()
 
-    var selectedImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
-
-    // Cargar imagen del usuario una vez
-    LaunchedEffect(userName) {
-        imageManager.getImageUri(userName)?.let { savedUri ->
-            selectedImageUri = Uri.parse(savedUri)
-        }
-    }
+    var fotoUrl by remember { mutableStateOf<String?>(null) }
 
     val contentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
+        Log.d("FOTO_DEBUG", "Imagen seleccionada: $uri")
+
         uri?.let {
-            selectedImageUri = it
-            imageManager.saveImageUri(userName, it.toString())
+            val imageRef = storage.reference.child("usuarios/$userName/perfil.jpg")
+
+            imageRef.putFile(it)
+                .addOnSuccessListener {
+                    Log.d("FOTO_DEBUG", "Imagen subida a Storage correctamente")
+
+                    imageRef.downloadUrl.addOnSuccessListener { downloadUri ->
+                        fotoUrl = downloadUri.toString()
+                        Log.d("FOTO_DEBUG", "URL obtenida: $fotoUrl")
+
+                        firestore.collection("usuarios")
+                            .document(documentId)
+                            .update("fotoUrl", fotoUrl)
+                            .addOnSuccessListener {
+                                Log.d("FOTO_DEBUG", "fotoUrl guardado en Firestore")
+                            }
+                            .addOnFailureListener { exception ->
+                                Log.e("FOTO_DEBUG", "Error al recuperar fotoUrl", exception)
+                            }
+
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("FOTO_DEBUG", "Error al recuperar fotoUrl", exception)
+                }
+
         }
     }
 
-    // 📱 Permiso dinámico según la versión
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_IMAGES
     } else {
@@ -70,15 +93,31 @@ fun EditableProfileImage(userName: String) {
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
+            Log.d("FOTO_DEBUG", "Permiso concedido")
             contentPicker.launch("image/*")
         } else {
-            Toast.makeText(context, "Permiso denegado para acceder a imágenes", Toast.LENGTH_SHORT).show()
+            Log.d("FOTO_DEBUG", "Permiso denegado")
+            Toast.makeText(context, "Permiso denegado", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // ✅ Animación de zoom solo si hay imagen seleccionada
+    // 🔄 Recuperar fotoUrl usando el documentId
+    LaunchedEffect(documentId) {
+        firestore.collection("usuarios")
+            .document(documentId)
+            .get()
+            .addOnSuccessListener { doc ->
+                val url = doc.getString("fotoUrl")
+                fotoUrl = url
+                Log.d("FOTO_DEBUG", "fotoUrl recuperado: $url")
+            }
+            .addOnFailureListener {
+                Log.e("FOTO_DEBUG", "Error al recuperar fotoUrl", it)
+            }
+    }
+
     val scale by animateFloatAsState(
-        targetValue = if (selectedImageUri != null) 1.1f else 1f,
+        targetValue = if (fotoUrl != null) 1.1f else 1f,
         label = "ZoomAnim"
     )
 
@@ -86,19 +125,18 @@ fun EditableProfileImage(userName: String) {
         modifier = Modifier.size(70.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Fondo circular
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
                 .background(Color.LightGray)
-                .graphicsLayer(scaleX = scale, scaleY = scale), // ✅ Zoom dinámico
+                .graphicsLayer(scaleX = scale, scaleY = scale),
             contentAlignment = Alignment.Center
         ) {
-            if (selectedImageUri != null) {
-                Image(
-                    painter = rememberAsyncImagePainter(selectedImageUri),
-                    contentDescription = "Imagen de perfil",
+            if (fotoUrl != null) {
+                AsyncImage(
+                    model = fotoUrl,
+                    contentDescription = "Foto de perfil",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -112,7 +150,6 @@ fun EditableProfileImage(userName: String) {
             }
         }
 
-        // ✅ Botón con ícono de cámara (clickable)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)

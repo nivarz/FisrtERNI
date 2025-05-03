@@ -44,7 +44,8 @@ import com.google.firebase.firestore.firestore
 
 @Composable
 fun ConfiguracionUsuariosScreen(
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+    onUserInteraction: () -> Unit
 ) {
     val firestore = Firebase.firestore
     val usuarios = remember { mutableStateListOf<Usuario>() }
@@ -60,6 +61,9 @@ fun ConfiguracionUsuariosScreen(
     var tipo by remember { mutableStateOf("") }
     val tipoOpciones = listOf("admin", "invitado")
     var expandedTipo by remember { mutableStateOf(false) }
+
+    var showUserExistsDialog by remember { mutableStateOf(false) }
+
 
     val navyBlue = Color(0xFF001F5B)
 
@@ -93,6 +97,7 @@ fun ConfiguracionUsuariosScreen(
                 containerColor = navyBlue, contentColor = Color.White
             ),
             onClick = {
+                onUserInteraction()
                 selectedUser = null
                 nombre = ""
                 usuario = ""
@@ -195,6 +200,7 @@ fun ConfiguracionUsuariosScreen(
                                             "tipo" to nuevoUsuario.tipo
                                         )
                                     )
+
                                     .addOnSuccessListener {
                                         usuarios.add(
                                             Usuario(
@@ -205,11 +211,11 @@ fun ConfiguracionUsuariosScreen(
                                                 nuevoUsuario.tipo
                                             )
                                         )
-                                        Toast.makeText(context, "Usuario agregado", Toast.LENGTH_SHORT).show()
-                                        showUserDialog = false
+                                        showUserDialog = false // ✅ solo cerrar el diálogo, no mostrar alerta
                                     }
+
                             } else {
-                                Toast.makeText(context, "Este usuario ya existe", Toast.LENGTH_SHORT).show()
+                                showUserExistsDialog = true
                             }
                         }
                 } else {
@@ -220,7 +226,8 @@ fun ConfiguracionUsuariosScreen(
                         .addOnSuccessListener { documents ->
                             val yaExiste = documents.any { it.id != selectedUser!!.id }
                             if (yaExiste) {
-                                Toast.makeText(context, "Este usuario ya existe", Toast.LENGTH_SHORT).show()
+                                showUserExistsDialog = true
+
                             } else {
                                 firestore.collection("usuarios").document(selectedUser!!.id)
                                     .update(
@@ -250,6 +257,20 @@ fun ConfiguracionUsuariosScreen(
 
         )
     }
+
+    if (showUserExistsDialog) {
+        AlertDialog(
+            onDismissRequest = { showUserExistsDialog = false },
+            title = { Text("Usuario existente") },
+            text = { Text("Ya existe un usuario con ese nombre. Por favor elige otro.") },
+            confirmButton = {
+                TextButton(onClick = { showUserExistsDialog = false }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
 
     userToDelete?.let { user ->
         AlertDialog(

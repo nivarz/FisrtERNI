@@ -6,10 +6,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.AddHome
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
@@ -99,12 +97,19 @@ fun NavigationDrawer(
                         Icon(
                             imageVector = Icons.Default.ChevronLeft,
                             contentDescription = "Cerrar menú",
-                            tint = Color.Blue,
+                            tint = Color.Gray,
                             modifier = Modifier.size(65.dp)
                         )
                     }
 
-                    EditableProfileImage(userName = userName)
+                    val documentId by userViewModel.documentId.observeAsState("")
+
+                    EditableProfileImage(
+                        userName,
+                        documentId
+                    )
+
+
 
                 }
 
@@ -125,7 +130,7 @@ fun NavigationDrawer(
                     Text(
                         text = "Hola, ",
                         fontSize = 20.sp,
-                        color = Color.Blue,
+                        color = Color(0xFF003366),
                         fontWeight = FontWeight.Bold
                     )
                     Text(

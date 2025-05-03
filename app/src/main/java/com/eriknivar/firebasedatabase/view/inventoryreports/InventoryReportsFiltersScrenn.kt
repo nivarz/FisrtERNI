@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,9 +63,12 @@ import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import androidx.compose.runtime.rememberUpdatedState
+
 
 @Composable
 fun InventoryReportFiltersScreen(
@@ -338,23 +343,42 @@ fun InventoryReportFiltersScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
+                    val coroutineScope = rememberCoroutineScope()
+                    var isLoadingButton by remember { mutableStateOf(false) }
+
                     Button(
                         onClick = {
-                            val file = exportToExcel(context, filteredData)
-                            file?.let { shareExcelFile(context, it) }
+                            if (!isLoadingButton) {
+                                isLoadingButton = true
+                                coroutineScope.launch {
+                                    try {
+                                        val file = exportToExcel(context, filteredData)
+                                        file?.let { shareExcelFile(context, it) }
+                                    } finally {
+                                        isLoadingButton = false // 🔐 Siempre se desactiva
+                                    }
+                                }
+                            }
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = tipo != "invitado", // ✅ deshabilitado para invitados
+                        enabled = tipo != "invitado" && !isLoadingButton,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = azulMarino,
                             contentColor = Color.White,
-                            disabledContainerColor = Color.LightGray, // opcional: color deshabilitado
-                            disabledContentColor = Color.DarkGray      // opcional: texto deshabilitado
+                            disabledContainerColor = Color.LightGray,
+                            disabledContentColor = Color.DarkGray
                         )
                     ) {
-                        Text("Exportar Excel")
+                        if (isLoadingButton) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Exportar Excel")
+                        }
                     }
-
                 }
 
                 val azulMarino = Color(0xFF001F5B)

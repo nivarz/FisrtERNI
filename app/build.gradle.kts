@@ -81,6 +81,7 @@ dependencies {
     implementation (libs.poi.ooxml)
     implementation(libs.androidx.material3.v121)
     implementation(libs.coil.compose.v250)
+    implementation(libs.firebase.storage.ktx)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
