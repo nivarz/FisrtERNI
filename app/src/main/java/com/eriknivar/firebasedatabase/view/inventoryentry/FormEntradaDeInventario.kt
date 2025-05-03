@@ -90,7 +90,6 @@ fun FormEntradaDeInventario(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequesterLocation = remember { FocusRequester() }
 
-
     //NO VEO ESTOS ESTADOS EN LA NUEVA MODIFICACION
 
     val context = LocalContext.current
@@ -167,6 +166,8 @@ fun FormEntradaDeInventario(
             )
         }
     }
+
+
 
     Box(
         modifier = Modifier

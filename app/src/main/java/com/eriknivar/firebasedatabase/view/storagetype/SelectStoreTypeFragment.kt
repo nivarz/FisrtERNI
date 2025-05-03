@@ -61,7 +61,7 @@ fun SelectStorageFragment(
 
                 val remoteSessionId = snapshot?.getString("sessionId") ?: ""
 
-                if (remoteSessionId != currentSessionId) {
+                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
                     Toast.makeText(
                         context,
                         "Tu sesión fue cerrada por el administrador",
@@ -80,6 +80,7 @@ fun SelectStorageFragment(
             listenerRegistration.remove()
         }
     }
+
 
 
     val dummyLocation = remember { mutableStateOf("") }

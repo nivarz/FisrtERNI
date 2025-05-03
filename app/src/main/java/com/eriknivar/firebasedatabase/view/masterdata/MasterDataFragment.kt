@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.masterdata
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -110,6 +112,41 @@ fun MasterDataFragment(
 
                 break
             }
+        }
+    }
+
+    val currentUserId = userViewModel.documentId.value ?: ""
+    val currentSessionId = userViewModel.sessionId.value
+
+    DisposableEffect(currentUserId, currentSessionId) {
+
+        val listenerRegistration = firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreListener", "Error en snapshotListener", error)
+                    return@addSnapshotListener
+                }
+
+                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+
+                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+                    Toast.makeText(
+                        context,
+                        "Tu sesión fue cerrada por el administrador",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    userViewModel.clearUser()
+
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
         }
     }
 

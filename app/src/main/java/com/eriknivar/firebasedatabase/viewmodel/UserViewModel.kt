@@ -48,6 +48,15 @@ class UserViewModel : ViewModel() {
         _sessionId.value = newSessionId
     }
 
+    private val _recargarUsuarios = mutableStateOf(false)
+    val recargarUsuarios: State<Boolean> = _recargarUsuarios
+
+    fun activarRecargaUsuarios() {
+        _recargarUsuarios.value = !_recargarUsuarios.value // ⚡ Dispara la recarga
+    }
+
+    var isManualLogout = mutableStateOf(false)
+
 
 
     // ✅ Variables temporales para restaurar campos después del logout

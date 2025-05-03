@@ -1,5 +1,7 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +70,42 @@ fun FirestoreApp(
     val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
     val expandedForm = remember { mutableStateOf(true) }
 
+    val context = LocalContext.current
+    val currentUserId = userViewModel.documentId.value ?: ""
+    val currentSessionId = userViewModel.sessionId.value
+
+    DisposableEffect(currentUserId, currentSessionId) {
+        val firestore = Firebase.firestore
+
+        val listenerRegistration = firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreListener", "Error en snapshotListener", error)
+                    return@addSnapshotListener
+                }
+
+                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+
+                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+                    Toast.makeText(
+                        context,
+                        "Tu sesión fue cerrada por el administrador",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    userViewModel.clearUser()
+
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
 
     var showSuccessDialog by remember { mutableStateOf(false) } // ✅ Aquí también
 

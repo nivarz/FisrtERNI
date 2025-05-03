@@ -1,5 +1,7 @@
 package com.eriknivar.firebasedatabase.view.settings
 
+import android.app.Activity
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -39,12 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.Usuario
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -58,6 +62,8 @@ fun ConfiguracionUsuariosScreen(
     val firestore = Firebase.firestore
     val usuarios = remember { mutableStateListOf<Usuario>() }
     val context = LocalContext.current
+    val currentUserId = userViewModel.documentId.value ?: ""
+    val currentSessionId = userViewModel.sessionId.value
 
     var showUserDialog by remember { mutableStateOf(false) }
     var selectedUser by remember { mutableStateOf<Usuario?>(null) }
@@ -72,12 +78,9 @@ fun ConfiguracionUsuariosScreen(
 
     var showUserExistsDialog by remember { mutableStateOf(false) }
 
-
     val navyBlue = Color(0xFF001F5B)
 
-
-    // 🔁 Cargar usuarios al iniciar
-    LaunchedEffect(Unit) {
+    fun recargarUsuarios() {
         firestore.collection("usuarios")
             .get()
             .addOnSuccessListener { result ->
@@ -109,6 +112,107 @@ fun ConfiguracionUsuariosScreen(
             }
     }
 
+    // 🔁 Cargar usuarios al iniciar
+    LaunchedEffect(true) {
+        recargarUsuarios()
+    }
+
+
+    LaunchedEffect(userViewModel.sessionId.value) {
+        if ((userViewModel.tipo.value ?: "") == "superuser") {
+            firestore.collection("usuarios")
+                .get()
+                .addOnSuccessListener { result ->
+                    usuarios.clear()
+                    for (document in result) {
+                        val nombreDoc = document.getString("nombre") ?: ""
+                        val usuarioDoc = document.getString("usuario") ?: ""
+                        val contrasenaDoc = document.getString("contrasena") ?: ""
+                        val tipoDoc = document.getString("tipo") ?: ""
+                        val sessionIdDoc = document.getString("sessionId") ?: ""
+
+                        val tipoUsuarioActual = userViewModel.tipo.value ?: ""
+                        if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
+
+                        usuarios.add(
+                            Usuario(
+                                document.id,
+                                nombreDoc,
+                                usuarioDoc,
+                                contrasenaDoc,
+                                tipoDoc,
+                                sessionIdDoc
+                            )
+                        )
+                    }
+                }
+        }
+    }
+
+    LaunchedEffect(userViewModel.recargarUsuarios.value) {
+        firestore.collection("usuarios")
+            .get()
+            .addOnSuccessListener { result ->
+                usuarios.clear()
+                for (document in result) {
+                    val nombreDoc = document.getString("nombre") ?: ""
+                    val usuarioDoc = document.getString("usuario") ?: ""
+                    val contrasenaDoc = document.getString("contrasena") ?: ""
+                    val tipoDoc = document.getString("tipo") ?: ""
+                    val sessionIdDoc = document.getString("sessionId") ?: ""
+
+                    val tipoUsuarioActual = userViewModel.tipo.value ?: ""
+                    if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
+
+                    usuarios.add(
+                        Usuario(
+                            document.id,
+                            nombreDoc,
+                            usuarioDoc,
+                            contrasenaDoc,
+                            tipoDoc,
+                            sessionIdDoc
+                        )
+                    )
+                }
+            }
+    }
+
+    DisposableEffect(currentUserId, currentSessionId) {
+        val listenerRegistration = Firebase.firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreListener", "Error en snapshotListener", error)
+                    return@addSnapshotListener
+                }
+
+                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+
+                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+                    Toast.makeText(
+                        context,
+                        "Tu sesión fue cerrada por el administrador",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    userViewModel.clearUser()
+
+                    // 🔁 Forzar salida
+                    val activity = (context as? Activity)
+                    activity?.finishAffinity()
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
+
+
+
+
+
     Column(modifier = Modifier.fillMaxSize()) {
         ElevatedButton(
             colors = ButtonDefaults.buttonColors(
@@ -127,7 +231,82 @@ fun ConfiguracionUsuariosScreen(
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
+            Text("+ ",fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.Green)
+
             Text("Agregar Usuario")
+        }
+
+        ElevatedButton(
+            onClick = {
+                onUserInteraction()
+                firestore.collection("usuarios")
+                    .get()
+                    .addOnSuccessListener { result ->
+                        usuarios.clear()
+                        for (document in result) {
+                            val nombreDoc = document.getString("nombre") ?: ""
+                            val usuarioDoc = document.getString("usuario") ?: ""
+                            val contrasenaDoc = document.getString("contrasena") ?: ""
+                            val tipoDoc = document.getString("tipo") ?: ""
+                            val sessionIdDoc = document.getString("sessionId") ?: ""
+
+                            val tipoUsuarioActual = userViewModel.tipo.value ?: ""
+                            if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
+
+                            usuarios.add(
+                                Usuario(
+                                    document.id,
+                                    nombreDoc,
+                                    usuarioDoc,
+                                    contrasenaDoc,
+                                    tipoDoc,
+                                    sessionIdDoc
+                                )
+                            )
+                        }
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(context, "Error al actualizar la lista", Toast.LENGTH_SHORT).show()
+                    }
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF001F5B),
+                contentColor = Color.White
+            ),
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+
+            ) {
+                Text("Actualizar (", fontWeight = FontWeight.Bold)
+
+                Text("Activos", fontWeight = FontWeight.Bold)
+
+                // 🔵 LED verde
+                Box(
+                    modifier = Modifier
+                        .size(10.dp) // un poco más grande para equilibrar visualmente
+                        .background(Color.Green, CircleShape)
+                )
+
+                Text("/", fontWeight = FontWeight.Bold)
+
+                Text("Inactivos", fontWeight = FontWeight.Bold)
+
+                // 🔴 LED rojo
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(Color.Red, CircleShape)
+                )
+
+                Text(")", fontWeight = FontWeight.Bold)
+            }
+
         }
 
         LazyColumn(modifier = Modifier.padding(16.dp)) {
@@ -204,10 +383,41 @@ fun ConfiguracionUsuariosScreen(
 
                                 // ✅ Botón de forzar logout solo visible para superadmin
                                 if ((userViewModel.tipo.value ?: "") == "superuser") {
+
                                     IconButton(onClick = {
                                         Firebase.firestore.collection("usuarios")
                                             .document(user.id)
                                             .update("sessionId", "")
+                                            .addOnSuccessListener {
+                                                recargarUsuarios()
+                                                // 🔄 Recargar lista de usuarios luego del logout
+                                                firestore.collection("usuarios")
+                                                    .get()
+                                                    .addOnSuccessListener { result ->
+                                                        usuarios.clear()
+                                                        for (document in result) {
+                                                            val nombreDoc = document.getString("nombre") ?: ""
+                                                            val usuarioDoc = document.getString("usuario") ?: ""
+                                                            val contrasenaDoc = document.getString("contrasena") ?: ""
+                                                            val tipoDoc = document.getString("tipo") ?: ""
+                                                            val sessionIdDoc = document.getString("sessionId") ?: ""
+
+                                                            val tipoUsuarioActual = userViewModel.tipo.value ?: ""
+                                                            if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
+
+                                                            usuarios.add(
+                                                                Usuario(
+                                                                    document.id,
+                                                                    nombreDoc,
+                                                                    usuarioDoc,
+                                                                    contrasenaDoc,
+                                                                    tipoDoc,
+                                                                    sessionIdDoc
+                                                                )
+                                                            )
+                                                        }
+                                                    }
+                                            }
                                     }) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Logout,
@@ -215,6 +425,11 @@ fun ConfiguracionUsuariosScreen(
                                             tint = Color.Gray
                                         )
                                     }
+
+
+
+
+
                                 }
                             }
                         }

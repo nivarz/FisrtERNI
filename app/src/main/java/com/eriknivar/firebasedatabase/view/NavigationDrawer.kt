@@ -52,6 +52,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,7 +110,6 @@ fun NavigationDrawer(
                         userName,
                         documentId
                     )
-
 
 
                 }
@@ -189,6 +190,10 @@ fun NavigationDrawer(
                     scope.launch { drawerState.close() }
                 }
 
+
+
+
+
                 DrawerMenuItem(
                     icon = Icons.AutoMirrored.Filled.ExitToApp,
                     label = "Salir"
@@ -210,16 +215,29 @@ fun NavigationDrawer(
                                 onClick = {
                                     showLogoutDialog = false // 🔵 Cerrar el diálogo
 
-                                    limpiarCampos(
-                                        location,
-                                        sku,
-                                        quantity,
-                                        lot,
-                                        expirationDate
-                                    ) // 🧹 Limpiar campos
-                                    userViewModel.clearUser() // 🧹 Limpiar usuario
+                                    val documentId = userViewModel.documentId.value ?: ""
 
-                                    activity?.finishAffinity() // 🔥 Cerrar completamente la app
+                                    userViewModel.isManualLogout.value = true
+
+                                    Firebase.firestore.collection("usuarios")
+                                        .document(documentId)
+                                        .update("sessionId", "")
+                                        .addOnCompleteListener {
+                                            userViewModel.clearUser() // 🧹 Limpiar usuario
+                                            userViewModel.isManualLogout.value = false // ✅ Restaurar bandera
+
+                                            limpiarCampos(
+                                                location,
+                                                sku,
+                                                quantity,
+                                                lot,
+                                                expirationDate
+                                            )
+
+                                            userViewModel.activarRecargaUsuarios()
+
+                                            activity?.finishAffinity() // 🔥 Cerrar completamente la app
+                                        }
                                 }
                             ) {
                                 Text("Sí")

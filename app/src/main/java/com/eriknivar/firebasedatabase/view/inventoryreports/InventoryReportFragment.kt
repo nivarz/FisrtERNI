@@ -1,8 +1,11 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -11,6 +14,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
@@ -34,6 +38,45 @@ fun InventoryReportsFragment(
     val dummyQuantity = remember { mutableStateOf("") }
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val currentUserId = userViewModel.documentId.value ?: ""
+    val currentSessionId = userViewModel.sessionId.value
+
+    DisposableEffect(currentUserId, currentSessionId) {
+        val firestore = Firebase.firestore
+
+        val listenerRegistration = firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreListener", "Error en snapshotListener", error)
+                    return@addSnapshotListener
+                }
+
+                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+
+                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+                    Toast.makeText(
+                        context,
+                        "Tu sesión fue cerrada por el administrador",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    userViewModel.clearUser()
+
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
+
+
 
 
     LaunchedEffect(usuario, tipoUsuario) {
