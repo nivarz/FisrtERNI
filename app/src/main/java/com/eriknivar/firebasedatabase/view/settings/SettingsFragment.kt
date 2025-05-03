@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.settings
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -33,14 +34,22 @@ fun SettingsFragment(
     val dummyDateText = remember { mutableStateOf("") }
 
     if (tipo.isNotBlank() && tipo.lowercase() != "admin" && tipo.lowercase() != "superuser") {
-        Text(
-            "Acceso restringido",
-            color = Color.Red,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(16.dp)
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White), // 🔷 Fondo blanco
+            contentAlignment = Alignment.TopStart
+        ) {
+            Text(
+                text = "Acceso restringido",
+                color = Color.Red,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
         return
     }
+
 
     NavigationDrawer(navController, "Configuración", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) { // ✅ Aquí está el Drawer
 

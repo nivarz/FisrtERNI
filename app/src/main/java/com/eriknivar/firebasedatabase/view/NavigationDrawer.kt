@@ -10,11 +10,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AddHome
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Report
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -50,8 +47,13 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,7 +82,7 @@ fun NavigationDrawer(
         ModalDrawerSheet {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(.7f)
+                    .fillMaxWidth(.75f)
                     .padding()
             ) {
 
@@ -146,94 +148,49 @@ fun NavigationDrawer(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                TextButton(onClick = {
+                DrawerMenuItem(
+                    icon = Icons.Default.Inventory2,
+                    label = "Entrada de Inventario"
+                ) {
                     navController.navigate("storagetype")
                     scope.launch { drawerState.close() }
-                }) {
-                    Row(
-                        modifier = Modifier.padding(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AddHome,
-                            contentDescription = "",
-                            tint = Color.Black,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Entrada de Inventario", color = Color.Black)
-                    }
                 }
 
-                TextButton(onClick = {
+
+                DrawerMenuItem(
+                    icon = Icons.Default.BarChart,
+                    label = "Reporte de Inventario"
+                ) {
                     navController.navigate("inventoryreports")
                     scope.launch { drawerState.close() }
-                }) {
-                    Row(
-                        modifier = Modifier.padding(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Report,
-                            contentDescription = "",
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reporte de Inventario", color = Color.Black)
-                    }
                 }
 
-                TextButton(onClick = {
-                    navController.navigate("settings") // o "configuracion", según tu ruta real
+
+                DrawerMenuItem(
+                    icon = Icons.Default.Settings,
+                    label = "Configuración"
+                ) {
+                    navController.navigate("settings")
                     scope.launch { drawerState.close() }
-                }) {
-                    Row(
-                        modifier = Modifier.padding(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "",
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Configuración", color = Color.Black)
-                    }
                 }
-                // }
 
 
-                TextButton(onClick = {
+
+                DrawerMenuItem(
+                    icon = Icons.Default.FolderSpecial,
+                    label = "Datos Maestro"
+                ) {
                     navController.navigate("masterdata")
                     scope.launch { drawerState.close() }
-                }) {
-                    Row(
-                        modifier = Modifier.padding(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Archive,
-                            contentDescription = "",
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Datos Maestro", color = Color.Black)
-                    }
                 }
 
-                TextButton(
-                    modifier = Modifier.padding(),
-                    onClick = {
-                        showLogoutDialog = true // 🔔 Solo mostrar el diálogo, nada más aquí
-                    }
+                DrawerMenuItem(
+                    icon = Icons.AutoMirrored.Filled.ExitToApp,
+                    label = "Salir"
                 ) {
-                    Row(
-                        modifier = Modifier.padding(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = "",
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Salir", color = Color.Black)
-                    }
+                    showLogoutDialog = true // 🔔 Solo mostrar el diálogo, como hacías antes
                 }
+
 
                 if (showLogoutDialog) {
                     val activity = LocalActivity.current
