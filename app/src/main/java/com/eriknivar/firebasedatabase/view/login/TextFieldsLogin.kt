@@ -58,7 +58,7 @@ fun TextFieldsLogin(
             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = "User") },
             label = { Text("Usuario", color = Color.White, fontWeight = FontWeight.Thin) },
             value = username.value,
-            onValueChange = { username.value = it.uppercase() },
+            onValueChange = { username.value = it.uppercase().trim() },
             singleLine = true,
             maxLines = 1,
             modifier = Modifier
@@ -89,7 +89,7 @@ fun TextFieldsLogin(
             },
             label = { Text("Contraseña", color = Color.White, fontWeight = FontWeight.Thin) },
             value = password.value,
-            onValueChange = { password.value = it },
+            onValueChange = { password.value = it.trim() },
             singleLine = true,
             maxLines = 1,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),

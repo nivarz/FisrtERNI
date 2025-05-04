@@ -37,11 +37,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
+import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
-import java.util.UUID
 
 @Composable
 fun LoginButton(
@@ -114,52 +114,72 @@ fun LoginButton(
     ElevatedButton(
         onClick = {
             if (isButtonEnabled) {
-                if (username.value.isNotBlank() && password.value.isNotBlank()) {
+                val usuarioTrimmed = username.value.trim().uppercase()
+                val contrasenaTrimmed = password.value.trim()
+
+                if (usuarioTrimmed.isNotBlank() && contrasenaTrimmed.isNotBlank()) {
                     isButtonEnabled = false
                     isLoading = true
 
                     Firebase.firestore.collection("usuarios")
-                        .whereEqualTo("usuario", username.value)
-                        .whereEqualTo("contrasena", password.value)
+                        .whereEqualTo("usuario", usuarioTrimmed)
+                        .whereEqualTo("contrasena", contrasenaTrimmed)
                         .get()
                         .addOnSuccessListener { result ->
-                            isButtonEnabled = true
-                            isLoading = false
-
                             if (!result.isEmpty) {
-                                val nombre = result.documents[0].getString("nombre") ?: ""
-                                val tipo = result.documents[0].getString("tipo") ?: "invitado"
+                                val document = result.documents[0]
+                                val documentId = document.id
+                                val nombre = document.getString("nombre") ?: ""
+                                val tipo = document.getString("tipo") ?: "invitado"
+                                val sessionEnUso = document.getString("sessionId") ?: ""
 
-                                val documentId = result.documents[0].id
-                                userViewModel.setUser(nombre, tipo, documentId)
-
-                                // 🔑 Genera y guarda el sessionId
-                                val sessionId = UUID.randomUUID().toString()
-                                userViewModel.setUser(nombre, tipo, documentId)
-                                userViewModel.setSessionId(sessionId)
-
-                                // 🔄 Actualiza Firestore con sessionId
-                                Firebase.firestore.collection("usuarios")
-                                    .document(documentId)
-                                    .update("sessionId", sessionId)
-
-
-
-
-                                userViewModel.cargarFotoUrl(documentId)
-                                nombreUsuario = nombre
-                                showWelcomeDialog = true
+                                if (sessionEnUso.isNotBlank() && tipo.lowercase() != "superuser") {
+                                    // ❌ Ya hay una sesión activa
+                                    mostrarErrorToast(
+                                        context,
+                                        "Sesión activa, cerrado erróneo. Contactar al administrador."
+                                    )
+                                    isButtonEnabled = true
+                                    isLoading = false
+                                } else {
+                                    userViewModel.iniciarSesionConSessionId(
+                                        nombre = nombre,
+                                        tipo = tipo,
+                                        documentId = documentId,
+                                        context = context,
+                                        onSuccess = {
+                                            nombreUsuario = nombre
+                                            showWelcomeDialog = true
+                                            isLoading = false
+                                        },
+                                        onError = {
+                                            isButtonEnabled = true
+                                            isLoading = false
+                                        }
+                                    )
+                                }
                             } else {
-                                Toast.makeText(context, "Usuario o contraseña incorrectos", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Usuario o contraseña incorrectos",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                isButtonEnabled = true
+                                isLoading = false
                             }
                         }
                         .addOnFailureListener {
                             isButtonEnabled = true
                             isLoading = false
-                            Toast.makeText(context, "Error al conectar con Firestore", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "Error al conectar con Firestore",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                 } else {
-                    Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
         },
@@ -186,6 +206,7 @@ fun LoginButton(
             }
         }
     }
+
 }
 
 

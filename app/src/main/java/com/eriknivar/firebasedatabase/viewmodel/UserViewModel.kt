@@ -1,7 +1,9 @@
 
 package com.eriknivar.firebasedatabase.viewmodel
 
+import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.LiveData
@@ -10,6 +12,7 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
+import java.util.UUID
 
 class UserViewModel : ViewModel() {
 
@@ -27,7 +30,7 @@ class UserViewModel : ViewModel() {
 
     private val _fotoUrl = MutableLiveData<String?>()
 
-    fun cargarFotoUrl(documentId: String) {
+    private fun cargarFotoUrl(documentId: String) {
         Firebase.firestore.collection("usuarios")
             .document(documentId)
             .get()
@@ -44,7 +47,7 @@ class UserViewModel : ViewModel() {
     private val _sessionId = mutableStateOf("")
     val sessionId: State<String> = _sessionId
 
-    fun setSessionId(newSessionId: String) {
+    private fun setSessionId(newSessionId: String) {
         _sessionId.value = newSessionId
     }
 
@@ -57,8 +60,6 @@ class UserViewModel : ViewModel() {
 
     var isManualLogout = mutableStateOf(false)
 
-
-
     // ✅ Variables temporales para restaurar campos después del logout
     var tempSku = ""
     var tempLote = ""
@@ -66,7 +67,7 @@ class UserViewModel : ViewModel() {
     var tempUbicacion = ""
     var tempFecha = ""
 
-    fun setUser(nombre: String, tipo: String, documentId: String) {
+    private fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
         _tipo.value = tipo
         _documentId.value = documentId
@@ -123,6 +124,35 @@ class UserViewModel : ViewModel() {
             else -> false
         }
     }
+
+    fun iniciarSesionConSessionId(
+        nombre: String,
+        tipo: String,
+        documentId: String,
+        context: Context,
+        onSuccess: () -> Unit,
+        onError: () -> Unit
+    ) {
+        val sessionId = UUID.randomUUID().toString()
+
+        setUser(nombre, tipo, documentId)
+        setSessionId(sessionId)
+
+        Firebase.firestore.collection("usuarios")
+            .document(documentId)
+            .update("sessionId", sessionId)
+            .addOnSuccessListener {
+                cargarFotoUrl(documentId)
+                onSuccess()
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Error al guardar la sesión", Toast.LENGTH_SHORT).show()
+                onError()
+            }
+    }
+
+
+
 
 }
 

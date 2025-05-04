@@ -129,6 +129,10 @@ fun InventoryReportsFragment(
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
             if (tiempoInactivo >= 10 * 60_000) {
+                val documentId = userViewModel.documentId.value ?: ""
+                Firebase.firestore.collection("usuarios")
+                    .document(documentId)
+                    .update("sessionId", "")
 
                 userViewModel.clearUser()
 

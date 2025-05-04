@@ -41,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -209,10 +208,6 @@ fun ConfiguracionUsuariosScreen(
         }
     }
 
-
-
-
-
     Column(modifier = Modifier.fillMaxSize()) {
         ElevatedButton(
             colors = ButtonDefaults.buttonColors(
@@ -231,9 +226,9 @@ fun ConfiguracionUsuariosScreen(
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
-            Text("+ ",fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.Green)
+            Text("+ ", fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.Green)
 
-            Text("Agregar Usuario")
+            Text("Crear usuario")
         }
 
         ElevatedButton(
@@ -266,7 +261,8 @@ fun ConfiguracionUsuariosScreen(
                         }
                     }
                     .addOnFailureListener {
-                        Toast.makeText(context, "Error al actualizar la lista", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Error al actualizar la lista", Toast.LENGTH_SHORT)
+                            .show()
                     }
             },
             colors = ButtonDefaults.buttonColors(
@@ -313,7 +309,6 @@ fun ConfiguracionUsuariosScreen(
             items(usuarios) { user ->
 
 
-
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -333,7 +328,11 @@ fun ConfiguracionUsuariosScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(buildAnnotatedString {
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append("Nombre: ") }
+                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                    append(
+                                        "Nombre: "
+                                    )
+                                }
                                 append(user.nombre)
                             })
                         }
@@ -371,13 +370,21 @@ fun ConfiguracionUsuariosScreen(
                                         tipo = user.tipo
                                         showUserDialog = true
                                     }) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue)
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "Editar",
+                                            tint = Color.Blue
+                                        )
                                     }
 
                                     IconButton(onClick = {
                                         userToDelete = user
                                     }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.DarkGray)
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Eliminar",
+                                            tint = Color.DarkGray
+                                        )
                                     }
                                 }
 
@@ -396,13 +403,21 @@ fun ConfiguracionUsuariosScreen(
                                                     .addOnSuccessListener { result ->
                                                         usuarios.clear()
                                                         for (document in result) {
-                                                            val nombreDoc = document.getString("nombre") ?: ""
-                                                            val usuarioDoc = document.getString("usuario") ?: ""
-                                                            val contrasenaDoc = document.getString("contrasena") ?: ""
-                                                            val tipoDoc = document.getString("tipo") ?: ""
-                                                            val sessionIdDoc = document.getString("sessionId") ?: ""
+                                                            val nombreDoc =
+                                                                document.getString("nombre") ?: ""
+                                                            val usuarioDoc =
+                                                                document.getString("usuario") ?: ""
+                                                            val contrasenaDoc =
+                                                                document.getString("contrasena")
+                                                                    ?: ""
+                                                            val tipoDoc =
+                                                                document.getString("tipo") ?: ""
+                                                            val sessionIdDoc =
+                                                                document.getString("sessionId")
+                                                                    ?: ""
 
-                                                            val tipoUsuarioActual = userViewModel.tipo.value ?: ""
+                                                            val tipoUsuarioActual =
+                                                                userViewModel.tipo.value ?: ""
                                                             if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
                                                             usuarios.add(
@@ -427,16 +442,11 @@ fun ConfiguracionUsuariosScreen(
                                     }
 
 
-
-
-
                                 }
                             }
                         }
                     }
                 }
-
-
 
 
             }

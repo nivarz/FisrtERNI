@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 
 @Composable
@@ -66,6 +68,11 @@ fun SettingsFragment(
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
             if (tiempoInactivo >= 10 * 60_000) {
+                val documentId = userViewModel.documentId.value ?: ""
+                Firebase.firestore.collection("usuarios")
+                    .document(documentId)
+                    .update("sessionId", "")
+
 
                 userViewModel.clearUser()
 
