@@ -21,9 +21,12 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/toast_error_message"
-        android:textColor="#000000"
-        android:textSize="16sp"
+        android:textColor="#001F5B"
+        android:textSize="14sp"
+        android:layout_marginStart="8dp"
         android:maxLines="2"
         android:ellipsize="end" />
+
+
 </LinearLayout>
 

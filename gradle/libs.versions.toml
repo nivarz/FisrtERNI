@@ -21,6 +21,7 @@ iconsExtended = "1.7.8"
 zxingAndroidEmbedded = "4.1.0"
 runtimeLivedata = "1.7.8"
 firebaseStorageKtx = "21.0.1"
+identityJvm = "202411.1"
 
 
 [libraries]
@@ -55,6 +56,7 @@ poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poiVersion" }
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
 androidx-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata", version.ref = "runtimeLivedata" }
 firebase-storage-ktx = { group = "com.google.firebase", name = "firebase-storage-ktx", version.ref = "firebaseStorageKtx" }
+identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identityJvm" }
 
 
 

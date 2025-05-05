@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
+import com.android.identity.util.UUID
 import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -59,10 +60,10 @@ fun LoginButton(
     var showWelcomeDialog by remember { mutableStateOf(false) }
     var nombreUsuario by remember { mutableStateOf("") }
 
-    // 🔄 Mostrar diálogo automáticamente durante 2 segundos
+    // 🔄 Mostrar diálogo automáticamente durante 1 segundo
     if (showWelcomeDialog) {
         LaunchedEffect(Unit) {
-            delay(4000)
+            delay(2000)
             showWelcomeDialog = false
             navController.navigate("storagetype")
         }
@@ -132,9 +133,9 @@ fun LoginButton(
                                 val nombre = document.getString("nombre") ?: ""
                                 val tipo = document.getString("tipo") ?: "invitado"
                                 val sessionEnUso = document.getString("sessionId") ?: ""
+                                val requiereCambio = document.getBoolean("requiereCambioPassword") ?: false
 
                                 if (sessionEnUso.isNotBlank() && tipo.lowercase() != "superuser") {
-                                    // ❌ Ya hay una sesión activa
                                     mostrarErrorToast(
                                         context,
                                         "Sesión activa, cerrado erróneo. Contactar al administrador."
@@ -142,21 +143,31 @@ fun LoginButton(
                                     isButtonEnabled = true
                                     isLoading = false
                                 } else {
-                                    userViewModel.iniciarSesionConSessionId(
-                                        nombre = nombre,
-                                        tipo = tipo,
-                                        documentId = documentId,
-                                        context = context,
-                                        onSuccess = {
-                                            nombreUsuario = nombre
-                                            showWelcomeDialog = true
+                                    val sessionId = UUID.randomUUID().toString()
+                                    userViewModel.setUser(nombre, tipo, documentId)
+                                    userViewModel.setSessionId(sessionId)
+
+                                    Firebase.firestore.collection("usuarios")
+                                        .document(documentId)
+                                        .update("sessionId", sessionId)
+                                        .addOnSuccessListener {
+                                            if (requiereCambio) {
+                                                // 🔐 Redirigir a pantalla de cambio de contraseña
+                                                navController.navigate("cambiarPassword") {
+                                                    popUpTo(0) { inclusive = true }
+                                                }
+                                            } else {
+                                                userViewModel.cargarFotoUrl(documentId)
+                                                nombreUsuario = nombre
+                                                showWelcomeDialog = true
+                                            }
                                             isLoading = false
-                                        },
-                                        onError = {
+                                        }
+                                        .addOnFailureListener {
+                                            mostrarErrorToast(context, "Error al guardar sesión")
                                             isButtonEnabled = true
                                             isLoading = false
                                         }
-                                    )
                                 }
                             } else {
                                 Toast.makeText(
@@ -178,8 +189,7 @@ fun LoginButton(
                             ).show()
                         }
                 } else {
-                    Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT)
-                        .show()
+                    Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT).show()
                 }
             }
         },
@@ -206,6 +216,7 @@ fun LoginButton(
             }
         }
     }
+
 
 }
 

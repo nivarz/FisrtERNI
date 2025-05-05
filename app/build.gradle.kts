@@ -50,6 +50,7 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
 
@@ -82,6 +83,7 @@ dependencies {
     implementation(libs.androidx.material3.v121)
     implementation(libs.coil.compose.v250)
     implementation(libs.firebase.storage.ktx)
+    implementation(libs.identity.jvm)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

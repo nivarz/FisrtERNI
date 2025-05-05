@@ -2,7 +2,9 @@ package com.eriknivar.firebasedatabase.view.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -68,16 +70,18 @@ fun UsuarioDialog(
                 OutlinedTextField(
                     value = contrasena,
                     onValueChange = onContrasenaChange,
-                    label = { Text("Contraseña") },
+                    label = { Text("Contraseña predeterminada") },
                     singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(icon, contentDescription = null)
-                        }
-                    }
+                    enabled = false, // ❌ Campo solo de lectura
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Candado"
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
+
                 ExposedDropdownMenuBox(
                     expanded = expandedTipo,
                     onExpandedChange = onExpandedTipoChange

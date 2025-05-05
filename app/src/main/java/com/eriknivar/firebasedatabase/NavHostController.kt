@@ -20,6 +20,7 @@ import androidx.navigation.compose.composable
 import com.eriknivar.firebasedatabase.view.settings.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
 import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFragment
+import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
 import com.eriknivar.firebasedatabase.view.storagetype.SelectStorageFragment
@@ -117,6 +118,8 @@ fun NetworkAwareNavGraph(
             composable("inventoryreports") { InventoryReportsFragment(navController, userViewModel) }
             composable("settings") { SettingsFragment(navController, userViewModel) }
             composable("masterdata") { MasterDataFragment(navController, userViewModel) }
+            composable("cambiarPassword") { CambiarPasswordScreen(navController, userViewModel) }
+
 
         }
     }

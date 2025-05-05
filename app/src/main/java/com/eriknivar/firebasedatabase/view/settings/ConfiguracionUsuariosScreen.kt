@@ -468,6 +468,8 @@ fun ConfiguracionUsuariosScreen(
             { tipo = it },
             { expandedTipo = it },
             onDismiss = { showUserDialog = false },
+
+            //Crea nuevo usuario
             onSave = { nuevoUsuario ->
                 val nombreUpper = nuevoUsuario.nombre.uppercase()
                 val usuarioUpper = nuevoUsuario.usuario.uppercase()
@@ -485,8 +487,9 @@ fun ConfiguracionUsuariosScreen(
                                         mapOf(
                                             "nombre" to nombreUpper,
                                             "usuario" to usuarioUpper,
-                                            "contrasena" to nuevoUsuario.contrasena,
-                                            "tipo" to nuevoUsuario.tipo
+                                            "contrasena" to "12345",
+                                            "tipo" to nuevoUsuario.tipo,
+                                            "requiereCambioPassword" to true,
                                         )
                                     )
 
