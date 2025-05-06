@@ -79,115 +79,6 @@ fun ConfiguracionUsuariosScreen(
 
     val navyBlue = Color(0xFF001F5B)
 
-    fun recargarUsuarios() {
-        firestore.collection("usuarios")
-            .get()
-            .addOnSuccessListener { result ->
-                usuarios.clear()
-                for (document in result) {
-                    val nombreDoc = document.getString("nombre") ?: ""
-                    val usuarioDoc = document.getString("usuario") ?: ""
-                    val contrasenaDoc = document.getString("contrasena") ?: ""
-                    val tipoDoc = document.getString("tipo") ?: ""
-                    val sessionIdDoc = document.getString("sessionId") ?: ""
-
-                    val tipoUsuarioActual = userViewModel.tipo.value ?: ""
-                    if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
-
-                    val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
-
-                    usuarios.add(
-                        Usuario(
-                            id = document.id,
-                            nombre = nombreDoc,
-                            usuario = usuarioDoc,
-                            contrasena = contrasenaDoc,
-                            tipo = tipoDoc,
-                            sessionId = sessionIdDoc,
-                            requiereCambioPassword = requiereCambioPasswordDoc
-                        )
-                    )
-                }
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "Error al cargar usuarios", Toast.LENGTH_SHORT).show()
-            }
-    }
-
-    // 🔁 Cargar usuarios al iniciar
-    LaunchedEffect(true) {
-        recargarUsuarios()
-    }
-
-
-    LaunchedEffect(userViewModel.sessionId.value) {
-        if ((userViewModel.tipo.value ?: "") == "superuser") {
-            firestore.collection("usuarios")
-                .get()
-                .addOnSuccessListener { result ->
-                    usuarios.clear()
-                    for (document in result) {
-                        val nombreDoc = document.getString("nombre") ?: ""
-                        val usuarioDoc = document.getString("usuario") ?: ""
-                        val contrasenaDoc = document.getString("contrasena") ?: ""
-                        val tipoDoc = document.getString("tipo") ?: ""
-                        val sessionIdDoc = document.getString("sessionId") ?: ""
-
-                        val tipoUsuarioActual = userViewModel.tipo.value ?: ""
-                        if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
-
-                        val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
-
-                        usuarios.add(
-                            Usuario(
-                                id = document.id,
-                                nombre = nombreDoc,
-                                usuario = usuarioDoc,
-                                contrasena = contrasenaDoc,
-                                tipo = tipoDoc,
-                                sessionId = sessionIdDoc,
-                                requiereCambioPassword = requiereCambioPasswordDoc
-                            )
-                        )
-
-                    }
-                }
-        }
-    }
-
-    LaunchedEffect(userViewModel.recargarUsuarios.value) {
-        firestore.collection("usuarios")
-            .get()
-            .addOnSuccessListener { result ->
-                usuarios.clear()
-                for (document in result) {
-                    val nombreDoc = document.getString("nombre") ?: ""
-                    val usuarioDoc = document.getString("usuario") ?: ""
-                    val contrasenaDoc = document.getString("contrasena") ?: ""
-                    val tipoDoc = document.getString("tipo") ?: ""
-                    val sessionIdDoc = document.getString("sessionId") ?: ""
-
-                    val tipoUsuarioActual = userViewModel.tipo.value ?: ""
-                    if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
-
-                    val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
-
-                    usuarios.add(
-                        Usuario(
-                            id = document.id,
-                            nombre = nombreDoc,
-                            usuario = usuarioDoc,
-                            contrasena = contrasenaDoc,
-                            tipo = tipoDoc,
-                            sessionId = sessionIdDoc,
-                            requiereCambioPassword = requiereCambioPasswordDoc
-                        )
-                    )
-
-                }
-            }
-    }
-
     DisposableEffect(currentUserId, currentSessionId) {
         val listenerRegistration = Firebase.firestore.collection("usuarios")
             .document(currentUserId)
@@ -219,6 +110,49 @@ fun ConfiguracionUsuariosScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        val listenerRegistration = firestore.collection("usuarios")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreListener", "Error al escuchar usuarios", error)
+                    return@addSnapshotListener
+                }
+
+                usuarios.clear()
+                val tipoUsuarioActual = userViewModel.tipo.value ?: ""
+
+                snapshot?.documents?.forEach { document ->
+                    val nombreDoc = document.getString("nombre") ?: ""
+                    val usuarioDoc = document.getString("usuario") ?: ""
+                    val contrasenaDoc = document.getString("contrasena") ?: ""
+                    val tipoDoc = document.getString("tipo") ?: ""
+                    val sessionIdDoc = document.getString("sessionId") ?: ""
+                    val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+
+                    // ⚠️ Filtrar superuser para admin
+                    if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") return@forEach
+
+                    usuarios.add(
+                        Usuario(
+                            id = document.id,
+                            nombre = nombreDoc,
+                            usuario = usuarioDoc,
+                            contrasena = contrasenaDoc,
+                            tipo = tipoDoc,
+                            sessionId = sessionIdDoc,
+                            requiereCambioPassword = requiereCambioPasswordDoc
+                        )
+                    )
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
+
+
+
     Column(modifier = Modifier.fillMaxSize()) {
         ElevatedButton(
             colors = ButtonDefaults.buttonColors(
@@ -240,84 +174,6 @@ fun ConfiguracionUsuariosScreen(
             Text("+ ", fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.Green)
 
             Text("Crear usuario")
-        }
-
-        ElevatedButton(
-            onClick = {
-                onUserInteraction()
-                firestore.collection("usuarios")
-                    .get()
-                    .addOnSuccessListener { result ->
-                        usuarios.clear()
-                        for (document in result) {
-                            val nombreDoc = document.getString("nombre") ?: ""
-                            val usuarioDoc = document.getString("usuario") ?: ""
-                            val contrasenaDoc = document.getString("contrasena") ?: ""
-                            val tipoDoc = document.getString("tipo") ?: ""
-                            val sessionIdDoc = document.getString("sessionId") ?: ""
-
-                            val tipoUsuarioActual = userViewModel.tipo.value ?: ""
-                            if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
-
-                            val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
-
-                            usuarios.add(
-                                Usuario(
-                                    id = document.id,
-                                    nombre = nombreDoc,
-                                    usuario = usuarioDoc,
-                                    contrasena = contrasenaDoc,
-                                    tipo = tipoDoc,
-                                    sessionId = sessionIdDoc,
-                                    requiereCambioPassword = requiereCambioPasswordDoc
-                                )
-                            )
-
-                        }
-                    }
-                    .addOnFailureListener {
-                        Toast.makeText(context, "Error al actualizar la lista", Toast.LENGTH_SHORT)
-                            .show()
-                    }
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF001F5B),
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .fillMaxWidth()
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-
-            ) {
-                Text("Actualizar (", fontWeight = FontWeight.Bold)
-
-                Text("Activos", fontWeight = FontWeight.Bold)
-
-                // 🔵 LED verde
-                Box(
-                    modifier = Modifier
-                        .size(10.dp) // un poco más grande para equilibrar visualmente
-                        .background(Color.Green, CircleShape)
-                )
-
-                Text("/", fontWeight = FontWeight.Bold)
-
-                Text("Inactivos", fontWeight = FontWeight.Bold)
-
-                // 🔴 LED rojo
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(Color.Red, CircleShape)
-                )
-
-                Text(")", fontWeight = FontWeight.Bold)
-            }
-
         }
 
         LazyColumn(modifier = Modifier.padding(16.dp)) {
@@ -412,47 +268,12 @@ fun ConfiguracionUsuariosScreen(
                                             .document(user.id)
                                             .update("sessionId", "")
                                             .addOnSuccessListener {
-                                                recargarUsuarios()
-                                                // 🔄 Recargar lista de usuarios luego del logout
-                                                firestore.collection("usuarios")
-                                                    .get()
-                                                    .addOnSuccessListener { result ->
-                                                        usuarios.clear()
-                                                        for (document in result) {
-                                                            val nombreDoc =
-                                                                document.getString("nombre") ?: ""
-                                                            val usuarioDoc =
-                                                                document.getString("usuario") ?: ""
-                                                            val contrasenaDoc =
-                                                                document.getString("contrasena")
-                                                                    ?: ""
-                                                            val tipoDoc =
-                                                                document.getString("tipo") ?: ""
-                                                            val sessionIdDoc =
-                                                                document.getString("sessionId")
-                                                                    ?: ""
-
-                                                            val tipoUsuarioActual =
-                                                                userViewModel.tipo.value ?: ""
-                                                            if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
-
-                                                            val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
-
-                                                            usuarios.add(
-                                                                Usuario(
-                                                                    id = document.id,
-                                                                    nombre = nombreDoc,
-                                                                    usuario = usuarioDoc,
-                                                                    contrasena = contrasenaDoc,
-                                                                    tipo = tipoDoc,
-                                                                    sessionId = sessionIdDoc,
-                                                                    requiereCambioPassword = requiereCambioPasswordDoc
-                                                                )
-                                                            )
-
-                                                        }
-                                                    }
+                                                Toast.makeText(context, "Sesión cerrada correctamente", Toast.LENGTH_SHORT).show()
                                             }
+                                            .addOnFailureListener {
+                                                Toast.makeText(context, "Error al cerrar sesión", Toast.LENGTH_SHORT).show()
+                                            }
+
                                     }) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Logout,
@@ -512,20 +333,8 @@ fun ConfiguracionUsuariosScreen(
                                             "requiereCambioPassword" to true,
                                         )
                                     )
-
                                     .addOnSuccessListener {
-                                        usuarios.add(
-                                            Usuario(
-                                                id = it.id,
-                                                nombre = nombreUpper,
-                                                usuario = usuarioUpper,
-                                                contrasena = nuevoUsuario.contrasena,
-                                                tipo = nuevoUsuario.tipo,
-                                                requiereCambioPassword = true
-                                            )
-                                        )
-                                        showUserDialog =
-                                            false // ✅ solo cerrar el diálogo, no mostrar alerta
+                                        showUserDialog = false // El listener en tiempo real se encargará de actualizar la lista
                                     }
 
                             } else {
