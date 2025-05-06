@@ -1,5 +1,9 @@
 package com.eriknivar.firebasedatabase.view.login
 
+import android.app.Activity
+import android.os.Handler
+import android.os.Looper
+import android.view.View
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +42,7 @@ import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import java.util.UUID
 
 @Composable
 fun CambiarPasswordScreen(
@@ -53,6 +59,60 @@ fun CambiarPasswordScreen(
 
     var showPassword by remember { mutableStateOf(false) }
     var showPasswordConfirm by remember { mutableStateOf(false) }
+
+    val currentUserId = userViewModel.documentId.value ?: ""
+    val currentSessionId = userViewModel.sessionId.value
+
+    DisposableEffect(currentUserId, currentSessionId) {
+        val listenerRegistration = Firebase.firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) return@addSnapshotListener
+
+                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+                    Toast.makeText(context, "Tu sesión fue cerrada por el administrador", Toast.LENGTH_LONG).show()
+                    userViewModel.clearUser()
+                    (context as? Activity)?.finishAffinity()
+                }
+            }
+
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
+
+    val activity = (context as? Activity)
+
+    DisposableEffect(currentUserId, currentSessionId) {
+        val handler = Handler(Looper.getMainLooper())
+        var lastInteractionTime = System.currentTimeMillis()
+        val logoutTimeout = 10 * 60 * 1000L // 10 minutos
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (System.currentTimeMillis() - lastInteractionTime >= logoutTimeout) {
+                    userViewModel.clearUser()
+                    activity?.finishAffinity()
+                } else {
+                    handler.postDelayed(this, 1000L)
+                }
+            }
+        }
+
+        val listener = View.OnTouchListener { _, _ ->
+            lastInteractionTime = System.currentTimeMillis()
+            false
+        }
+
+        activity?.window?.decorView?.rootView?.setOnTouchListener(listener)
+        handler.post(runnable)
+
+        onDispose {
+            handler.removeCallbacks(runnable)
+            activity?.window?.decorView?.rootView?.setOnTouchListener(null)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -88,8 +148,6 @@ fun CambiarPasswordScreen(
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
-
-
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -145,6 +203,14 @@ fun CambiarPasswordScreen(
                         .addOnSuccessListener {
                             Toast.makeText(context, "Contraseña actualizada", Toast.LENGTH_SHORT)
                                 .show()
+
+                            val nuevoSessionId = UUID.randomUUID().toString()
+                            userViewModel.setSessionId(nuevoSessionId)
+
+                            Firebase.firestore.collection("usuarios")
+                                .document(documentId)
+                                .update("sessionId", nuevoSessionId)
+
 
                             // Redirigir a pantalla principal
                             navController.navigate("storagetype") {

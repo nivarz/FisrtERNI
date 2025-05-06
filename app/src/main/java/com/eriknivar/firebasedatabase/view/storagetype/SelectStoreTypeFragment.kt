@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.storagetype
 
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -181,6 +182,10 @@ fun SelectStorageFragment(
                 }
             }
         }
+    }
+
+    BackHandler(true) {
+        Log.i("LOG_TAG", "Clicked back") // Desactiva el botón atrás
     }
 }
 

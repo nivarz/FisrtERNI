@@ -58,7 +58,6 @@ fun SettingsFragment(
 
     fun actualizarActividad() {
         lastInteractionTime.longValue = System.currentTimeMillis()
-
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {

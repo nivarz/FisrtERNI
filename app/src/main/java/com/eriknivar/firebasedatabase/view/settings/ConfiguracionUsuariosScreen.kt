@@ -377,7 +377,8 @@ fun ConfiguracionUsuariosScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row {
-                                    IconButton(onClick = {
+                                    IconButton(
+                                        onClick = {
                                         selectedUser = user
                                         nombre = user.nombre
                                         usuario = user.usuario
@@ -435,16 +436,20 @@ fun ConfiguracionUsuariosScreen(
                                                                 userViewModel.tipo.value ?: ""
                                                             if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
+                                                            val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+
                                                             usuarios.add(
                                                                 Usuario(
-                                                                    document.id,
-                                                                    nombreDoc,
-                                                                    usuarioDoc,
-                                                                    contrasenaDoc,
-                                                                    tipoDoc,
-                                                                    sessionIdDoc
+                                                                    id = document.id,
+                                                                    nombre = nombreDoc,
+                                                                    usuario = usuarioDoc,
+                                                                    contrasena = contrasenaDoc,
+                                                                    tipo = tipoDoc,
+                                                                    sessionId = sessionIdDoc,
+                                                                    requiereCambioPassword = requiereCambioPasswordDoc
                                                                 )
                                                             )
+
                                                         }
                                                     }
                                             }
@@ -540,11 +545,15 @@ fun ConfiguracionUsuariosScreen(
                             } else {
                                 firestore.collection("usuarios").document(selectedUser!!.id)
                                     .update(
-                                        "nombre", nombreUpper,
-                                        "usuario", usuarioUpper,
-                                        "contrasena", nuevoUsuario.contrasena,
-                                        "tipo", nuevoUsuario.tipo
+                                        mapOf(
+                                            "nombre" to nombreUpper,
+                                            "usuario" to usuarioUpper,
+                                            "contrasena" to nuevoUsuario.contrasena,
+                                            "tipo" to nuevoUsuario.tipo,
+                                            "requiereCambioPassword" to selectedUser!!.requiereCambioPassword
+                                        )
                                     )
+
                                     .addOnSuccessListener {
                                         val index =
                                             usuarios.indexOfFirst { it.id == selectedUser!!.id }
@@ -554,7 +563,10 @@ fun ConfiguracionUsuariosScreen(
                                                 nombreUpper,
                                                 usuarioUpper,
                                                 nuevoUsuario.contrasena,
-                                                nuevoUsuario.tipo
+                                                nuevoUsuario.tipo,
+                                                selectedUser!!.sessionId,
+                                                selectedUser!!.requiereCambioPassword
+
                                             )
                                         }
                                         Toast.makeText(

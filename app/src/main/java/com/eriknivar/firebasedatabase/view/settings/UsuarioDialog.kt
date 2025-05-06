@@ -55,98 +55,95 @@ fun UsuarioDialog(
         }
     }
 
-      AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(if (selectedUser == null) "Agregar Usuario" else "Editar Usuario")
-            Log.d("Debug", "Creando nuevo usuario")
+    AlertDialog(onDismissRequest = onDismiss, title = {
+        Text(if (selectedUser == null) "Agregar Usuario" else "Editar Usuario")
+        Log.d("Debug", "Creando nuevo usuario")
 
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = nombre.uppercase(),
-                    onValueChange = onNombreChange,
-                    label = { Text("Nombre y Apellido") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = usuario.uppercase(),
-                    onValueChange = onUsuarioChange,
-                    label = { Text("Usuario") },
-                    singleLine = true
-                )
+    }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = nombre.uppercase(),
+                onValueChange = onNombreChange,
+                label = { Text("Nombre y Apellido") },
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = usuario.uppercase(),
+                onValueChange = onUsuarioChange,
+                label = { Text("Usuario") },
+                singleLine = true
+            )
 
 
-                val requiereCambioPassword = selectedUser?.requiereCambioPassword ?: true
+            val requiereCambioPassword = selectedUser?.requiereCambioPassword ?: true
 
-                OutlinedTextField(
-                    value = contrasena,
-                    onValueChange = if (requiereCambioPassword) ({ _: String -> }) else onContrasenaChange,
-                    label = { Text("Contraseña") },
-                    singleLine = true,
-                    enabled = !requiereCambioPassword,
+            OutlinedTextField(
+                value = contrasena,
+                onValueChange = if (requiereCambioPassword) ({ _: String -> }) else onContrasenaChange,
+                label = { Text("Contraseña") },
+                singleLine = true,
+                enabled = !requiereCambioPassword,
+                trailingIcon = {
+                    if (requiereCambioPassword) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Campo bloqueado"
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+
+
+            ExposedDropdownMenuBox(
+                expanded = expandedTipo, onExpandedChange = onExpandedTipoChange
+            ) {
+                OutlinedTextField(value = tipo,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Tipo") },
                     trailingIcon = {
-                        if (requiereCambioPassword) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Campo bloqueado"
-                            )
-                        }
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTipo)
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.menuAnchor()
                 )
-
-
-
-                ExposedDropdownMenuBox(
-                    expanded = expandedTipo,
-                    onExpandedChange = onExpandedTipoChange
-                ) {
-                    OutlinedTextField(
-                        value = tipo,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Tipo") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTipo)
-                        },
-                        modifier = Modifier.menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedTipo,
-                        onDismissRequest = { onExpandedTipoChange(false) }
-                    ) {
-                        tipoOpciones.forEach { opcion ->
-                            DropdownMenuItem(
-                                text = { Text(opcion) },
-                                onClick = {
-                                    onTipoChange(opcion)
-                                    onExpandedTipoChange(false)
-                                }
-                            )
-                        }
+                ExposedDropdownMenu(expanded = expandedTipo,
+                    onDismissRequest = { onExpandedTipoChange(false) }) {
+                    tipoOpciones.forEach { opcion ->
+                        DropdownMenuItem(text = { Text(opcion) }, onClick = {
+                            onTipoChange(opcion)
+                            onExpandedTipoChange(false)
+                        })
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                if (nombre.isBlank() || usuario.isBlank() || contrasena.isBlank() || tipo.isBlank()) {
-                    return@TextButton
-                }
-                Log.d("DEBUG", "Enviando usuario nuevo...")
-
-                onSave(Usuario("", nombre, usuario, contrasena, tipo))
-            }) {
-                Text("Guardar")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
         }
-    )
+    }, confirmButton = {
+        TextButton(onClick = {
+            if (nombre.isBlank() || usuario.isBlank() || contrasena.isBlank() || tipo.isBlank()) {
+                return@TextButton
+            }
+
+            onSave(
+                Usuario(
+                    id = selectedUser?.id ?: "",
+                    nombre = nombre,
+                    usuario = usuario,
+                    contrasena = contrasena,
+                    tipo = tipo,
+                    requiereCambioPassword = selectedUser?.requiereCambioPassword ?: true
+                )
+            )
+
+
+        }) {
+            Text("Guardar")
+        }
+    }, dismissButton = {
+        TextButton(onClick = onDismiss) {
+            Text("Cancelar")
+        }
+    })
 }
 
