@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.settings
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,12 +48,19 @@ fun UsuarioDialog(
     onDismiss: () -> Unit,
     onSave: (Usuario) -> Unit
 ) {
-    var passwordVisible by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    LaunchedEffect(Unit) {
+        if (selectedUser == null) {
+            onContrasenaChange("12345") // ✅ Forzar el valor por defecto al crear
+        }
+    }
+
+      AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(if (selectedUser == null) "Agregar Usuario" else "Editar Usuario")
+            Log.d("Debug", "Creando nuevo usuario")
+
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -67,20 +76,28 @@ fun UsuarioDialog(
                     label = { Text("Usuario") },
                     singleLine = true
                 )
+
+
+                val requiereCambioPassword = selectedUser?.requiereCambioPassword ?: true
+
                 OutlinedTextField(
                     value = contrasena,
-                    onValueChange = onContrasenaChange,
-                    label = { Text("Contraseña predeterminada") },
+                    onValueChange = if (requiereCambioPassword) ({ _: String -> }) else onContrasenaChange,
+                    label = { Text("Contraseña") },
                     singleLine = true,
-                    enabled = false, // ❌ Campo solo de lectura
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Candado"
-                        )
+                    enabled = !requiereCambioPassword,
+                    trailingIcon = {
+                        if (requiereCambioPassword) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Campo bloqueado"
+                            )
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+
 
                 ExposedDropdownMenuBox(
                     expanded = expandedTipo,
@@ -118,6 +135,8 @@ fun UsuarioDialog(
                 if (nombre.isBlank() || usuario.isBlank() || contrasena.isBlank() || tipo.isBlank()) {
                     return@TextButton
                 }
+                Log.d("DEBUG", "Enviando usuario nuevo...")
+
                 onSave(Usuario("", nombre, usuario, contrasena, tipo))
             }) {
                 Text("Guardar")

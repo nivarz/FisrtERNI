@@ -94,14 +94,17 @@ fun ConfiguracionUsuariosScreen(
                     val tipoUsuarioActual = userViewModel.tipo.value ?: ""
                     if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
+                    val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+
                     usuarios.add(
                         Usuario(
-                            document.id,
-                            nombreDoc,
-                            usuarioDoc,
-                            contrasenaDoc,
-                            tipoDoc,
-                            sessionIdDoc
+                            id = document.id,
+                            nombre = nombreDoc,
+                            usuario = usuarioDoc,
+                            contrasena = contrasenaDoc,
+                            tipo = tipoDoc,
+                            sessionId = sessionIdDoc,
+                            requiereCambioPassword = requiereCambioPasswordDoc
                         )
                     )
                 }
@@ -133,16 +136,20 @@ fun ConfiguracionUsuariosScreen(
                         val tipoUsuarioActual = userViewModel.tipo.value ?: ""
                         if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
+                        val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+
                         usuarios.add(
                             Usuario(
-                                document.id,
-                                nombreDoc,
-                                usuarioDoc,
-                                contrasenaDoc,
-                                tipoDoc,
-                                sessionIdDoc
+                                id = document.id,
+                                nombre = nombreDoc,
+                                usuario = usuarioDoc,
+                                contrasena = contrasenaDoc,
+                                tipo = tipoDoc,
+                                sessionId = sessionIdDoc,
+                                requiereCambioPassword = requiereCambioPasswordDoc
                             )
                         )
+
                     }
                 }
         }
@@ -163,16 +170,20 @@ fun ConfiguracionUsuariosScreen(
                     val tipoUsuarioActual = userViewModel.tipo.value ?: ""
                     if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
+                    val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+
                     usuarios.add(
                         Usuario(
-                            document.id,
-                            nombreDoc,
-                            usuarioDoc,
-                            contrasenaDoc,
-                            tipoDoc,
-                            sessionIdDoc
+                            id = document.id,
+                            nombre = nombreDoc,
+                            usuario = usuarioDoc,
+                            contrasena = contrasenaDoc,
+                            tipo = tipoDoc,
+                            sessionId = sessionIdDoc,
+                            requiereCambioPassword = requiereCambioPasswordDoc
                         )
                     )
+
                 }
             }
     }
@@ -218,7 +229,7 @@ fun ConfiguracionUsuariosScreen(
                 selectedUser = null
                 nombre = ""
                 usuario = ""
-                contrasena = ""
+                contrasena = "12345"
                 tipo = ""
                 showUserDialog = true
             },
@@ -248,16 +259,20 @@ fun ConfiguracionUsuariosScreen(
                             val tipoUsuarioActual = userViewModel.tipo.value ?: ""
                             if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") continue
 
+                            val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+
                             usuarios.add(
                                 Usuario(
-                                    document.id,
-                                    nombreDoc,
-                                    usuarioDoc,
-                                    contrasenaDoc,
-                                    tipoDoc,
-                                    sessionIdDoc
+                                    id = document.id,
+                                    nombre = nombreDoc,
+                                    usuario = usuarioDoc,
+                                    contrasena = contrasenaDoc,
+                                    tipo = tipoDoc,
+                                    sessionId = sessionIdDoc,
+                                    requiereCambioPassword = requiereCambioPasswordDoc
                                 )
                             )
+
                         }
                     }
                     .addOnFailureListener {
@@ -487,7 +502,7 @@ fun ConfiguracionUsuariosScreen(
                                         mapOf(
                                             "nombre" to nombreUpper,
                                             "usuario" to usuarioUpper,
-                                            "contrasena" to "12345",
+                                            "contrasena" to nuevoUsuario.contrasena,
                                             "tipo" to nuevoUsuario.tipo,
                                             "requiereCambioPassword" to true,
                                         )
@@ -496,11 +511,12 @@ fun ConfiguracionUsuariosScreen(
                                     .addOnSuccessListener {
                                         usuarios.add(
                                             Usuario(
-                                                it.id,
-                                                nombreUpper,
-                                                usuarioUpper,
-                                                nuevoUsuario.contrasena,
-                                                nuevoUsuario.tipo
+                                                id = it.id,
+                                                nombre = nombreUpper,
+                                                usuario = usuarioUpper,
+                                                contrasena = nuevoUsuario.contrasena,
+                                                tipo = nuevoUsuario.tipo,
+                                                requiereCambioPassword = true
                                             )
                                         )
                                         showUserDialog =

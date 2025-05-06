@@ -81,8 +81,6 @@ fun SelectStorageFragment(
         }
     }
 
-
-
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
     val dummyQuantity = remember { mutableStateOf("") }
