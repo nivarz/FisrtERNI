@@ -154,16 +154,16 @@ fun OutlinedTextFieldsInputsSku(
             label = { Text(text = "Código Producto") },
             value = sku.value,
             onValueChange = { newValue ->
-                val upper = newValue.uppercase()
-                val isZebra = upper.length >= 5 && (upper.length - sku.value.length > 2)
-                val cleanSku = newValue.trim().uppercase()
+                val cleanSku = newValue.replace("\\s".toRegex(), "").uppercase()
+
+                val isZebra = cleanSku.length >= 5 && (cleanSku.length - sku.value.length > 2)
 
                 if (isZebra) {
                     zebraScanned.value = true
                 }
 
-                sku.value = upper
-                qrCodeContentSku.value = upper
+                sku.value = cleanSku
+                qrCodeContentSku.value = cleanSku
                 showErrorSku.value = false
 
                 if (cleanSku.isEmpty()) {
@@ -171,11 +171,11 @@ fun OutlinedTextFieldsInputsSku(
                     unidadMedida.value = ""
                 }
 
-                if (upper.isBlank()) {
+                if (cleanSku.isBlank()) {
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
                 } else {
-                    findProductDescription(db, upper) { descripcion, unidadMedidaObtenida ->
+                    findProductDescription(db, cleanSku) { descripcion, unidadMedidaObtenida ->
                         productoDescripcion.value = descripcion
                         unidadMedida.value = unidadMedidaObtenida
                     }

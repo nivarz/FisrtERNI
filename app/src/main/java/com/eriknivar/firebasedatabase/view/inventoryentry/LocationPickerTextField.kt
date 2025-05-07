@@ -14,22 +14,31 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun OutlinedTextFieldsInputsLocation(
@@ -43,6 +52,9 @@ fun OutlinedTextFieldsInputsLocation(
     val qrCodeContentLocation = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
     val isZebraScan = remember { mutableStateOf(false) }
+    val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
+    val focusRequesterLocation = remember { FocusRequester() }
+
 
     val qrScanLauncherLocation =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -59,20 +71,21 @@ fun OutlinedTextFieldsInputsLocation(
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    val tempLocationInput = remember { mutableStateOf("") }
+
     // ✅ Escaneo desde launcher (cámara)
     LaunchedEffect(qrCodeContentLocation.value, wasScanned.value) {
         if (wasScanned.value) {
-            location.value = qrCodeContentLocation.value.uppercase()
-            if (location.value.isNotEmpty() && location.value != "CÓDIGO NO ENCONTRADO") {
-                delay(150)
-                try {
-                    keyboardController?.hide()
-                    nextFocusRequester.requestFocus()
-                    Log.d("FocusDebug", "Foco pasado al siguiente campo (QR launcher)")
-                } catch (e: Exception) {
-                    Log.e("FocusError", "Error al mover el foco: ${e.message}")
-                }
+            val scannedValue = qrCodeContentLocation.value.uppercase()
+
+            if (scannedValue.isNotBlank()) {
+                tempLocationInput.value = scannedValue
+
+                validarUbicacionEnMaestro(
+                    scannedValue, location, showErrorLocation, showUbicacionNoExisteDialog, nextFocusRequester, keyboardController
+                )
             }
+
             wasScanned.value = false
         }
     }
@@ -92,7 +105,7 @@ fun OutlinedTextFieldsInputsLocation(
         }
     }
 
-   // val focusRequester = remember { FocusRequester() }
+    // val focusRequester = remember { FocusRequester() }
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
             delay(100) // ⏳ Esperar a que Compose termine de recomponer
@@ -105,45 +118,62 @@ fun OutlinedTextFieldsInputsLocation(
         }
     }
 
-
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
     ) {
-        OutlinedTextField(
-            modifier = Modifier
-                .width(275.dp)
-                .height(64.dp)
-                .padding(4.dp)
-                .focusRequester(focusRequester),
+        OutlinedTextField(modifier = Modifier
+            .width(275.dp)
+            .height(64.dp)
+            .padding(4.dp)
+            .focusRequester(focusRequesterLocation)
+            .onFocusChanged { focusState ->
+                if (!focusState.isFocused && tempLocationInput.value.length >= 4) {
+                    validarUbicacionEnMaestro(
+                        tempLocationInput.value,
+                        location,
+                        showErrorLocation,
+                        showUbicacionNoExisteDialog,
+                        nextFocusRequester,
+                        keyboardController
+                    )
+                }
+            },
             singleLine = true,
             label = { Text(text = "Ubicación") },
-            value = location.value,
+            value = tempLocationInput.value,
             onValueChange = { newValue ->
                 val clean = newValue.trim().uppercase()
+                tempLocationInput.value = clean
+                onUserInteraction()
 
-                // 🟡 Detectar entrada rápida de Zebra (más de 4 caracteres inyectados de golpe)
+                // Detectar entrada rápida tipo Zebra
                 if (clean.length > 4 && clean.length - location.value.length > 2) {
                     isZebraScan.value = true
                     Log.d("ZebraScan", "Entrada tipo Zebra detectada: $clean")
                 }
 
-                onUserInteraction()
-
-                location.value = clean
-                qrCodeContentLocation.value = clean
                 wasScanned.value = false
                 showErrorLocation.value = false
             },
-            isError = showErrorLocation.value &&
-                    (location.value.isEmpty() || location.value == "CÓDIGO NO ENCONTRADO"),
+            isError = showErrorLocation.value && (location.value.isEmpty() || location.value == "UBICACIÓN NO EXISTE"),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = {
-                try {
+                if (tempLocationInput.value.length >= 4) {
+                    validarUbicacionEnMaestro(
+                        tempLocationInput.value,
+                        location,
+                        showErrorLocation,
+                        showUbicacionNoExisteDialog,
+                        nextFocusRequester,
+                        keyboardController
+                    )
+                }
+
+                if (!showErrorLocation.value) {
                     keyboardController?.hide()
                     nextFocusRequester.requestFocus()
-                } catch (e: Exception) {
-                    Log.e("KeyboardFocus", "Error pasando foco desde Ubicación: ${e.message}")
+                } else {
+                    showUbicacionNoExisteDialog.value = true
                 }
             }),
             trailingIcon = {
@@ -156,17 +186,18 @@ fun OutlinedTextFieldsInputsLocation(
                         contentDescription = "Escanear Código"
                     )
                 }
-            }
-        )
+            })
+
 
         // 🔵 Ícono de borrar separado (afuera del campo)
-        if (location.value.isNotEmpty()) {
+        if (tempLocationInput.value.isNotEmpty()) {
             IconButton(
                 onClick = {
                     location.value = ""
                     qrCodeContentLocation.value = ""
-                },
-                modifier = Modifier
+                    tempLocationInput.value = ""
+
+                }, modifier = Modifier
                     .size(48.dp)
                     .padding(start = 4.dp)
 
@@ -179,6 +210,54 @@ fun OutlinedTextFieldsInputsLocation(
                 )
             }
         }
+
+
+        if (showUbicacionNoExisteDialog.value) {
+            AlertDialog(onDismissRequest = { showUbicacionNoExisteDialog.value = false },
+                title = { Text("Ubicación inválida") },
+                text = { Text("La ubicación ingresada no existe en el maestro de ubicaciones.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showUbicacionNoExisteDialog.value = false
+                        focusRequesterLocation.requestFocus() // ✅ vuelve al campo ubicación
+
+                    }) {
+                        Text("Aceptar")
+                    }
+                })
+        }
+
     }
+
 }
+
+fun validarUbicacionEnMaestro(
+    codigo: String,
+    location: MutableState<String>,
+    showErrorLocation: MutableState<Boolean>,
+    showUbicacionNoExisteDialog: MutableState<Boolean>,
+    nextFocusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController?
+) {
+    Firebase.firestore.collection("ubicaciones").whereEqualTo("codigo_ubi", codigo).get()
+        .addOnSuccessListener { documents ->
+            if (!documents.isEmpty) {
+                location.value = codigo
+                showErrorLocation.value = false
+
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(150)
+                    keyboardController?.hide()
+                    nextFocusRequester.requestFocus() // ✅ Avanza a SKU
+                }
+            } else {
+                location.value = ""
+                showErrorLocation.value = true
+                showUbicacionNoExisteDialog.value = true
+            }
+        }.addOnFailureListener {
+            Log.e("Firestore", "Error al validar ubicación", it)
+        }
+}
+
 
