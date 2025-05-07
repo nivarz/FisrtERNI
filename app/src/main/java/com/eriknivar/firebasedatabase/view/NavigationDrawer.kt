@@ -45,9 +45,18 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -55,18 +64,17 @@ import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NavigationDrawer(
     navController: NavHostController,
     storageType: String,
     userViewModel: UserViewModel,
-    location: MutableState<String>,
-    sku: MutableState<String>,
-    quantity: MutableState<String>,
-    lot: MutableState<String>,
-    expirationDate: MutableState<String>,
+    location: MutableState<String>? = null,
+    sku: MutableState<String>? = null,
+    quantity: MutableState<String>? = null,
+    lot: MutableState<String>? = null,
+    expirationDate: MutableState<String>? = null,
     content: @Composable () -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -76,6 +84,11 @@ fun NavigationDrawer(
     val userType by userViewModel.tipo.observeAsState("")
 
     var showLogoutDialog by remember { mutableStateOf(false) }
+
+    var isConfigExpanded by remember { mutableStateOf(false) }
+
+    val scrollState = rememberScrollState()
+
 
 
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
@@ -151,112 +164,168 @@ fun NavigationDrawer(
                     fontStyle = FontStyle.Italic
                 )
 
-
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                DrawerMenuItem(
-                    icon = Icons.Default.Inventory2,
-                    label = "Entrada de Inventario"
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState)
                 ) {
-                    navController.navigate("storagetype")
-                    scope.launch { drawerState.close() }
-                }
 
-
-                DrawerMenuItem(
-                    icon = Icons.Default.BarChart,
-                    label = "Reporte de Inventario"
-                ) {
-                    navController.navigate("inventoryreports")
-                    scope.launch { drawerState.close() }
-                }
-
-
-                DrawerMenuItem(
-                    icon = Icons.Default.Settings,
-                    label = "Configuración"
-                ) {
-                    navController.navigate("settings")
-                    scope.launch { drawerState.close() }
-                }
-
-
-
-                DrawerMenuItem(
-                    icon = Icons.Default.FolderSpecial,
-                    label = "Datos Maestro"
-                ) {
-                    navController.navigate("masterdata")
-                    scope.launch { drawerState.close() }
-                }
-
-
-
-
-
-                DrawerMenuItem(
-                    icon = Icons.AutoMirrored.Filled.ExitToApp,
-                    label = "Salir"
-                ) {
-                    showLogoutDialog = true // 🔔 Solo mostrar el diálogo, como hacías antes
-                }
-
-
-                if (showLogoutDialog) {
-                    val activity = LocalActivity.current
-
-                    AlertDialog(
-                        onDismissRequest = { showLogoutDialog = false },
-                        title = { Text("Cerrar sesión") },
-                        text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
-                        confirmButton = {
-                            TextButton(
-                                modifier = Modifier.padding(),
-                                onClick = {
-                                    showLogoutDialog = false // 🔵 Cerrar el diálogo
-
-                                    val documentId = userViewModel.documentId.value ?: ""
-
-                                    userViewModel.isManualLogout.value = true
-
-                                    Firebase.firestore.collection("usuarios")
-                                        .document(documentId)
-                                        .update("sessionId", "")
-                                        .addOnCompleteListener {
-                                            userViewModel.clearUser() // 🧹 Limpiar usuario
-                                            userViewModel.isManualLogout.value = false // ✅ Restaurar bandera
-
-                                            limpiarCampos(
-                                                location,
-                                                sku,
-                                                quantity,
-                                                lot,
-                                                expirationDate
-                                            )
-
-                                            userViewModel.activarRecargaUsuarios()
-
-                                            activity?.finishAffinity() // 🔥 Cerrar completamente la app
-                                        }
-                                }
-                            ) {
-                                Text("Sí")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                modifier = Modifier.padding(),
-                                onClick = {
-                                    showLogoutDialog =
-                                        false // Solo cierra el diálogo si presiona "Cancelar"
-                                }
-                            ) {
-                                Text("Cancelar")
-                            }
+                    DrawerMenuItem(
+                        icon = Icons.Default.Inventory2,
+                        label = "Entrada de Inventario",
+                        onClick = {
+                            navController.navigate("storagetype")
+                            scope.launch { drawerState.close() }
                         }
                     )
-                }
 
+                    DrawerMenuItem(
+                        icon = Icons.Default.BarChart,
+                        label = "Reporte de Inventario",
+                        onClick = {
+                            navController.navigate("inventoryreports")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    DrawerMenuItem(
+                        icon = Icons.Default.Settings,
+                        label = "Configuración",
+                        isSubItem = false,
+                        trailingIcon = if (isConfigExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        onClick = { isConfigExpanded = !isConfigExpanded }
+                    )
+
+                    if (isConfigExpanded) {
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 0.5.dp, // Más fina
+                            color = Color.LightGray
+                        )
+                        DrawerMenuItem(
+                            icon = Icons.Default.Person,
+                            label = "Usuarios",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("usuarios")
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        DrawerMenuItem(
+                            icon = Icons.Default.LocationOn,
+                            label = "Ubicaciones",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("ubicaciones")
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        DrawerMenuItem(
+                            icon = Icons.Default.Map,
+                            label = "Localidades",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("localidades")
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        DrawerMenuItem(
+                            icon = Icons.Default.History,
+                            label = "Auditoría de Registros",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("auditoria")
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 0.5.dp, // Más fina
+                            color = Color.LightGray
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                    }
+
+                    DrawerMenuItem(
+                        icon = Icons.Default.FolderSpecial,
+                        label = "Datos Maestro",
+                        onClick = {
+                            navController.navigate("masterdata")
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    DrawerMenuItem(
+                        icon = Icons.AutoMirrored.Filled.ExitToApp,
+                        label = "Salir",
+                        onClick = {
+                            showLogoutDialog = true
+                        }
+                    )
+
+                    if (showLogoutDialog) {
+                        val activity = LocalActivity.current
+
+                        AlertDialog(
+                            onDismissRequest = { showLogoutDialog = false },
+                            title = { Text("Cerrar sesión") },
+                            text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
+                            confirmButton = {
+                                TextButton(
+                                    modifier = Modifier.padding(),
+                                    onClick = {
+                                        showLogoutDialog = false // 🔵 Cerrar el diálogo
+
+                                        val documentId = userViewModel.documentId.value ?: ""
+
+                                        userViewModel.isManualLogout.value = true
+
+                                        Firebase.firestore.collection("usuarios")
+                                            .document(documentId)
+                                            .update("sessionId", "")
+                                            .addOnCompleteListener {
+                                                userViewModel.clearUser() // 🧹 Limpiar usuario
+                                                userViewModel.isManualLogout.value =
+                                                    false // ✅ Restaurar bandera
+
+                                                limpiarCampos(
+                                                    location = location ?: mutableStateOf(""),
+                                                    sku = sku ?: mutableStateOf(""),
+                                                    quantity = quantity ?: mutableStateOf(""),
+                                                    lot = lot ?: mutableStateOf(""),
+                                                    expirationDate = expirationDate
+                                                        ?: mutableStateOf("")
+                                                )
+
+                                                userViewModel.activarRecargaUsuarios()
+
+                                                activity?.finishAffinity() // 🔥 Cerrar completamente la app
+                                            }
+                                    }
+                                ) {
+                                    Text("Sí")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    modifier = Modifier.padding(),
+                                    onClick = {
+                                        showLogoutDialog =
+                                            false // Solo cierra el diálogo si presiona "Cancelar"
+                                    }
+                                ) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        )
+                    }
+                }
 
             }
         }

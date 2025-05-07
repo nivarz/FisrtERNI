@@ -23,6 +23,10 @@ import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFrag
 import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
+import com.eriknivar.firebasedatabase.view.settings.settingsmenu.AuditoriaRegistrosScreen
+import com.eriknivar.firebasedatabase.view.settings.settingsmenu.LocalidadesScreen
+import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UbicacionesScreen
+import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UsuariosScreen
 import com.eriknivar.firebasedatabase.view.storagetype.SelectStorageFragment
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.SplashScreen
@@ -119,6 +123,10 @@ fun NetworkAwareNavGraph(
             composable("settings") { SettingsFragment(navController, userViewModel) }
             composable("masterdata") { MasterDataFragment(navController, userViewModel) }
             composable("cambiarPassword") { CambiarPasswordScreen(navController, userViewModel) }
+            composable("usuarios") { UsuariosScreen(navController = navController, userViewModel = userViewModel) }
+            composable("ubicaciones") { UbicacionesScreen(navController = navController, userViewModel = userViewModel) }
+            composable("localidades") { LocalidadesScreen(navController = navController, userViewModel = userViewModel) }
+            composable("auditoria") { AuditoriaRegistrosScreen(navController = navController, userViewModel = userViewModel) }
 
 
         }
