@@ -1,6 +1,9 @@
 package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
+import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,11 +14,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,9 +51,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.view.inventoryentry.QRCodeScanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -122,6 +129,30 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val dummyQuantity = remember { mutableStateOf("") }
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
+
+    val qrCodeContent = remember { mutableStateOf("") }
+    val wasScanned = remember { mutableStateOf(false) }
+
+    val qrScanLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val data = result.data
+            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
+            if (intentResult != null) {
+                qrCodeContent.value = intentResult.contents ?: ""
+                wasScanned.value = true
+            }
+        }
+
+    val qrCodeScanner = remember { QRCodeScanner(qrScanLauncher) }
+    val context = LocalContext.current
+
+// Esto dentro de LaunchedEffect
+    LaunchedEffect(wasScanned.value) {
+        if (wasScanned.value && qrCodeContent.value.isNotBlank()) {
+            codigoInput = qrCodeContent.value.trim().uppercase()
+            wasScanned.value = false
+        }
+    }
 
     NavigationDrawer(
         navController = navController,
@@ -199,7 +230,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                         ubicacionAEliminar = docId to (codigo ?: "")
                                         showDeleteDialog = true
                                     }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red)
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Eliminar",
+                                            tint = Color.Red
+                                        )
                                     }
 
 
@@ -222,7 +257,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                                 },
                                                 confirmButton = {
                                                     TextButton(onClick = {
-                                                        firestore.collection("ubicaciones").document(id).delete()
+                                                        firestore.collection("ubicaciones")
+                                                            .document(id).delete()
                                                             .addOnSuccessListener {
                                                                 showDeleteDialog = false
                                                                 ubicacionAEliminar = null
@@ -230,7 +266,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
                                                                 CoroutineScope(Dispatchers.Main).launch {
                                                                     delay(2000)
-                                                                    showSuccessDeleteDialog.value = false
+                                                                    showSuccessDeleteDialog.value =
+                                                                        false
                                                                 }
 
                                                                 cargarUbicaciones()
@@ -250,8 +287,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                             )
                                         }
                                     }
-
-
 
 
                                 }
@@ -274,13 +309,25 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         OutlinedTextField(
                             value = codigoInput,
                             onValueChange = { codigoInput = it.uppercase().trim() },
-                            label = { Text("Código de Ubicación*") }
+                            label = { Text("Código de Ubicación*") },
+                            singleLine = true,
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = { qrCodeScanner.startQRCodeScanner(context as Activity) },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.QrCodeScanner,
+                                        contentDescription = "Escanear Código"
+                                    )
+                                }
+                            }
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = zonaInput,
                             singleLine = true,
-                            onValueChange = { zonaInput = it },
+                            onValueChange = { zonaInput = it.uppercase() },
                             label = { Text("Zona (opcional)") }
                         )
                     }
@@ -302,7 +349,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     } else {
                                         val data = mapOf(
                                             "codigo_ubi" to codigoInput,
-                                            "zona" to zonaInput
+                                            "zona" to zonaInput.trim()
                                         )
 
                                         val operacion = if (isEditing) {
@@ -342,7 +389,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         if (showUbicacionExistenteDialog) {
             AlertDialog(
                 onDismissRequest = { showUbicacionExistenteDialog = false },
-                title = { Text("Ubicación duplicada") },
+                title = { Text("Ubicación existente") },
                 text = { Text("Ya existe una ubicación con ese mismo código y zona.") },
                 confirmButton = {
                     TextButton(onClick = { showUbicacionExistenteDialog = false }) {

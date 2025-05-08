@@ -54,7 +54,9 @@ fun DropDownUpScreen(
             .get()
             .addOnSuccessListener { result ->
                 localidades.clear()
-                localidades.addAll(result.mapNotNull { it.getString("nombre") })
+                localidades.addAll(
+                    result.mapNotNull { it.getString("nombre") }.sortedDescending()
+                )
             }
     }
 
@@ -76,7 +78,12 @@ fun DropDownUpScreen(
             OutlinedTextField(
                 value = valueText,
                 onValueChange = { }, // No editable manualmente
-                placeholder = { Text("Selecciona una localidad", color = Color.Gray) }, // ✅ Ajustado
+                placeholder = {
+                    Text(
+                        "Selecciona una localidad",
+                        color = Color.Gray
+                    )
+                }, // ✅ Ajustado
                 readOnly = true, // ✅ Evita teclado y cursor
                 singleLine = true,
                 enabled = true,
@@ -84,7 +91,8 @@ fun DropDownUpScreen(
                 trailingIcon = {
                     IconButton(onClick = {
                         onUserInteraction()
-                        expandedDropdown = !expandedDropdown }) {
+                        expandedDropdown = !expandedDropdown
+                    }) {
                         Icon(
                             imageVector = if (expandedDropdown) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
                             contentDescription = "Icono desplegable",
@@ -117,28 +125,28 @@ fun DropDownUpScreen(
 
 
 // 👇 DropdownMenu con fondo crema
-            DropdownMenu(
-                expanded = expandedDropdown,
-                onDismissRequest = { expandedDropdown = false },
-                modifier = Modifier
-                    .width(180.dp) // ✅ Ajusta el ancho aquí
-                    //.heightIn(max = 250.dp)
-                    .background(Color.White) // Color crema claro
-            ) {
-                localidades.forEach { localidad ->
-                    DropdownMenuItem(
-                        text = { Text(localidad) },
-                        onClick = {
-                            onUserInteraction()
-                            valueText = localidad
-                            expandedDropdown = false
-                            navController.navigate("inventoryentry/${valueText}")
-                        }
-                    )
-                }
+        DropdownMenu(
+            expanded = expandedDropdown,
+            onDismissRequest = { expandedDropdown = false },
+            modifier = Modifier
+                .width(200.dp) // ✅ Ajusta el ancho aquí
+                //.heightIn(max = 250.dp)
+                .background(Color.White) // Color crema claro
+        ) {
+            localidades.forEach { localidad ->
+                DropdownMenuItem(
+                    text = { Text(localidad) },
+                    onClick = {
+                        onUserInteraction()
+                        valueText = localidad
+                        expandedDropdown = false
+                        navController.navigate("inventoryentry/${valueText}")
+                    }
+                )
             }
         }
     }
+}
 
 
 

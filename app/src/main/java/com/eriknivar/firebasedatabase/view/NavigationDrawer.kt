@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
 import com.google.firebase.Firebase
@@ -87,8 +88,13 @@ fun NavigationDrawer(
 
     var isConfigExpanded by remember { mutableStateOf(false) }
 
-    val scrollState = rememberScrollState()
+    LaunchedEffect(drawerState.isClosed) {
+        if (drawerState.isClosed) {
+            isConfigExpanded = false
+        }
+    }
 
+    val scrollState = rememberScrollState()
 
 
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
@@ -112,7 +118,7 @@ fun NavigationDrawer(
                         Icon(
                             imageVector = Icons.Default.ChevronLeft,
                             contentDescription = "Cerrar menú",
-                            tint = Color.Gray,
+                            tint = Color(0xFF003366),
                             modifier = Modifier.size(65.dp)
                         )
                     }

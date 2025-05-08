@@ -30,7 +30,7 @@ fun DrawerMenuItem(
     label: String,
     onClick: () -> Unit,
     isSubItem: Boolean = false,
-    trailingIcon: ImageVector? = null // 🟢 AGREGA ESTE PARÁMETRO OPCIONAL
+    trailingIcon: ImageVector? = null
 ) {
     val textStyle = TextStyle(
         fontSize = if (isSubItem) 14.sp else 16.sp,
@@ -82,10 +82,11 @@ fun DrawerMenuItem(
                 Icon(
                     imageVector = trailingIcon,
                     contentDescription = "Expandir",
-                    tint = Color.Gray,
-                    modifier = Modifier.size(20.dp)
+                    tint = Color(0xFF003366), // Azul oscuro
+                    modifier = Modifier.size(28.dp) // Aumenta el tamaño
                 )
             }
+
         }
     }
 }
