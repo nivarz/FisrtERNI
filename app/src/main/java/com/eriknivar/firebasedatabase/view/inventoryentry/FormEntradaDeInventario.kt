@@ -92,13 +92,12 @@ fun FormEntradaDeInventario(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequesterLocation = remember { FocusRequester() }
     val openUbicacionInvalidaDialog = remember { mutableStateOf(false) }
+    val tempLocationInput = remember { mutableStateOf("") }
 
     //NO VEO ESTOS ESTADOS EN LA NUEVA MODIFICACION
 
     val context = LocalContext.current
     val firestore = Firebase.firestore
-
-    // Para ocultar el teclado val focusManager = LocalFocusManager.current
 
     var showError1 by remember { mutableStateOf(false) }
     var showError2 by remember { mutableStateOf(false) }
@@ -187,7 +186,8 @@ fun FormEntradaDeInventario(
                 showErrorLocation,
                 focusRequester = focusRequesterLocation, // 🔥 Este es el inicial
                 nextFocusRequester = focusRequesterSku,
-                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
+                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
+                tempLocationInput = tempLocationInput
 
             )
 
@@ -263,25 +263,23 @@ fun FormEntradaDeInventario(
 
                 Button(
                     onClick = {
-
                         onUserInteraction()
-
                         focusManager.clearFocus()
                         keyboardController?.hide()
 
                         coroutineScope.launch {
                             delay(300)
-                            focusRequesterSku.requestFocus() // ⬅️ Aquí enviamos el foco al Sku
+                            try {
+                                focusRequesterSku.requestFocus()
+                            } catch (e: Exception) {
+                                Log.e("FocusError", "Error al solicitar foco en SKU: ${e.message}")
+                            }
 
                             // 🟥 1. Validación: ubicación no existe
                             if (location.value.isEmpty() && showErrorLocation.value) {
                                 showErrorLocation.value = true
-
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    delay(150) // 🕒 Evita salto visual al mostrar el AlertDialog
-                                    openUbicacionInvalidaDialog.value = true
-                                }
-
+                                delay(150)
+                                openUbicacionInvalidaDialog.value = true
                                 return@launch
                             }
 
@@ -290,48 +288,38 @@ fun FormEntradaDeInventario(
                                 showErrorLocation.value = location.value.isEmpty()
                                 showErrorSku.value = sku.value.isEmpty()
                                 showErrorQuantity.value = quantity.value.isEmpty()
-
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    delay(150) // 🕒 Evita salto visual al mostrar el AlertDialog
-                                    showDialog = true
-                                }
-
+                                delay(150)
+                                showDialog = true
                                 return@launch
                             }
 
                             // 🟥 3. Validación: "CÓDIGO NO ENCONTRADO"
                             if (location.value == "CÓDIGO NO ENCONTRADO" || sku.value == "CÓDIGO NO ENCONTRADO") {
-
                                 showErrorLocation.value = true
                                 showErrorSku.value = true
-
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    delay(150) // 🕒 Evita salto visual al mostrar el AlertDialog
-                                    showDialog1 = true                                }
-
+                                delay(150)
+                                showDialog1 = true
                                 return@launch
                             }
 
                             // 🟡 4. Lote vacío o no encontrado → colocar N/A
                             if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
                                 lot.value = "N/A"
-                                return@launch
                             }
 
                             // 🟡 5. Fecha vacía → colocar N/A
                             if (dateText.value.isEmpty()) {
                                 dateText.value = "N/A"
-                                return@launch
                             }
 
                             // 🟥 6. Validación: producto no existe o sin descripción válida
-                            if (productoDescripcion.value == "Sin descripción" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos" || productoDescripcion.value == "Sin descripción") {
-                                errorMessage2 = "Codigo No Existe"
-
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    delay(150) // 🕒 Evita salto visual al mostrar el AlertDialog
-                                    showDialog2 = true
-                                }
+                            if (productoDescripcion.value == "Sin descripción" ||
+                                productoDescripcion.value.isEmpty() ||
+                                productoDescripcion.value == "Error al obtener datos"
+                            ) {
+                                errorMessage2 = "Código No Existe"
+                                delay(150)
+                                showDialog2 = true
                                 return@launch
                             }
 
@@ -427,9 +415,11 @@ fun FormEntradaDeInventario(
                 // 🔘 Botón Limpiar
                 Button(
                     onClick = {
-
                         onUserInteraction()
+                        focusManager.clearFocus()
+
                         location.value = ""
+                        tempLocationInput.value = ""
                         sku.value = ""
                         lot.value = ""
                         dateText.value = ""
@@ -438,17 +428,21 @@ fun FormEntradaDeInventario(
                         unidadMedida.value = ""
                         qrCodeContentSku.value = ""
                         qrCodeContentLot.value = ""
-                        // tempLocationInput.value = ""
 
                         showErrorLocation.value = false
                         showErrorSku.value = false
                         showErrorQuantity.value = false
 
                         coroutineScope.launch {
-                            delay(200) // Deja que Compose recalcule todo
-                            focusRequesterLocation.requestFocus() // ⬅️ Aquí enviamos el foco a Ubicación
-                            keyboardController?.show() // ⬅️ Mostramos el teclado manualmente si quieres
+                            delay(200)
+                            try {
+                                focusRequesterLocation.requestFocus()
+                                keyboardController?.show()
+                            } catch (e: Exception) {
+                                Log.e("FocusError", "Error al solicitar foco: ${e.message}")
+                            }
                         }
+
 
                     }, colors = ButtonDefaults.buttonColors(
                         containerColor = Color.DarkGray, contentColor = Color.White

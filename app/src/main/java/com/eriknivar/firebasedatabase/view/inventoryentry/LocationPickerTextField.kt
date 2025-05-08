@@ -47,7 +47,8 @@ fun OutlinedTextFieldsInputsLocation(
     focusRequester: FocusRequester,
     nextFocusRequester: FocusRequester,
     onUserInteraction: () -> Unit = {},
-    shouldRequestFocusAfterClear: MutableState<Boolean>
+    shouldRequestFocusAfterClear: MutableState<Boolean>,
+    tempLocationInput: MutableState<String>
 ) {
     val qrCodeContentLocation = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
@@ -70,8 +71,6 @@ fun OutlinedTextFieldsInputsLocation(
     val qrCodeScannerLocation = remember { QRCodeScanner(qrScanLauncherLocation) }
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
-
-    val tempLocationInput = remember { mutableStateOf("") }
 
     // ✅ Escaneo desde launcher (cámara)
     LaunchedEffect(qrCodeContentLocation.value, wasScanned.value) {
@@ -165,12 +164,12 @@ fun OutlinedTextFieldsInputsLocation(
                         showErrorLocation,
                         showUbicacionNoExisteDialog,
                         nextFocusRequester,
-                        keyboardController
+                        keyboardController,
+                        ocultarTeclado = false
                     )
                 }
 
                 if (!showErrorLocation.value) {
-                    keyboardController?.hide()
                     nextFocusRequester.requestFocus()
                 } else {
                     showUbicacionNoExisteDialog.value = true
@@ -237,27 +236,36 @@ fun validarUbicacionEnMaestro(
     showErrorLocation: MutableState<Boolean>,
     showUbicacionNoExisteDialog: MutableState<Boolean>,
     nextFocusRequester: FocusRequester,
-    keyboardController: SoftwareKeyboardController?
+    keyboardController: SoftwareKeyboardController?,
+    ocultarTeclado: Boolean = false
 ) {
-    Firebase.firestore.collection("ubicaciones").whereEqualTo("codigo_ubi", codigo).get()
+    Firebase.firestore.collection("ubicaciones")
+        .whereEqualTo("codigo_ubi", codigo)
+        .get()
         .addOnSuccessListener { documents ->
             if (!documents.isEmpty) {
                 location.value = codigo
                 showErrorLocation.value = false
 
-                CoroutineScope(Dispatchers.Main).launch {
-                    delay(150)
+                if (ocultarTeclado) {
                     keyboardController?.hide()
-                    nextFocusRequester.requestFocus() // ✅ Avanza a SKU
+                }
+
+                try {
+                    nextFocusRequester.requestFocus()
+                } catch (e: Exception) {
+                    Log.e("FocusError", "Error al solicitar foco: ${e.message}")
                 }
             } else {
                 location.value = ""
                 showErrorLocation.value = true
                 showUbicacionNoExisteDialog.value = true
             }
-        }.addOnFailureListener {
+        }
+        .addOnFailureListener {
             Log.e("Firestore", "Error al validar ubicación", it)
         }
 }
+
 
 
