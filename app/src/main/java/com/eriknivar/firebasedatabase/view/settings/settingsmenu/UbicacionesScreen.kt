@@ -1,10 +1,11 @@
 package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
 import android.app.Activity
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -26,6 +28,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +58,7 @@ import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.inventoryentry.QRCodeScanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.CoroutineScope
@@ -86,9 +91,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     val firestore = Firebase.firestore
     val ubicaciones = remember { mutableStateListOf<Pair<String, String?>>() } // código y zona
-    //val context = LocalContext.current
 
-    var showDialog = remember { mutableStateOf(false) }
+    val showDialog = remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
     var docIdToEdit by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -99,10 +103,30 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val navyBlue = Color(0xFF001F5B)
 
     val showSuccessDialog = remember { mutableStateOf(false) }
-    var showSuccessDeleteDialog = remember { mutableStateOf(false) }
+    val showSuccessDeleteDialog = remember { mutableStateOf(false) }
     val successMessage = remember { mutableStateOf("") }
     var ubicacionAEliminar by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
+    // Estados para el Dropdown de Localidades
+    val localidadesList = remember { mutableStateListOf<String>() }
+    val selectedLocalidad = remember { mutableStateOf("") }
+    val expandedLocalidad = remember { mutableStateOf(false) }
+
+
+    // Cargar localidades desde Firebase (una sola vez)
+    LaunchedEffect(Unit) {
+        FirebaseFirestore.getInstance().collection("localidades")
+            .orderBy("nombre")
+            .get()
+            .addOnSuccessListener { result ->
+                localidadesList.clear()
+                for (document in result) {
+                    document.getString("nombre")?.let {
+                        localidadesList.add(it)
+                    }
+                }
+            }
+    }
 
     // 🔄 Cargar ubicaciones ordenadas
 
@@ -115,6 +139,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 result.forEach { doc ->
                     val codigo = doc.getString("codigo_ubi") ?: ""
                     val zona = doc.getString("zona")
+                    val localidad = doc.getString("localidad").orEmpty()
                     ubicaciones.add(doc.id to "$codigo|${zona.orEmpty()}")
                 }
             }
@@ -188,8 +213,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
             LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
                 items(ubicaciones) { (docId, datos) ->
-                    val codigo = datos?.split("|")?.get(0)
-                    val zona = datos?.split("|")?.getOrNull(1).orEmpty()
+                    val partes = datos?.split("|") ?: listOf()
+                    val codigo = partes.getOrNull(0)
+                    val zona = partes.getOrNull(1).orEmpty()
+                    val localidad = partes.getOrNull(2).orEmpty()
+
 
                     Card(
                         modifier = Modifier
@@ -208,7 +236,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     if (zona.isNotBlank()) {
                                         Text("Zona: $zona")
                                     }
+                                    if (localidad.isNotBlank()) {
+                                        Text("Localidad: $localidad")
+                                    }
                                 }
+
                                 Row {
                                     IconButton(onClick = {
                                         // Editar
@@ -330,6 +362,40 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             onValueChange = { zonaInput = it.uppercase() },
                             label = { Text("Zona (opcional)") }
                         )
+
+                        Spacer(Modifier.height(8.dp))
+                        Text("Localidad*", fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, Color.Gray, shape = RoundedCornerShape(4.dp))
+                                .clickable(onClick = { expandedLocalidad.value = true })
+                                .padding(12.dp)
+                        )
+                        {
+                            Text(
+                                text = if (selectedLocalidad.value.isNotEmpty()) selectedLocalidad.value else "Seleccionar una localidad",
+                                color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
+                            )
+
+                            DropdownMenu(
+                                expanded = expandedLocalidad.value,
+                                onDismissRequest = { expandedLocalidad.value = false }
+                            ) {
+                                localidadesList.forEach { localidad ->
+
+                                    DropdownMenuItem(
+                                        text = { Text(localidad) },
+                                        onClick = {
+                                            selectedLocalidad.value = localidad
+                                            expandedLocalidad.value = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+
                     }
                 },
                 confirmButton = {
@@ -349,7 +415,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     } else {
                                         val data = mapOf(
                                             "codigo_ubi" to codigoInput,
-                                            "zona" to zonaInput.trim()
+                                            "zona" to zonaInput.trim(),
+                                            "localidad" to selectedLocalidad.value
+
                                         )
 
                                         val operacion = if (isEditing) {
@@ -398,7 +466,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 }
             )
         }
-
     }
 
     if (showSuccessDialog.value) {
@@ -413,7 +480,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
             }
         )
     }
-
 }
 
 

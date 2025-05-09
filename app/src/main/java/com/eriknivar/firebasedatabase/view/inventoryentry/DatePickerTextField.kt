@@ -3,8 +3,10 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 import android.app.DatePickerDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
@@ -60,8 +62,9 @@ fun DatePickerTextField(
             onValueChange = { dateText.value = it },
             label = { Text("Caducidad") },
             modifier = Modifier
-                .fillMaxWidth(0.80f)
-                .padding(2.dp)
+                .width(275.dp)
+                .height(64.dp)
+                .padding(4.dp)
                 .focusRequester(focusRequester),
             trailingIcon = {
                 IconButton(onClick = { datePickerDialog.show() }) {
