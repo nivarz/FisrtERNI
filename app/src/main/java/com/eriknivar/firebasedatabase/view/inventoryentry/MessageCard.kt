@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.app.DatePickerDialog
 import android.icu.text.SimpleDateFormat
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
@@ -48,11 +49,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
+import registrarAuditoriaConteo
 
 @Composable
 fun MessageCard(
@@ -71,6 +75,8 @@ fun MessageCard(
     listState: LazyListState,
     index: Int,
     expandedStates: MutableMap<String, Boolean>,
+    userViewModel: UserViewModel,
+
 
     ) {
     val context = LocalContext.current
@@ -102,6 +108,25 @@ fun MessageCard(
             text = { Text("¿Estás seguro de que deseas borrar este registro?") },
             confirmButton = {
                 Button(onClick = {
+                    // ✅ Registrar la auditoría antes de borrar
+                    val valoresAntes = mapOf(
+                        "ubicacion" to location,
+                        "sku" to sku,
+                        "lote" to lote,
+                        "fecha_vencimiento" to expirationDate,
+                        "cantidad" to quantity.toString(),
+                        "unidad_medida" to unidadMedida,
+                        "descripcion" to descripcion
+                    )
+
+                    registrarAuditoriaConteo(
+                        registroId = documentId,
+                        tipoAccion = "Eliminación",
+                        usuario = userViewModel.nombre.value ?: "Desconocido",
+                        valoresAntes = valoresAntes
+                    )
+
+                    // 🗑️ Borrar
                     showDialog = false
                     deleteFromFirestore(firestore, documentId, allData) {
                         confirmDeletion = false
@@ -295,6 +320,7 @@ fun MessageCard(
                                     value = editedLocation,
                                     onValueChange = { editedLocation = it },
                                     label = { Text("Editar Ubicación") },
+                                    enabled = false,
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -336,6 +362,38 @@ fun MessageCard(
                         }, confirmButton = {
                             Button(
                                 onClick = {
+                                    // 🟡 Validar que los campos no estén vacíos
+                                    if (editedLocation.isBlank() || editedLote.isBlank() || editedExpirationDate.isBlank() || editedQuantity.isBlank()) {
+                                        Toast.makeText(context, "Todos los campos deben estar completos", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+
+                                    val valoresAntes = mapOf(
+                                        "ubicacion" to location,
+                                        "lote" to lote,
+                                        "fechaVencimiento" to expirationDate,
+                                        "cantidad" to quantity.toString()
+                                    )
+
+                                    val valoresDespues = mapOf(
+                                        "ubicacion" to editedLocation,
+                                        "lote" to editedLote,
+                                        "fechaVencimiento" to editedExpirationDate,
+                                        "cantidad" to editedQuantity
+                                    )
+
+                                    val huboCambios = valoresAntes != valoresDespues
+
+                                    if (huboCambios) {
+                                        registrarAuditoriaConteo(
+                                            registroId = documentId,
+                                            tipoAccion = "Modificación",
+                                            usuario = userViewModel.nombre.value ?: "Desconocido",
+                                            valoresAntes = valoresAntes,
+                                            valoresDespues = valoresDespues
+                                        )
+                                    }
+
                                     updateFirestore(
                                         firestore,
                                         documentId,
@@ -346,7 +404,6 @@ fun MessageCard(
                                         editedQuantity.toDoubleOrNull() ?: quantity,
                                         allData,
                                         onSuccess = onSuccess
-
                                     )
 
                                     isEditing = false

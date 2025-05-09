@@ -336,7 +336,8 @@ fun FirestoreApp(
                             onSuccess = { showSuccessDialog = true },
                             listState = listState,
                             index = index,
-                            expandedStates = expandedStates
+                            expandedStates = expandedStates,
+                            userViewModel = userViewModel
                         )
                     }
                 }

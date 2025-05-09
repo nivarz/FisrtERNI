@@ -49,6 +49,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
@@ -159,16 +160,15 @@ fun MasterDataFragment(
 
     if (tipo.isNotBlank() && tipo.lowercase() != "admin" && tipo.lowercase() != "superuser") {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White), // 🔷 Fondo blanco
-            contentAlignment = Alignment.TopStart
+            modifier = Modifier.fillMaxSize().background(Color.White),
+            contentAlignment = Alignment.TopCenter
         ) {
             Text(
-                text = "Acceso restringido",
+                text = "\u26D4\uFE0F Acceso restringido",
                 color = Color.Red,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(32.dp)
             )
         }
         return

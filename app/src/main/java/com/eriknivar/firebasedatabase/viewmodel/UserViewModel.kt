@@ -1,9 +1,7 @@
 
 package com.eriknivar.firebasedatabase.viewmodel
 
-import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.LiveData
@@ -12,7 +10,6 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
-import java.util.UUID
 
 class UserViewModel : ViewModel() {
 
@@ -52,7 +49,6 @@ class UserViewModel : ViewModel() {
     }
 
     private val _recargarUsuarios = mutableStateOf(false)
-    val recargarUsuarios: State<Boolean> = _recargarUsuarios
 
     fun activarRecargaUsuarios() {
         _recargarUsuarios.value = !_recargarUsuarios.value // ⚡ Dispara la recarga
@@ -124,34 +120,6 @@ class UserViewModel : ViewModel() {
             else -> false
         }
     }
-
-    fun iniciarSesionConSessionId(
-        nombre: String,
-        tipo: String,
-        documentId: String,
-        context: Context,
-        onSuccess: () -> Unit,
-        onError: () -> Unit
-    ) {
-        val sessionId = UUID.randomUUID().toString()
-
-        setUser(nombre, tipo, documentId)
-        setSessionId(sessionId)
-
-        Firebase.firestore.collection("usuarios")
-            .document(documentId)
-            .update("sessionId", sessionId)
-            .addOnSuccessListener {
-                cargarFotoUrl(documentId)
-                onSuccess()
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "Error al guardar la sesión", Toast.LENGTH_SHORT).show()
-                onError()
-            }
-    }
-
-
 
 
 }
