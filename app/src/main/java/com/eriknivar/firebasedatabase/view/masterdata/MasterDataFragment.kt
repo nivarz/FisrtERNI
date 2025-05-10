@@ -89,7 +89,6 @@ fun MasterDataFragment(
 
     val navyBlue = Color(0xFF001F5B)
 
-
     val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     fun actualizarActividad() {
@@ -108,6 +107,7 @@ fun MasterDataFragment(
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
 
                 userViewModel.clearUser()
 

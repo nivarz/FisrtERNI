@@ -168,6 +168,8 @@ fun FirestoreApp(
                 productoDescripcion.value = ""
                 unidadMedida.value = ""
 
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+
                 userViewModel.clearUser()
 
                 navController.navigate("login") {

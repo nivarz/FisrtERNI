@@ -106,6 +106,7 @@ fun SelectStorageFragment(
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
 
                 userViewModel.clearUser()
 
@@ -117,8 +118,6 @@ fun SelectStorageFragment(
             }
         }
     }
-
-
 
 
     NavigationDrawer(navController, "Seleccionar Almacén", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {

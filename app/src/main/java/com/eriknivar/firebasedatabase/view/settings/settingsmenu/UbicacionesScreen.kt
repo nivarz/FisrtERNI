@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
@@ -39,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -112,6 +115,37 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val selectedLocalidad = remember { mutableStateOf("") }
     val expandedLocalidad = remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 10 * 60_000) {
+                val documentId = userViewModel.documentId.value ?: ""
+                Firebase.firestore.collection("usuarios")
+                    .document(documentId)
+                    .update("sessionId", "")
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
+        }
+    }
 
     // Cargar localidades desde Firebase (una sola vez)
     LaunchedEffect(Unit) {
@@ -140,7 +174,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     val codigo = doc.getString("codigo_ubi") ?: ""
                     val zona = doc.getString("zona")
                     val localidad = doc.getString("localidad").orEmpty()
-                    ubicaciones.add(doc.id to "$codigo|${zona.orEmpty()}")
+                    ubicaciones.add(doc.id to "$codigo|${zona.orEmpty()}|$localidad")
                 }
             }
     }
@@ -169,9 +203,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         }
 
     val qrCodeScanner = remember { QRCodeScanner(qrScanLauncher) }
-    val context = LocalContext.current
 
-// Esto dentro de LaunchedEffect
+    // Esto dentro de LaunchedEffect
     LaunchedEffect(wasScanned.value) {
         if (wasScanned.value && qrCodeContent.value.isNotBlank()) {
             codigoInput = qrCodeContent.value.trim().uppercase()
@@ -196,6 +229,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     containerColor = navyBlue, contentColor = Color.White
                 ),
                 onClick = {
+                    actualizarActividad()
                     codigoInput = ""
                     zonaInput = ""
                     docIdToEdit = ""
@@ -218,7 +252,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     val zona = partes.getOrNull(1).orEmpty()
                     val localidad = partes.getOrNull(2).orEmpty()
 
-
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -233,12 +266,13 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             ) {
                                 Column {
                                     Text("Ubicacion: $codigo", fontWeight = FontWeight.Bold)
-                                    if (zona.isNotBlank()) {
-                                        Text("Zona: $zona")
-                                    }
                                     if (localidad.isNotBlank()) {
                                         Text("Localidad: $localidad")
                                     }
+                                    if (zona.isNotBlank()) {
+                                        Text("Zona: $zona")
+                                    }
+
                                 }
 
                                 Row {
@@ -250,6 +284,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                             codigoInput = codigo
                                         }
                                         zonaInput = zona
+                                        selectedLocalidad.value = localidad
                                         showDialog.value = true
                                     }) {
                                         Icon(
@@ -263,12 +298,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                         showDeleteDialog = true
                                     }) {
                                         Icon(
-                                            Icons.Default.Delete,
+                                            Icons.Default.DeleteForever,
                                             contentDescription = "Eliminar",
                                             tint = Color.Red
                                         )
                                     }
-
 
                                     if (showDeleteDialog) {
                                         ubicacionAEliminar?.let { (id, codigo) ->
@@ -319,8 +353,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                             )
                                         }
                                     }
-
-
                                 }
                             }
                         }
@@ -330,7 +362,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         }
 
         var showUbicacionExistenteDialog by remember { mutableStateOf(false) }
-
 
         if (showDialog.value) {
             AlertDialog(
@@ -374,7 +405,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         )
                         {
                             Text(
-                                text = if (selectedLocalidad.value.isNotEmpty()) selectedLocalidad.value else "Seleccionar una localidad",
+                                text = selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" },
                                 color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
                             )
 
@@ -394,8 +425,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                 }
                             }
                         }
-
-
                     }
                 },
                 confirmButton = {

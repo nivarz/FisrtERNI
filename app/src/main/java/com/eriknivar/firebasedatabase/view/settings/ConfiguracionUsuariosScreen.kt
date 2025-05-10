@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -32,7 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,15 +50,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.Usuario
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.delay
 
 @Composable
 fun ConfiguracionUsuariosScreen(
     userViewModel: UserViewModel,
-    onUserInteraction: () -> Unit
+    navController: NavHostController
 ) {
     val firestore = Firebase.firestore
     val usuarios = remember { mutableStateListOf<Usuario>() }
@@ -77,6 +82,37 @@ fun ConfiguracionUsuariosScreen(
     var showUserExistsDialog by remember { mutableStateOf(false) }
 
     val navyBlue = Color(0xFF001F5B)
+
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 10 * 60_000) {
+                val documentId = userViewModel.documentId.value ?: ""
+                Firebase.firestore.collection("usuarios")
+                    .document(documentId)
+                    .update("sessionId", "")
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
+        }
+    }
 
     DisposableEffect(currentUserId, currentSessionId) {
         val listenerRegistration = Firebase.firestore.collection("usuarios")
@@ -158,7 +194,7 @@ fun ConfiguracionUsuariosScreen(
                 containerColor = navyBlue, contentColor = Color.White
             ),
             onClick = {
-                onUserInteraction()
+                actualizarActividad()
                 selectedUser = null
                 nombre = ""
                 usuario = ""
@@ -252,7 +288,7 @@ fun ConfiguracionUsuariosScreen(
                                         userToDelete = user
                                     }) {
                                         Icon(
-                                            Icons.Default.Delete,
+                                            Icons.Default.DeleteForever,
                                             contentDescription = "Eliminar",
                                             tint = Color.DarkGray
                                         )

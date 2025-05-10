@@ -133,6 +133,7 @@ fun InventoryReportsFragment(
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
 
                 userViewModel.clearUser()
 

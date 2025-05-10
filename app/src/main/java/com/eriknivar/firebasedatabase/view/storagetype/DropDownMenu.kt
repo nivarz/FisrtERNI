@@ -130,7 +130,6 @@ fun DropDownUpScreen(
             onDismissRequest = { expandedDropdown = false },
             modifier = Modifier
                 .width(200.dp) // ✅ Ajusta el ancho aquí
-                //.heightIn(max = 250.dp)
                 .background(Color.White) // Color crema claro
         ) {
             localidades.forEach { localidad ->

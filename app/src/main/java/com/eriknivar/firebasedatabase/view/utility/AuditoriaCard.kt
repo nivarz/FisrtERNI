@@ -14,14 +14,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,12 +48,17 @@ fun AuditoriaCard(
     usuario: String,
     fecha: Timestamp,
     valoresAntes: Map<String, Any?>?,
-    valoresDespues: Map<String, Any?>?
+    valoresDespues: Map<String, Any?>?,
+    tipoUsuario: String,
+    onDelete: (String) -> Unit
+
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
     val fechaFormateada = sdf.format(fecha.toDate())
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
 
     Card(
         modifier = Modifier
@@ -73,7 +82,6 @@ fun AuditoriaCard(
                 else -> Icons.Default.Info
             }
 
-
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -96,13 +104,25 @@ fun AuditoriaCard(
 
                 Spacer(Modifier.weight(1f))
 
+                if (tipoUsuario.lowercase() == "superuser") {
+                    IconButton(onClick = {
+                        showDeleteDialog = true // ✅ Solo abre el diálogo
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = "Eliminar registro",
+                            tint = Color.Red
+                        )
+                    }
+                }
+
+
                 Icon(
                     imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = "Expandir",
                     tint = Color.Gray
                 )
             }
-
 
             Text("Usuario: $usuario", fontSize = 14.sp, color = Color.Black)
             Text("Fecha: $fechaFormateada", fontSize = 12.sp, color = Color.DarkGray)
@@ -146,11 +166,27 @@ fun AuditoriaCard(
                     }
                 }
             }
-
-
-
-
-
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("¿Eliminar registro?") },
+            text = { Text("¿Estás seguro de que deseas eliminar este registro de auditoría? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete(registroId)
+                    showDeleteDialog = false
+                }) {
+                    Text("Sí", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }

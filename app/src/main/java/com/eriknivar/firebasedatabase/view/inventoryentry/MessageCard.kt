@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,13 +15,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
@@ -32,12 +31,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,12 +52,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import registrarAuditoriaConteo
 
 @Composable
@@ -92,6 +96,9 @@ fun MessageCard(
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
     val fechaFormateada = fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
 
     LaunchedEffect(confirmDeletion) {
@@ -287,7 +294,7 @@ fun MessageCard(
                                 }
                                 IconButton(onClick = { showDialog = true }) {
                                     Icon(
-                                        Icons.Default.Delete,
+                                        Icons.Default.DeleteForever,
                                         contentDescription = "Eliminar",
                                         tint = Color.Red
                                     )
@@ -297,7 +304,6 @@ fun MessageCard(
                     }
                 }
             }
-
 
             // ⬇️ Resto del contenido dividido en dos columnas
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -318,17 +324,18 @@ fun MessageCard(
                             Column {
                                 OutlinedTextField(
                                     value = editedLocation,
-                                    onValueChange = { editedLocation = it },
+                                    onValueChange = { editedLocation = it.uppercase().trim() },
                                     label = { Text("Editar Ubicación") },
-                                    enabled = false,
+                                    enabled = true,
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
+                                SnackbarHost(hostState = snackbarHostState)
 
                                 OutlinedTextField(
                                     value = editedLote,
-                                    onValueChange = { editedLote = it },
+                                    onValueChange = { editedLote = it.uppercase().trim() },
                                     label = { Text("Editar Lote") },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
@@ -362,55 +369,71 @@ fun MessageCard(
                         }, confirmButton = {
                             Button(
                                 onClick = {
-                                    // 🟡 Validar que los campos no estén vacíos
                                     if (editedLocation.isBlank() || editedLote.isBlank() || editedExpirationDate.isBlank() || editedQuantity.isBlank()) {
                                         Toast.makeText(context, "Todos los campos deben estar completos", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
 
-                                    val valoresAntes = mapOf(
-                                        "ubicacion" to location,
-                                        "lote" to lote,
-                                        "fechaVencimiento" to expirationDate,
-                                        "cantidad" to quantity.toString()
-                                    )
+                                    Firebase.firestore.collection("ubicaciones")
+                                        .whereEqualTo("codigo_ubi", editedLocation.trim().uppercase())
+                                        .get()
+                                        .addOnSuccessListener { documents ->
+                                            val ubicacionExiste = documents.any()
 
-                                    val valoresDespues = mapOf(
-                                        "ubicacion" to editedLocation,
-                                        "lote" to editedLote,
-                                        "fechaVencimiento" to editedExpirationDate,
-                                        "cantidad" to editedQuantity
-                                    )
+                                            if (!ubicacionExiste) {
 
-                                    val huboCambios = valoresAntes != valoresDespues
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar("La ubicación no existe en la base de datos")
+                                                }
 
-                                    if (huboCambios) {
-                                        registrarAuditoriaConteo(
-                                            registroId = documentId,
-                                            tipoAccion = "Modificación",
-                                            usuario = userViewModel.nombre.value ?: "Desconocido",
-                                            valoresAntes = valoresAntes,
-                                            valoresDespues = valoresDespues
-                                        )
-                                    }
+                                                return@addOnSuccessListener // ✅ Detiene el flujo aquí
+                                            }
 
-                                    updateFirestore(
-                                        firestore,
-                                        documentId,
-                                        editedLocation,
-                                        sku,
-                                        editedLote,
-                                        editedExpirationDate,
-                                        editedQuantity.toDoubleOrNull() ?: quantity,
-                                        allData,
-                                        onSuccess = onSuccess
-                                    )
+                                            val valoresAntes = mapOf(
+                                                "ubicacion" to location,
+                                                "lote" to lote,
+                                                "fechaVencimiento" to expirationDate,
+                                                "cantidad" to quantity.toString()
+                                            )
 
-                                    isEditing = false
-                                },
+                                            val valoresDespues = mapOf(
+                                                "ubicacion" to editedLocation,
+                                                "lote" to editedLote,
+                                                "fechaVencimiento" to editedExpirationDate,
+                                                "cantidad" to editedQuantity
+                                            )
+
+                                            val huboCambios = valoresAntes != valoresDespues
+
+                                            if (huboCambios) {
+                                                registrarAuditoriaConteo(
+                                                    registroId = documentId,
+                                                    tipoAccion = "Modificación",
+                                                    usuario = userViewModel.nombre.value ?: "Desconocido",
+                                                    valoresAntes = valoresAntes,
+                                                    valoresDespues = valoresDespues
+                                                )
+                                            }
+
+                                            updateFirestore(
+                                                firestore,
+                                                documentId,
+                                                editedLocation,
+                                                sku,
+                                                editedLote,
+                                                editedExpirationDate,
+                                                editedQuantity.toDoubleOrNull() ?: quantity,
+                                                allData,
+                                                onSuccess = onSuccess
+                                            )
+
+                                            isEditing = false
+                                        }
+                                }
                             ) {
                                 Text("Guardar")
                             }
+
                         }, dismissButton = {
                             Button(onClick = {
                                 isEditing = false
