@@ -36,6 +36,7 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +46,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,6 +120,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val context = LocalContext.current
     val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    var showErrorLocalidad by remember { mutableStateOf(false) }
+
+
     fun actualizarActividad() {
         lastInteractionTime.longValue = System.currentTimeMillis()
 
@@ -131,10 +138,10 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
             if (tiempoInactivo >= 10 * 60_000) {
                 val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios")
-                    .document(documentId)
+                Firebase.firestore.collection("usuarios").document(documentId)
                     .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
 
                 userViewModel.clearUser()
 
@@ -149,9 +156,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     // Cargar localidades desde Firebase (una sola vez)
     LaunchedEffect(Unit) {
-        FirebaseFirestore.getInstance().collection("localidades")
-            .orderBy("nombre")
-            .get()
+        FirebaseFirestore.getInstance().collection("localidades").orderBy("nombre").get()
             .addOnSuccessListener { result ->
                 localidadesList.clear()
                 for (document in result) {
@@ -165,9 +170,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     // 🔄 Cargar ubicaciones ordenadas
 
     fun cargarUbicaciones() {
-        firestore.collection("ubicaciones")
-            .orderBy("codigo_ubi")
-            .get()
+        firestore.collection("ubicaciones").orderBy("codigo_ubi").get()
             .addOnSuccessListener { result ->
                 ubicaciones.clear()
                 result.forEach { doc ->
@@ -227,16 +230,14 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
             ElevatedButton(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = navyBlue, contentColor = Color.White
-                ),
-                onClick = {
+                ), onClick = {
                     actualizarActividad()
                     codigoInput = ""
                     zonaInput = ""
                     docIdToEdit = ""
                     isEditing = false
                     showDialog.value = true
-                },
-                modifier = Modifier
+                }, modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
@@ -306,11 +307,10 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
                                     if (showDeleteDialog) {
                                         ubicacionAEliminar?.let { (id, codigo) ->
-                                            AlertDialog(
-                                                onDismissRequest = {
-                                                    showDeleteDialog = false
-                                                    ubicacionAEliminar = null
-                                                },
+                                            AlertDialog(onDismissRequest = {
+                                                showDeleteDialog = false
+                                                ubicacionAEliminar = null
+                                            },
                                                 title = { Text("¿Eliminar ubicación?") },
                                                 text = {
                                                     Text(buildAnnotatedString {
@@ -349,8 +349,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                                     }) {
                                                         Text("Cancelar")
                                                     }
-                                                }
-                                            )
+                                                })
                                         }
                                     }
                                 }
@@ -364,13 +363,10 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         var showUbicacionExistenteDialog by remember { mutableStateOf(false) }
 
         if (showDialog.value) {
-            AlertDialog(
-                onDismissRequest = { showDialog.value = false }, // ✅
-                title = { Text(if (isEditing) "Editar Ubicación" else "Nueva Ubicación") },
-                text = {
+            AlertDialog(onDismissRequest = { showDialog.value = false }, // ✅
+                title = { Text(if (isEditing) "Editar Ubicación" else "Nueva Ubicación") }, text = {
                     Column {
-                        OutlinedTextField(
-                            value = codigoInput,
+                        OutlinedTextField(value = codigoInput,
                             onValueChange = { codigoInput = it.uppercase().trim() },
                             label = { Text("Código de Ubicación*") },
                             singleLine = true,
@@ -384,130 +380,134 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                         contentDescription = "Escanear Código"
                                     )
                                 }
-                            }
-                        )
+                            })
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = zonaInput,
+                        OutlinedTextField(value = zonaInput,
                             singleLine = true,
                             onValueChange = { zonaInput = it.uppercase() },
-                            label = { Text("Zona (opcional)") }
-                        )
+                            label = { Text("Zona (opcional)") })
 
                         Spacer(Modifier.height(8.dp))
                         Text("Localidad*", fontWeight = FontWeight.Bold)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, Color.Gray, shape = RoundedCornerShape(4.dp))
+                                .border(
+                                    1.dp,
+                                    color = if (showErrorLocalidad) Color.Red else Color.Gray,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+
                                 .clickable(onClick = { expandedLocalidad.value = true })
                                 .padding(12.dp)
-                        )
-                        {
-                            Text(
-                                text = selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" },
-                                color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
-                            )
+                        ) {
 
-                            DropdownMenu(
-                                expanded = expandedLocalidad.value,
-                                onDismissRequest = { expandedLocalidad.value = false }
-                            ) {
+                            if (!showErrorLocalidad) {
+                                Text(
+                                    text = if (selectedLocalidad.value.isNotEmpty()) selectedLocalidad.value else "Seleccionar una localidad",
+                                    color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
+                                )
+                            }
+
+                            if (showErrorLocalidad) {
+                                Text(
+                                    text = "Debes seleccionar una localidad",
+                                    color = Color.Red,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                                )
+                                selectedLocalidad.value = ""
+                            }
+
+                            DropdownMenu(expanded = expandedLocalidad.value,
+                                onDismissRequest = { expandedLocalidad.value = false }) {
                                 localidadesList.forEach { localidad ->
 
-                                    DropdownMenuItem(
-                                        text = { Text(localidad) },
-                                        onClick = {
-                                            selectedLocalidad.value = localidad
-                                            expandedLocalidad.value = false
-                                        }
-                                    )
+                                    DropdownMenuItem(text = { Text(localidad) }, onClick = {
+                                        selectedLocalidad.value = localidad
+                                        expandedLocalidad.value = false
+                                    })
                                 }
                             }
                         }
                     }
-                },
-                confirmButton = {
+                }, confirmButton = {
                     Button(onClick = {
-                        if (codigoInput.isNotEmpty()) {
-                            firestore.collection("ubicaciones")
-                                .whereEqualTo("codigo_ubi", codigoInput)
-                                .whereEqualTo("zona", zonaInput)
-                                .get()
-                                .addOnSuccessListener { documents ->
-                                    val yaExiste = documents.any { doc ->
-                                        !isEditing || doc.id != docIdToEdit
+                        if (codigoInput.isBlank()) return@Button
+
+                        if (selectedLocalidad.value.isBlank()) {
+                            showErrorLocalidad = true
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Debes seleccionar una localidad")
+                            }
+                            return@Button
+                        } else {
+                            showErrorLocalidad = false
+                        }
+
+                        firestore.collection("ubicaciones").whereEqualTo("codigo_ubi", codigoInput)
+                            .whereEqualTo("zona", zonaInput).get()
+                            .addOnSuccessListener { documents ->
+                                val yaExiste = documents.any { doc ->
+                                    !isEditing || doc.id != docIdToEdit
+                                }
+
+                                if (yaExiste) {
+                                    showUbicacionExistenteDialog = true
+                                } else {
+                                    val data = mapOf(
+                                        "codigo_ubi" to codigoInput,
+                                        "zona" to zonaInput.trim(),
+                                        "localidad" to selectedLocalidad.value
+                                    )
+
+                                    val operacion = if (isEditing) {
+                                        firestore.collection("ubicaciones").document(docIdToEdit)
+                                            .update(data)
+                                    } else {
+                                        firestore.collection("ubicaciones").add(data)
                                     }
 
-                                    if (yaExiste) {
-                                        showUbicacionExistenteDialog = true
-                                    } else {
-                                        val data = mapOf(
-                                            "codigo_ubi" to codigoInput,
-                                            "zona" to zonaInput.trim(),
-                                            "localidad" to selectedLocalidad.value
-
-                                        )
-
-                                        val operacion = if (isEditing) {
-                                            firestore.collection("ubicaciones")
-                                                .document(docIdToEdit).update(data)
-                                        } else {
-                                            firestore.collection("ubicaciones").add(data)
-                                        }
-
-                                        operacion.addOnSuccessListener {
-                                            operacion.addOnSuccessListener {
-                                                successMessage.value =
-                                                    if (isEditing) "Ubicación actualizada exitosamente" else "Ubicación agregada exitosamente"
-                                                showSuccessDialog.value = true
-                                                showDialog.value = false
-                                                cargarUbicaciones()
-                                            }
-
-                                            showDialog.value = false
-                                            cargarUbicaciones()
-                                        }
+                                    operacion.addOnSuccessListener {
+                                        successMessage.value =
+                                            if (isEditing) "Ubicación actualizada exitosamente" else "Ubicación agregada exitosamente"
+                                        showSuccessDialog.value = true
+                                        showDialog.value = false
+                                        cargarUbicaciones()
                                     }
                                 }
-                        }
+                            }
                     }) {
                         Text(if (isEditing) "Actualizar" else "Guardar")
                     }
-                },
-                dismissButton = {
+                }, dismissButton = {
                     TextButton(onClick = { showDialog.value = false }) {
                         Text("Cancelar")
                     }
-                }
-            )
+                })
         }
 
         if (showUbicacionExistenteDialog) {
-            AlertDialog(
-                onDismissRequest = { showUbicacionExistenteDialog = false },
+            AlertDialog(onDismissRequest = { showUbicacionExistenteDialog = false },
                 title = { Text("Ubicación existente") },
                 text = { Text("Ya existe una ubicación con ese mismo código y zona.") },
                 confirmButton = {
                     TextButton(onClick = { showUbicacionExistenteDialog = false }) {
                         Text("Aceptar")
                     }
-                }
-            )
+                })
         }
     }
 
     if (showSuccessDialog.value) {
-        AlertDialog(
-            onDismissRequest = { showSuccessDialog.value = false },
+        AlertDialog(onDismissRequest = { showSuccessDialog.value = false },
             title = { Text("Creada/Actualizada") },
             text = { Text(successMessage.value) },
             confirmButton = {
                 TextButton(onClick = { showSuccessDialog.value = false }) {
                     Text("Aceptar")
                 }
-            }
-        )
+            })
     }
 }
 
