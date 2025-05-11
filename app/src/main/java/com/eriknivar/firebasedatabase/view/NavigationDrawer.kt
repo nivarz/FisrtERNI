@@ -48,12 +48,14 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
@@ -87,6 +89,7 @@ fun NavigationDrawer(
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     var isConfigExpanded by remember { mutableStateOf(false) }
+    var isConteoExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(drawerState.isClosed) {
         if (drawerState.isClosed) {
@@ -94,8 +97,13 @@ fun NavigationDrawer(
         }
     }
 
-    val scrollState = rememberScrollState()
+    LaunchedEffect(drawerState.isClosed) {
+        if (drawerState.isClosed) {
+            isConteoExpanded = false
+        }
+    }
 
+    val scrollState = rememberScrollState()
 
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
         ModalDrawerSheet {
@@ -179,13 +187,50 @@ fun NavigationDrawer(
                 ) {
 
                     DrawerMenuItem(
-                        icon = Icons.Default.Inventory2,
+                        icon = Icons.Default.Inventory, // Puedes usar otro si prefieres
                         label = "Entrada de Inventario",
-                        onClick = {
-                            navController.navigate("storagetype")
-                            scope.launch { drawerState.close() }
-                        }
+                        isSubItem = false,
+                        trailingIcon = if (isConteoExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        onClick = { isConteoExpanded = !isConteoExpanded }
                     )
+
+                    if (isConteoExpanded) {
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 0.5.dp,
+                            color = Color.LightGray
+                        )
+
+                        DrawerMenuItem(
+                            icon = Icons.Default.EditNote,
+                            label = "Conteo",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("storagetype")
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+
+                        DrawerMenuItem(
+                            icon = Icons.Default.AssignmentTurnedIn,
+                            label = "Reconteo",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("reconteoAsignado")
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 0.5.dp,
+                            color = Color.LightGray
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
 
                     DrawerMenuItem(
                         icon = Icons.Default.BarChart,

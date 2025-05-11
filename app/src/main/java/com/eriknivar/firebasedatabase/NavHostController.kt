@@ -19,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.eriknivar.firebasedatabase.view.settings.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
+import com.eriknivar.firebasedatabase.view.inventoryentry.ReconteoAsignadoScreen
 import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFragment
 import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
@@ -38,7 +39,7 @@ fun NetworkAwareNavGraph(
     navController: NavHostController,
     userViewModel: UserViewModel,
 
-) {
+    ) {
     val context = LocalContext.current
     val isConnected = remember { mutableStateOf(true) }
 
@@ -59,7 +60,8 @@ fun NetworkAwareNavGraph(
     }
 
     DisposableEffect(Unit) {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val request = NetworkRequest.Builder().build()
 
         val callback = object : ConnectivityManager.NetworkCallback() {
@@ -114,19 +116,50 @@ fun NetworkAwareNavGraph(
         NavHost(navController = navController, startDestination = "splash") {
             composable("splash") { SplashScreen(navController, userViewModel) }
             composable("login") { LoginScreen(navController, userViewModel) }
-            composable("storagetype") { SelectStorageFragment(navController,  userViewModel) }
+            composable("storagetype") { SelectStorageFragment(navController, userViewModel) }
             composable("inventoryentry/{storageType}") { backStackEntry ->
                 val storageType = backStackEntry.arguments?.getString("storageType")
                 FirestoreApp(navController, storageType = storageType.orEmpty(), userViewModel)
             }
-            composable("inventoryreports") { InventoryReportsFragment(navController, userViewModel) }
+            composable("inventoryreports") {
+                InventoryReportsFragment(
+                    navController,
+                    userViewModel
+                )
+            }
             composable("settings") { SettingsFragment(navController, userViewModel) }
             composable("masterdata") { MasterDataFragment(navController, userViewModel) }
             composable("cambiarPassword") { CambiarPasswordScreen(navController, userViewModel) }
-            composable("usuarios") { UsuariosScreen(navController = navController, userViewModel = userViewModel) }
-            composable("ubicaciones") { UbicacionesScreen(navController = navController, userViewModel = userViewModel) }
-            composable("localidades") { LocalidadesScreen(navController = navController, userViewModel = userViewModel) }
-            composable("auditoria") { AuditoriaRegistrosScreen(navController = navController, userViewModel = userViewModel) }
+            composable("usuarios") {
+                UsuariosScreen(
+                    navController = navController,
+                    userViewModel = userViewModel
+                )
+            }
+            composable("ubicaciones") {
+                UbicacionesScreen(
+                    navController = navController,
+                    userViewModel = userViewModel
+                )
+            }
+            composable("localidades") {
+                LocalidadesScreen(
+                    navController = navController,
+                    userViewModel = userViewModel
+                )
+            }
+            composable("auditoria") {
+                AuditoriaRegistrosScreen(
+                    navController = navController,
+                    userViewModel = userViewModel
+                )
+            }
+            composable("reconteoAsignado") {
+                ReconteoAsignadoScreen(
+                    navController = navController,
+                    userViewModel = userViewModel
+                )
+            }
 
 
         }
