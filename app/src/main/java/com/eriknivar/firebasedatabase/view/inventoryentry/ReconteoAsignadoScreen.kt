@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,10 +20,10 @@ import kotlinx.coroutines.tasks.await
 @Composable
 fun ReconteoAsignadoScreen(
     navController: NavHostController,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
 ) {
 
-    val usuario = userViewModel.nombre.observeAsState("").value
+    val usuarioId = userViewModel.documentId.observeAsState("").value
     val reconteos = remember { mutableStateListOf<Map<String, Any>>() }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -32,19 +33,21 @@ fun ReconteoAsignadoScreen(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    LaunchedEffect(usuario) {
+    LaunchedEffect(usuarioId) {
+        Log.d("RECONTEO_DEBUG", "Consultando reconteos para usuario: $usuarioId")
         isLoading = true
         try {
             val snapshot = FirebaseFirestore.getInstance()
                 .collection("reconteo_pendiente")
-                .whereEqualTo("usuarioAsignado", usuario)
+                .whereEqualTo("usuarioAsignado", usuarioId)
                 .get()
                 .await()
 
             reconteos.clear()
             reconteos.addAll(snapshot.documents.mapNotNull { it.data })
+            Log.d("RECONTEO_DEBUG", "Reconteos obtenidos: ${reconteos.size}")
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("RECONTEO_DEBUG", "Error consultando reconteos", e)
         } finally {
             isLoading = false
         }
@@ -71,7 +74,13 @@ fun ReconteoAsignadoScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                Text("Reconteos Asignados a $usuario", style = MaterialTheme.typography.titleLarge)
+                val nombreUsuarioRaw = userViewModel.nombre.observeAsState("").value
+                val nombreUsuario = nombreUsuarioRaw
+                    .lowercase()
+                    .split(" ")
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+
+                Text("Reconteos asignados a.... $nombreUsuario", style = MaterialTheme.typography.titleLarge)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -82,9 +91,19 @@ fun ReconteoAsignadoScreen(
                 } else if (reconteos.isEmpty()) {
                     Text("No hay reconteos asignados.")
                 } else {
+                    Text("🧪 Debug info", style = MaterialTheme.typography.bodySmall)
+                    Text("👤 Usuario actual: $usuarioId")
+                    Text("📦 Total reconteos cargados: ${reconteos.size}")
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(reconteos) { item ->
-                            ReconteoCard(item)
+                        items(reconteos.filter { it["estado"] == "pendiente" },
+                            key = { it["sku"].toString() + it["ubicacion"].toString() }
+                        ) { item ->
+                            ReconteoCard(
+                                item = item,
+                                onEliminarCard = {
+                                    reconteos.remove(item) // 🔥 Elimina el card de la lista en tiempo real
+                                }
+                            )
                         }
                     }
                 }
