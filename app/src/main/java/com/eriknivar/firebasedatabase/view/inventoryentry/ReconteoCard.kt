@@ -45,13 +45,15 @@ fun ReconteoCard(
     val sku = item["sku"] as? String ?: ""
     val descripcion = item["descripcion"] as? String ?: "-"
     val cantidadEsperada = item["cantidadEsperada"] as? Number ?: 0
-    var cantidadFisica by remember { mutableStateOf((item["cantidadFisica"] as? Number)?.toDouble() ?: 0.0) }
+    var cantidadFisicaText by remember { mutableStateOf("") }
+    var cantidadFisica by remember { mutableStateOf(0.0) }
     val ubicacion = item["ubicacion"] as? String ?: "-"
     val localidad = item["localidad"] as? String ?: "-"
     val nombreAsignado = item["nombreAsignado"] as? String ?: "-"
     val estado = item["estado"] as? String ?: "-"
-    var isSaving by remember { mutableStateOf(false) }
+    val lote = item["lote"] as? String ?: "-"
 
+    var isSaving by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Card(
@@ -64,19 +66,41 @@ fun ReconteoCard(
         Column(modifier = Modifier.padding(12.dp)) {
             Text("Descripción: $descripcion", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Text("SKU: $sku", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("Lote: $lote", fontWeight = FontWeight.Normal, fontSize = 13.sp)
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Físico:", modifier = Modifier.width(70.dp), fontSize = 13.sp)
                 TextField(
-                    value = cantidadFisica.toString(),
+                    value = cantidadFisicaText,
                     onValueChange = {
+                        cantidadFisicaText = it
                         cantidadFisica = it.toDoubleOrNull() ?: 0.0
                     },
-                    modifier = Modifier.weight(.5f).height(60.dp),
+                    modifier = Modifier
+                        .weight(.5f)
+                        .height(60.dp),
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Lote:", modifier = Modifier.width(70.dp), fontSize = 13.sp)
+                TextField(
+                    value = lote,
+                    onValueChange = {},
+                    readOnly = false,
+                    modifier = Modifier.weight(.5f).height(60.dp),
+                    singleLine = true,
+                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White
@@ -91,7 +115,7 @@ fun ReconteoCard(
                 TextField(
                     value = ubicacion,
                     onValueChange = {},
-                    readOnly = true,
+                    readOnly = false,
                     modifier = Modifier.weight(.5f).height(60.dp),
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
@@ -113,10 +137,13 @@ fun ReconteoCard(
             Button(
                 onClick = {
                     isSaving = true
+
                     FirebaseFirestore.getInstance()
                         .collection("reconteo_pendiente")
                         .whereEqualTo("sku", sku)
                         .whereEqualTo("ubicacion", ubicacion)
+                        .whereEqualTo("lote", lote)
+                        .whereEqualTo("cantidadEsperada", cantidadEsperada)
                         .whereEqualTo("estado", "pendiente")
                         .get()
                         .addOnSuccessListener { docs ->

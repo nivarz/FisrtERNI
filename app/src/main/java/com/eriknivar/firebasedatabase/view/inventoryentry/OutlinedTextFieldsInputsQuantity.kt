@@ -59,8 +59,8 @@ fun OutlinedTextFieldsInputsQuantity(
                 .focusRequester(focusRequester)
                 .onFocusChanged { focusState ->
                     if (focusState.isFocused) {
-                        if (lote.value.isBlank()) lote.value = "N/A"
-                        if (expirationDate.value.isBlank()) expirationDate.value = "N/A"
+                        if (lote.value.isBlank()) lote.value = "-"
+                        if (expirationDate.value.isBlank()) expirationDate.value = "-"
                     }
                 },
             singleLine = true,

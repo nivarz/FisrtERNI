@@ -301,14 +301,14 @@ fun FormEntradaDeInventario(
                                 return@launch
                             }
 
-                            // 🟡 4. Lote vacío o no encontrado → colocar N/A
+                            // 🟡 4. Lote vacío o no encontrado → colocar -
                             if (lot.value == "CÓDIGO NO ENCONTRADO" || lot.value.isEmpty()) {
-                                lot.value = "N/A"
+                                lot.value = "-"
                             }
 
-                            // 🟡 5. Fecha vacía → colocar N/A
+                            // 🟡 5. Fecha vacía → colocar -
                             if (dateText.value.isEmpty()) {
-                                dateText.value = "N/A"
+                                dateText.value = "-"
                             }
 
                             // 🟥 6. Validación: producto no existe o sin descripción válida

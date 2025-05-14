@@ -84,6 +84,8 @@ dependencies {
     implementation(libs.coil.compose.v250)
     implementation(libs.firebase.storage.ktx)
     implementation(libs.identity.jvm)
+    implementation(libs.firebase.messaging.ktx)
+
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
