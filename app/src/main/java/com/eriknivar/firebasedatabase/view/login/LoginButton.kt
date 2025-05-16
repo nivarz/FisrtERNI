@@ -42,6 +42,7 @@ import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
 
 @Composable
@@ -146,6 +147,16 @@ fun LoginButton(
                                     val sessionId = UUID.randomUUID().toString()
                                     userViewModel.setUser(nombre, tipo, documentId)
                                     userViewModel.setSessionId(sessionId)
+
+                                    FirebaseMessaging.getInstance().token
+                                        .addOnCompleteListener { task ->
+                                            if (task.isSuccessful) {
+                                                val token = task.result
+                                                Firebase.firestore.collection("usuarios")
+                                                    .document(documentId)
+                                                    .update("token", token)
+                                            }
+                                        }
 
                                     Firebase.firestore.collection("usuarios")
                                         .document(documentId)

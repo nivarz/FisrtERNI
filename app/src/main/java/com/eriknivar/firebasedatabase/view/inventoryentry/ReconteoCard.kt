@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
@@ -32,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.FieldValue
@@ -44,14 +47,26 @@ fun ReconteoCard(
 ) {
     val sku = item["sku"] as? String ?: ""
     val descripcion = item["descripcion"] as? String ?: "-"
-    val cantidadEsperada = item["cantidadEsperada"] as? Number ?: 0
-    var cantidadFisicaText by remember { mutableStateOf("") }
-    var cantidadFisica by remember { mutableStateOf(0.0) }
+    val cantidadEsperada = (item["cantidadEsperada"] as? Number)?.toDouble() ?: 0.0
+    val cantidadFisicaOriginal = (item["cantidadFisica"] as? Number)?.toDouble() ?: 0.0
     val ubicacion = item["ubicacion"] as? String ?: "-"
-    val localidad = item["localidad"] as? String ?: "-"
-    val nombreAsignado = item["nombreAsignado"] as? String ?: "-"
     val estado = item["estado"] as? String ?: "-"
+    val localidad = item["localidad"]?.toString()?.ifBlank { "SIN_LOCALIDAD" } ?: "SIN_LOCALIDAD"
+    Log.d("RECONTEO_CARD", "SKU: $sku | Estado: $estado | Localidad: $localidad")
+    val nombreAsignado = item["nombreAsignado"] as? String ?: "-"
     val lote = item["lote"] as? String ?: "-"
+
+
+    // 🟡 Log de depuración
+    Log.d("RECONTEO_CARD", "SKU: $sku | Estado: $estado | Lote: $lote | Esperado: $cantidadEsperada | Físico original: $cantidadFisicaOriginal")
+
+    // 👇 Este remember lo puedes hacer más seguro con cantidadFisicaOriginal como key
+    var cantidadFisicaText by remember(cantidadFisicaOriginal) {
+        mutableStateOf(cantidadFisicaOriginal.toString() )
+    }
+    var cantidadFisica by remember(cantidadFisicaOriginal) {
+        mutableStateOf(cantidadFisicaOriginal.toDouble() )
+    }
 
     var isSaving by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -71,7 +86,10 @@ fun ReconteoCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Físico:", modifier = Modifier.width(70.dp), fontSize = 13.sp)
+                Text(
+                    "Físico:", modifier = Modifier.width(70.dp), fontSize = 13.sp
+
+                )
                 TextField(
                     value = cantidadFisicaText,
                     onValueChange = {
@@ -82,6 +100,7 @@ fun ReconteoCard(
                         .weight(.5f)
                         .height(60.dp),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.White,
@@ -131,6 +150,11 @@ fun ReconteoCard(
             Text("Esperado: ${cantidadEsperada.toDouble()} | Localidad: $localidad", fontSize = 13.sp)
             Text("Asignado a: $nombreAsignado", fontSize = 13.sp)
             Text("Estado: ${estado.uppercase()}", color = Color(0xFF6A1B9A), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(
+                text = "Esperado: ${cantidadEsperada.toDouble()} | Localidad: ${localidad.ifBlank { "-" }}",
+                fontSize = 13.sp
+            )
+
 
             Spacer(modifier = Modifier.height(12.dp))
 

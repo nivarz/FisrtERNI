@@ -95,8 +95,11 @@ fun ReconteoAsignadoScreen(
                     Text("👤 Usuario actual: $usuarioId")
                     Text("📦 Total reconteos cargados: ${reconteos.size}")
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(reconteos.filter { it["estado"] == "pendiente" },
-                            key = { it["sku"].toString() + it["ubicacion"].toString() }
+                        items(
+                            reconteos.filter { it["estado"] == "pendiente" },
+                            key = {
+                                "${it["sku"]}_${it["ubicacion"]}_${it["lote"]}_${it["cantidadEsperada"]}"
+                            }
                         ) { item ->
                             ReconteoCard(
                                 item = item,
@@ -106,6 +109,9 @@ fun ReconteoAsignadoScreen(
                             )
                         }
                     }
+
+
+
                 }
             }
         }
