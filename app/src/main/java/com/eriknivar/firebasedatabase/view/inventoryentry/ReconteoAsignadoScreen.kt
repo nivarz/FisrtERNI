@@ -33,23 +33,29 @@ fun ReconteoAsignadoScreen(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    LaunchedEffect(usuarioId) {
-        Log.d("RECONTEO_DEBUG", "Consultando reconteos para usuario: $usuarioId")
-        isLoading = true
-        try {
-            val snapshot = FirebaseFirestore.getInstance()
-                .collection("reconteo_pendiente")
-                .whereEqualTo("usuarioAsignado", usuarioId)
-                .get()
-                .await()
+    DisposableEffect(usuarioId) {
+        val listener = FirebaseFirestore.getInstance()
+            .collection("reconteo_pendiente")
+            .whereEqualTo("usuarioAsignado", usuarioId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("RECONTEO_DEBUG", "Error escuchando reconteos", e)
+                    return@addSnapshotListener
+                }
 
-            reconteos.clear()
-            reconteos.addAll(snapshot.documents.mapNotNull { it.data })
-            Log.d("RECONTEO_DEBUG", "Reconteos obtenidos: ${reconteos.size}")
-        } catch (e: Exception) {
-            Log.e("RECONTEO_DEBUG", "Error consultando reconteos", e)
-        } finally {
-            isLoading = false
+                if (snapshot != null) {
+                    reconteos.clear()
+                    reconteos.addAll(snapshot.documents.mapNotNull { it.data })
+                    Log.d("RECONTEO_DEBUG", "🔁 Actualización en tiempo real: ${reconteos.size}")
+                } else {
+                    Log.w("RECONTEO_DEBUG", "❗Snapshot nulo sin excepción")
+                }
+                isLoading = false
+
+            }
+
+        onDispose {
+            listener.remove()
         }
     }
 
@@ -80,7 +86,10 @@ fun ReconteoAsignadoScreen(
                     .split(" ")
                     .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
 
-                Text("Reconteos asignados a.... $nombreUsuario", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Reconteos asignados a.... $nombreUsuario",
+                    style = MaterialTheme.typography.titleLarge
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -95,8 +104,11 @@ fun ReconteoAsignadoScreen(
                     Text("👤 Usuario actual: $usuarioId")
                     Text("📦 Total reconteos cargados: ${reconteos.size}")
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        Log.d("RECONTEOS_FILTRADOS", "Total filtrados: ${reconteos.filter { (it["estado"] as? String)?.lowercase() == "pendiente" }.size}")
                         items(
-                            reconteos.filter { it["estado"] == "pendiente" },
+                            reconteos.filter {
+                                (it["estado"] as? String)?.lowercase() == "pendiente"
+                            },
                             key = {
                                 "${it["sku"]}_${it["ubicacion"]}_${it["lote"]}_${it["cantidadEsperada"]}"
                             }
@@ -109,9 +121,6 @@ fun ReconteoAsignadoScreen(
                             )
                         }
                     }
-
-
-
                 }
             }
         }

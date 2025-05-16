@@ -47,15 +47,17 @@ fun ReconteoCard(
 ) {
     val sku = item["sku"] as? String ?: ""
     val descripcion = item["descripcion"] as? String ?: "-"
-    val cantidadEsperada = (item["cantidadEsperada"] as? Number)?.toDouble() ?: 0.0
+    val cantidadEsperada = when (val raw = item["cantidadEsperada"]) {
+        is Number -> raw.toDouble()
+        is String -> raw.toDoubleOrNull() ?: 0.0
+        else -> 0.0
+    }
     val cantidadFisicaOriginal = (item["cantidadFisica"] as? Number)?.toDouble() ?: 0.0
     val ubicacion = item["ubicacion"] as? String ?: "-"
     val estado = item["estado"] as? String ?: "-"
     val localidad = item["localidad"]?.toString()?.ifBlank { "SIN_LOCALIDAD" } ?: "SIN_LOCALIDAD"
-    Log.d("RECONTEO_CARD", "SKU: $sku | Estado: $estado | Localidad: $localidad")
     val nombreAsignado = item["nombreAsignado"] as? String ?: "-"
     val lote = item["lote"] as? String ?: "-"
-
 
     // 🟡 Log de depuración
     Log.d("RECONTEO_CARD", "SKU: $sku | Estado: $estado | Lote: $lote | Esperado: $cantidadEsperada | Físico original: $cantidadFisicaOriginal")
