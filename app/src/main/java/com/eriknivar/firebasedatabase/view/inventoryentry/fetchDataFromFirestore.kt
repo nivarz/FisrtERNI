@@ -15,8 +15,11 @@ fun fetchDataFromFirestore(
     db: FirebaseFirestore,
     allData: MutableList<DataFields>,
     usuario: String,
-    listState: LazyListState // ✅ Parámetro aún presente por compatibilidad
+    listState: LazyListState,
+    localidad: String
 ) {
+
+    Log.d("Firestore", "🚀 Iniciando consulta para usuario: $usuario y localidad: $localidad")
 
     val calendar = Calendar.getInstance()
     calendar.set(Calendar.HOUR_OF_DAY, 0)
@@ -26,12 +29,16 @@ fun fetchDataFromFirestore(
 
     val startOfDay = Timestamp(calendar.time)
 
+
     db.collection("inventario")
         .whereGreaterThanOrEqualTo("fechaRegistro", startOfDay)
         .whereEqualTo("usuario", usuario)
+        .whereEqualTo("localidad", localidad.trim())
         .orderBy("fechaRegistro", Query.Direction.DESCENDING)
         .get()
         .addOnSuccessListener { result ->
+            Log.d("Firestore", "🔍 Documentos encontrados: ${result.size()}")
+
             allData.clear()
             for (document in result) {
                 val location = document.getString("ubicacion") ?: ""
@@ -70,6 +77,7 @@ fun fetchDataFromFirestore(
             }
         }
         .addOnFailureListener { e ->
+            Log.e("Firestore", "❌ Error al obtener datos: $e")
             println("Error al obtener datos: $e")
         }
 }

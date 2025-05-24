@@ -163,7 +163,8 @@ fun FormEntradaDeInventario(
                 db = Firebase.firestore,
                 allData = allData,
                 usuario = usuario,
-                listState = listState // 👈 Muy importante
+                listState = listState,
+                localidad = localidad
             )
         }
     }
@@ -455,7 +456,8 @@ fun FormEntradaDeInventario(
                                                 db = firestore,
                                                 allData = allData,
                                                 usuario = usuario,
-                                                listState = listState
+                                                listState = listState,
+                                                localidad = localidad
                                             )
 
                                             sku.value = ""

@@ -49,7 +49,8 @@ fun saveToFirestore(
                 db = db,
                 allData = allData,
                 usuario = usuario,
-                listState = listState
+                listState = listState,
+                localidad = localidad
             )
 
             coroutineScope.launch {

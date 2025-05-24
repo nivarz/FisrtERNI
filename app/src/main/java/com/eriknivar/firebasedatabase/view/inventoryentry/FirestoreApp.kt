@@ -129,13 +129,19 @@ fun FirestoreApp(
 
     val usuario by userViewModel.nombre.observeAsState("")
 
-    LaunchedEffect(usuario) {
+    LaunchedEffect(usuario, storageType) {
+        Log.d("FirestoreApp", "🔄 LaunchedEffect lanzado para localidad: $storageType y usuario: $usuario")
+
         if (usuario.isNotEmpty()) {
+            // 🔵 Limpiamos la lista antes de cargar nuevos datos
+            allData.clear()
+
             fetchDataFromFirestore(
                 db = Firebase.firestore,
                 allData = allData,
                 usuario = usuario,
-                listState = listState
+                listState = listState,
+                localidad = storageType
             )
         }
     }

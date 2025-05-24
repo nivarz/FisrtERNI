@@ -19,7 +19,6 @@ import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.settings.ConfiguracionUsuariosScreen
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
-
 @Composable
 fun UsuariosScreen(
     navController: NavHostController,
