@@ -77,6 +77,8 @@ fun FormEntradaDeInventario(
     val errorMessageQuantity = remember { mutableStateOf("") }
     var showDialogValueQuantityCero by remember { mutableStateOf(false) }
     val showDialogRegistroDuplicado = remember { mutableStateOf(false) }
+    val showConfirmDialog = remember { mutableStateOf(false) }
+
 
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
@@ -330,6 +332,10 @@ fun FormEntradaDeInventario(
                                 return@launch
                             }
 
+                            // ✅ 8. Si todas las validaciones pasaron, mostrar AlertDialog de confirmación
+                            delay(150)
+                            showConfirmDialog.value = true
+
                             showErrorLocation.value = false
                             showErrorSku.value = false
                             errorMessage = ""
@@ -340,63 +346,6 @@ fun FormEntradaDeInventario(
                             showError3 = false
                             errorMessage3 = ""
 
-                            validarRegistroDuplicado(db = firestore,
-                                usuario = userViewModel.nombre.value ?: "",
-                                ubicacion = location.value,
-                                sku = sku.value,
-                                lote = lot.value,
-                                cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
-                                localidad = localidad,
-                                onResult = { existeDuplicado ->
-                                    if (existeDuplicado) {
-                                        showDialogRegistroDuplicado.value = true
-                                    } else {
-                                        saveToFirestore(
-                                            firestore,
-                                            location.value,
-                                            sku.value,
-                                            productoDescripcion.value,
-                                            lot.value,
-                                            dateText.value,
-                                            quantity.value.toDoubleOrNull() ?: 0.0,
-                                            unidadMedida.value,
-                                            allData,
-                                            usuario = userViewModel.nombre.value ?: "",
-                                            coroutineScope,
-                                            localidad = localidad,
-                                            userViewModel,
-                                            showSuccessDialog,
-                                            listState
-
-                                        )
-
-                                        // ✅ Recargar datos y hacer scroll al top
-                                        fetchDataFromFirestore(
-                                            db = firestore,
-                                            allData = allData,
-                                            usuario = usuario,
-                                            listState = listState
-                                        )
-
-                                        // 👉 Limpieza de campos aquí mismo
-                                        sku.value = ""
-                                        lot.value = ""
-
-                                        dateText.value = ""
-                                        quantity.value = ""
-                                        productoDescripcion.value = ""
-                                        unidadMedida.value = ""
-                                        qrCodeContentSku.value = ""
-                                        qrCodeContentLot.value = ""
-                                        userViewModel.limpiarValoresTemporales()
-
-                                    }
-                                },
-                                onError = {
-                                    Toast.makeText(
-                                        context, "Error al validar duplicados", Toast.LENGTH_SHORT
-                                    ).show()
-                                })
                         }
                     },
 
@@ -460,6 +409,87 @@ fun FormEntradaDeInventario(
                     .fillMaxWidth()
                     .padding(8.dp)
             )
+
+            if (showConfirmDialog.value) {
+                AlertDialog(
+                    onDismissRequest = { showConfirmDialog.value = false },
+                    title = { Text("Confirmar Registro") },
+                    text = { Text("¿Estás seguro de que deseas grabar este registro?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showConfirmDialog.value = false
+
+                                // 🔁 Aquí ejecutas el bloque que graba en Firestore y limpia campos
+                                validarRegistroDuplicado(
+                                    db = firestore,
+                                    usuario = userViewModel.nombre.value ?: "",
+                                    ubicacion = location.value,
+                                    sku = sku.value,
+                                    lote = lot.value,
+                                    cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
+                                    localidad = localidad,
+                                    onResult = { existeDuplicado ->
+                                        if (existeDuplicado) {
+                                            showDialogRegistroDuplicado.value = true
+                                        } else {
+                                            saveToFirestore(
+                                                firestore,
+                                                location.value,
+                                                sku.value,
+                                                productoDescripcion.value,
+                                                lot.value,
+                                                dateText.value,
+                                                quantity.value.toDoubleOrNull() ?: 0.0,
+                                                unidadMedida.value,
+                                                allData,
+                                                usuario = userViewModel.nombre.value ?: "",
+                                                coroutineScope,
+                                                localidad = localidad,
+                                                userViewModel,
+                                                showSuccessDialog,
+                                                listState
+                                            )
+
+                                            fetchDataFromFirestore(
+                                                db = firestore,
+                                                allData = allData,
+                                                usuario = usuario,
+                                                listState = listState
+                                            )
+
+                                            sku.value = ""
+                                            lot.value = ""
+                                            dateText.value = ""
+                                            quantity.value = ""
+                                            productoDescripcion.value = ""
+                                            unidadMedida.value = ""
+                                            qrCodeContentSku.value = ""
+                                            qrCodeContentLot.value = ""
+                                            userViewModel.limpiarValoresTemporales()
+                                        }
+                                    },
+                                    onError = {
+                                        Toast.makeText(
+                                            context,
+                                            "Error al validar duplicados",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                )
+                            }
+                        ) {
+                            Text("Sí, grabar")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showConfirmDialog.value = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
+
 
             if (showDialog) {
                 AlertDialog(onDismissRequest = {
@@ -552,3 +582,5 @@ fun FormEntradaDeInventario(
         }
     }
 }
+
+

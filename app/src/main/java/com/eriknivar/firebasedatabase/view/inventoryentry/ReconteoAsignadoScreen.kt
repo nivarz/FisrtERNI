@@ -1,6 +1,8 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
+import android.widget.Toast
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,12 +11,17 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 
 @Composable
@@ -26,6 +33,7 @@ fun ReconteoAsignadoScreen(
     val usuarioId = userViewModel.documentId.observeAsState("").value
     val reconteos = remember { mutableStateListOf<Map<String, Any>>() }
     var isLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
@@ -56,6 +64,38 @@ fun ReconteoAsignadoScreen(
 
         onDispose {
             listener.remove()
+        }
+    }
+
+    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun actualizarActividad() {
+        lastInteractionTime.longValue = System.currentTimeMillis()
+
+    }
+
+    LaunchedEffect(lastInteractionTime.longValue) {
+        while (true) {
+            delay(60_000)
+            val tiempoActual = System.currentTimeMillis()
+            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
+
+            if (tiempoInactivo >= 30 * 60_000) {
+                val documentId = userViewModel.documentId.value ?: ""
+                Firebase.firestore.collection("usuarios")
+                    .document(documentId)
+                    .update("sessionId", "")
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
+
+                userViewModel.clearUser()
+
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+
+                break
+            }
         }
     }
 
@@ -103,8 +143,19 @@ fun ReconteoAsignadoScreen(
                     Text("🧪 Debug info", style = MaterialTheme.typography.bodySmall)
                     Text("👤 Usuario actual: $usuarioId")
                     Text("📦 Total reconteos cargados: ${reconteos.size}")
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        Log.d("RECONTEOS_FILTRADOS", "Total filtrados: ${reconteos.filter { (it["estado"] as? String)?.lowercase() == "pendiente" }.size}")
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectTapGestures {
+                                    actualizarActividad()
+                                }
+                            }
+                    ) {
+                        Log.d(
+                            "RECONTEOS_FILTRADOS",
+                            "Total filtrados: ${reconteos.filter { (it["estado"] as? String)?.lowercase() == "pendiente" }.size}"
+                        )
                         items(
                             reconteos.filter {
                                 (it["estado"] as? String)?.lowercase() == "pendiente"
@@ -116,9 +167,13 @@ fun ReconteoAsignadoScreen(
                             ReconteoCard(
                                 item = item,
                                 onEliminarCard = {
-                                    reconteos.remove(item) // 🔥 Elimina el card de la lista en tiempo real
-                                }
+                                    reconteos.remove(item)
+                                    actualizarActividad()
+                                },
+                                actualizarActividad = { actualizarActividad() }
+
                             )
+
                         }
                     }
                 }

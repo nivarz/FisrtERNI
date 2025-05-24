@@ -35,10 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun OutlinedTextFieldsInputsLocation(
@@ -187,7 +184,6 @@ fun OutlinedTextFieldsInputsLocation(
                 }
             })
 
-
         // 🔵 Ícono de borrar separado (afuera del campo)
         if (tempLocationInput.value.isNotEmpty()) {
             IconButton(
@@ -209,7 +205,6 @@ fun OutlinedTextFieldsInputsLocation(
                 )
             }
         }
-
 
         if (showUbicacionNoExisteDialog.value) {
             AlertDialog(onDismissRequest = { showUbicacionNoExisteDialog.value = false },
@@ -239,12 +234,13 @@ fun validarUbicacionEnMaestro(
     keyboardController: SoftwareKeyboardController?,
     ocultarTeclado: Boolean = false
 ) {
+    val codigoLimpio = codigo.trim().replace("\n", "").uppercase()
     Firebase.firestore.collection("ubicaciones")
-        .whereEqualTo("codigo_ubi", codigo)
+        .whereEqualTo("codigo_ubi", codigoLimpio)
         .get()
         .addOnSuccessListener { documents ->
             if (!documents.isEmpty) {
-                location.value = codigo
+                location.value = codigoLimpio
                 showErrorLocation.value = false
 
                 if (ocultarTeclado) {

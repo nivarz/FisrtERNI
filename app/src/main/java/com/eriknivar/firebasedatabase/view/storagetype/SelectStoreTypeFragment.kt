@@ -101,7 +101,7 @@ fun SelectStorageFragment(
             val tiempoActual = System.currentTimeMillis()
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
-            if (tiempoInactivo >= 10 * 60_000) {
+            if (tiempoInactivo >= 30 * 60_000) {
                 val documentId = userViewModel.documentId.value ?: ""
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)

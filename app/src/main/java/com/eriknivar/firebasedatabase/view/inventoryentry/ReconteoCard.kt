@@ -25,7 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,13 +39,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.Firebase
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.delay
 
 @Composable
 fun ReconteoCard(
     item: Map<String, Any>,
-    onEliminarCard: () -> Unit
+    onEliminarCard: () -> Unit,
+    actualizarActividad: () -> Unit
 ) {
     val sku = item["sku"] as? String ?: ""
     val descripcion = item["descripcion"] as? String ?: "-"
@@ -95,6 +103,7 @@ fun ReconteoCard(
                 TextField(
                     value = cantidadFisicaText,
                     onValueChange = {
+                        actualizarActividad()
                         cantidadFisicaText = it
                         cantidadFisica = it.toDoubleOrNull() ?: 0.0
                     },
@@ -162,6 +171,7 @@ fun ReconteoCard(
 
             Button(
                 onClick = {
+                    actualizarActividad()
                     isSaving = true
 
                     FirebaseFirestore.getInstance()
