@@ -84,7 +84,7 @@ fun NetworkAwareNavGraph(
                     showDisconnectedBanner = true
                 }
 
-                // 🔄 Reiniciar recuperación por si se pierde de nuevo
+                // 🔄 Reiniciar recuperación por si se pierde de nuevo.
                 if (justRecovered) {
                     justRecovered = false
                 }
