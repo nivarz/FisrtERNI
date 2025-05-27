@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -64,23 +65,26 @@ fun ReconteoCard(
     val ubicacion = item["ubicacion"] as? String ?: "-"
     val estado = item["estado"] as? String ?: "-"
     val localidad = item["localidad"]?.toString()?.ifBlank { "SIN_LOCALIDAD" } ?: "SIN_LOCALIDAD"
-    val nombreAsignado = item["nombreAsignado"] as? String ?: "-"
     val lote = item["lote"] as? String ?: "-"
 
     // 🟡 Log de depuración
-    Log.d("RECONTEO_CARD", "SKU: $sku | Estado: $estado | Lote: $lote | Esperado: $cantidadEsperada | Físico original: $cantidadFisicaOriginal")
+    Log.d(
+        "RECONTEO_CARD",
+        "SKU: $sku | Estado: $estado | Lote: $lote | Esperado: $cantidadEsperada | Físico original: $cantidadFisicaOriginal"
+    )
 
     // 👇 Este remember lo puedes hacer más seguro con cantidadFisicaOriginal como key
     var cantidadFisicaText by remember(cantidadFisicaOriginal) {
-        mutableStateOf(cantidadFisicaOriginal.toString() )
+        mutableStateOf(cantidadFisicaOriginal.toString())
     }
     var cantidadFisica by remember(cantidadFisicaOriginal) {
-        mutableStateOf(cantidadFisicaOriginal.toDouble() )
+        mutableStateOf(cantidadFisicaOriginal.toDouble())
     }
 
     var isSaving by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
+    // 🟣 Ajustes visuales en el Card
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -89,16 +93,53 @@ fun ReconteoCard(
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Descripción: $descripcion", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text("SKU: $sku", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text("Lote: $lote", fontWeight = FontWeight.Normal, fontSize = 13.sp)
+            Column(horizontalAlignment = Alignment.Start) {
+                Text(
+                    "Descripción:",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    descripcion,
+                    fontSize = 14.sp,
+                    color = Color.Black
+                )
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
-                    "Físico:", modifier = Modifier.width(70.dp), fontSize = 13.sp
+                    "SKU:",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    sku,
+                    fontSize = 14.sp,
+                    color = Color.Black
+                )
+            }
 
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Físico:",
+                    modifier = Modifier.width(70.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
                 TextField(
                     value = cantidadFisicaText,
@@ -112,7 +153,10 @@ fun ReconteoCard(
                         .height(60.dp),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White
@@ -122,13 +166,24 @@ fun ReconteoCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Lote:", modifier = Modifier.width(70.dp), fontSize = 13.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Lote:",
+                    modifier = Modifier.width(70.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
                 TextField(
                     value = lote,
                     onValueChange = {},
                     readOnly = false,
-                    modifier = Modifier.weight(.5f).height(60.dp),
+                    modifier = Modifier
+                        .weight(.5f)
+                        .height(60.dp),
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                     colors = TextFieldDefaults.colors(
@@ -140,13 +195,24 @@ fun ReconteoCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Ubicación:", modifier = Modifier.width(70.dp), fontSize = 13.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Ubicación:",
+                    modifier = Modifier.width(70.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
                 TextField(
                     value = ubicacion,
                     onValueChange = {},
                     readOnly = false,
-                    modifier = Modifier.weight(.5f).height(60.dp),
+                    modifier = Modifier
+                        .weight(.5f)
+                        .height(60.dp),
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                     colors = TextFieldDefaults.colors(
@@ -156,19 +222,47 @@ fun ReconteoCard(
                 )
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Localidad: ",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    localidad.ifBlank { "-" },
+                    fontSize = 13.sp,
+                    color = Color.Black
+                )
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
 
-            Text("Esperado: ${cantidadEsperada.toDouble()} | Localidad: $localidad", fontSize = 13.sp)
-            Text("Asignado a: $nombreAsignado", fontSize = 13.sp)
-            Text("Estado: ${estado.uppercase()}", color = Color(0xFF6A1B9A), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(
-                text = "Esperado: ${cantidadEsperada.toDouble()} | Localidad: ${localidad.ifBlank { "-" }}",
-                fontSize = 13.sp
-            )
-
-
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Estado: ",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Text(
+                    estado.uppercase(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Red
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
+            // 🔵 Botón con color azul marino
             Button(
                 onClick = {
                     actualizarActividad()
@@ -191,7 +285,11 @@ fun ReconteoCard(
                                     )
                                 )
                             }
-                            Toast.makeText(context, "Guardado y marcado como completado", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "Guardado y marcado como completado",
+                                Toast.LENGTH_SHORT
+                            ).show()
                             onEliminarCard() // ✅ Elimina de la UI
                         }
                         .addOnFailureListener {
@@ -201,13 +299,18 @@ fun ReconteoCard(
                             isSaving = false
                         }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF003366)), // Azul marino
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Icon(Icons.Default.Save, contentDescription = "Guardar", modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Default.Save,
+                    contentDescription = "Guardar",
+                    modifier = Modifier.size(18.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Guardar cambios", fontSize = 13.sp)
             }
         }
     }
+
 }

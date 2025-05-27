@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -24,6 +25,14 @@ fun UsuariosScreen(
     navController: NavHostController,
     userViewModel: UserViewModel
 ) {
+
+    val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
+    val isInitialized = userViewModel.isInitialized.observeAsState(false).value
+
+    if (isInitialized && isLoggedOut) {
+        // 🔴 No muestres nada, Compose lo ignora y se cerrará la app correctamente
+        return
+    }
 
     val tipo = userViewModel.tipo.value ?: ""
 

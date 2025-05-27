@@ -91,6 +91,9 @@ fun NavigationDrawer(
     var isConfigExpanded by remember { mutableStateOf(false) }
     var isConteoExpanded by remember { mutableStateOf(false) }
 
+    val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
+    val isInitialized = userViewModel.isInitialized.observeAsState(false).value
+
     LaunchedEffect(drawerState.isClosed) {
         if (drawerState.isClosed) {
             isConfigExpanded = false
@@ -431,6 +434,15 @@ fun NavigationDrawer(
                     }
                 })
             }) { innerPadding ->
+
+            LaunchedEffect(isLoggedOut, isInitialized) {
+                if (isInitialized && isLoggedOut && navController.currentDestination?.route != "login" && !userViewModel.isManualLogout.value) {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .padding(innerPadding)

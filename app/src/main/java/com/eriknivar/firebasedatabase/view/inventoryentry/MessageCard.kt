@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -370,12 +371,19 @@ fun MessageCard(
                             Button(
                                 onClick = {
                                     if (editedLocation.isBlank() || editedLote.isBlank() || editedExpirationDate.isBlank() || editedQuantity.isBlank()) {
-                                        Toast.makeText(context, "Todos los campos deben estar completos", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            "Todos los campos deben estar completos",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                         return@Button
                                     }
 
                                     Firebase.firestore.collection("ubicaciones")
-                                        .whereEqualTo("codigo_ubi", editedLocation.trim().uppercase())
+                                        .whereEqualTo(
+                                            "codigo_ubi",
+                                            editedLocation.trim().uppercase()
+                                        )
                                         .get()
                                         .addOnSuccessListener { documents ->
                                             val ubicacionExiste = documents.any()
@@ -409,7 +417,8 @@ fun MessageCard(
                                                 registrarAuditoriaConteo(
                                                     registroId = documentId,
                                                     tipoAccion = "Modificación",
-                                                    usuario = userViewModel.nombre.value ?: "Desconocido",
+                                                    usuario = userViewModel.nombre.value
+                                                        ?: "Desconocido",
                                                     valoresAntes = valoresAntes,
                                                     valoresDespues = valoresDespues
                                                 )
@@ -429,7 +438,10 @@ fun MessageCard(
 
                                             isEditing = false
                                         }
-                                }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color( 0xFF003366), contentColor = Color.White
+                                )
                             ) {
                                 Text("Guardar")
                             }
@@ -441,7 +453,11 @@ fun MessageCard(
                                 editedLote = lote
                                 editedExpirationDate = expirationDate
                                 editedQuantity = quantity.toString()
-                            }) {
+                            },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xD8692121), contentColor = Color.White
+                                )
+                            ) {
                                 Text("Cancelar")
                             }
                         })

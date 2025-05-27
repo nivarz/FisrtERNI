@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +74,15 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewModel) {
+
+    val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
+    val isInitialized = userViewModel.isInitialized.observeAsState(false).value
+
+    if (isInitialized && isLoggedOut) {
+        // 🔴 No muestres nada, Compose lo ignora y se cerrará la app correctamente
+        return
+    }
+
 
     val tipo = userViewModel.tipo.value ?: ""
 

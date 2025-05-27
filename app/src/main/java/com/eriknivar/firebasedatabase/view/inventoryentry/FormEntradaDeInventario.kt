@@ -394,12 +394,12 @@ fun FormEntradaDeInventario(
 
 
                     }, colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.DarkGray, contentColor = Color.White
+                        containerColor = Color(0xFF4CAF50), contentColor = Color.White
                     ), modifier = Modifier
                         .weight(1f)
                         .height(40.dp)
                 ) {
-                    Text("Limpiar Campos", fontSize = 13.sp)
+                    Text("Limpiar Campos", fontSize = 13.sp, color = Color.White)
                 }
             }
 
@@ -481,12 +481,12 @@ fun FormEntradaDeInventario(
                                 )
                             }
                         ) {
-                            Text("Sí, grabar")
+                            Text("Sí, grabar",color = Color(0xFF003366))
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showConfirmDialog.value = false }) {
-                            Text("Cancelar")
+                            Text("Cancelar", color = Color(0xFF003366))
                         }
                     }
                 )
@@ -566,7 +566,7 @@ fun FormEntradaDeInventario(
                 )
 
                 LaunchedEffect(showSuccessDialog.value) {
-                    delay(2000) // ✅ o el tiempo que prefieras
+                    delay(1000) // ✅ o el tiempo que prefieras
                     showSuccessDialog.value = false
                 }
             }

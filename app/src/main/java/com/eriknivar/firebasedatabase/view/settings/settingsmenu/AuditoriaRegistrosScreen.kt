@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,14 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: UserViewModel) {
+
+    val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
+    val isInitialized = userViewModel.isInitialized.observeAsState(false).value
+
+    if (isInitialized && isLoggedOut) {
+        // 🔴 No muestres nada, Compose lo ignora y se cerrará la app correctamente
+        return
+    }
 
     val auditorias = remember { mutableStateListOf<DocumentSnapshot>() }
     val firestore = FirebaseFirestore.getInstance()
@@ -90,7 +99,7 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.White),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.TopCenter
         ) {
             Text(
                 "⛔ Acceso restringido",

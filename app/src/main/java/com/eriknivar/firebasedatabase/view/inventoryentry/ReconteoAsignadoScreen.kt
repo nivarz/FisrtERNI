@@ -122,6 +122,7 @@ fun ReconteoAsignadoScreen(
             ) {
                 val nombreUsuarioRaw = userViewModel.nombre.observeAsState("").value
                 val nombreUsuario = nombreUsuarioRaw
+
                     .lowercase()
                     .split(" ")
                     .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
@@ -133,6 +134,8 @@ fun ReconteoAsignadoScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                val reconteosPendientes = reconteos.filter { (it["estado"] as? String)?.lowercase() == "pendiente" }
+
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
@@ -141,8 +144,8 @@ fun ReconteoAsignadoScreen(
                     Text("No hay reconteos asignados.")
                 } else {
                     Text("🧪 Debug info", style = MaterialTheme.typography.bodySmall)
-                    Text("👤 Usuario actual: $usuarioId")
-                    Text("📦 Total reconteos cargados: ${reconteos.size}")
+                    Text("👤 Usuario actual: $usuarioId", style = MaterialTheme.typography.bodySmall)
+                    Text("📦 Total reconteos cargados: ${reconteosPendientes.size}")
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
