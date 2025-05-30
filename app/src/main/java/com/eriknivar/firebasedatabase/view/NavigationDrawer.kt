@@ -45,6 +45,8 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -63,6 +65,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.style.TextAlign
 import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -418,19 +421,24 @@ fun NavigationDrawer(
                 }, colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = customColorBackGround, titleContentColor = Color.Black,
                 ), title = {
-                    Row(
+                    Box(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        contentAlignment = Alignment.Center
                     ) {
-                        Spacer(modifier = Modifier.weight(0.85f)) // Empuja el texto al centro
+                       // Spacer(modifier = Modifier.weight(0.85f)) // Empuja el texto al centro
 
-                        Text(
-                            text = storageType,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                        )
 
-                        Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
+                            Text(
+                                text = storageType,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                fontSize = 18.sp,
+
+                            )
+
+
+                        //Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
                     }
                 })
             }) { innerPadding ->
