@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.firebase.storage.ktx)
     implementation(libs.identity.jvm)
     implementation(libs.firebase.messaging.ktx)
+    implementation (libs.androidx.fragment)
 
 
     testImplementation(libs.junit)
