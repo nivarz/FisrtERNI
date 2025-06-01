@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -199,7 +200,7 @@ fun OutlinedTextFieldsInputsLocation(
             ) {
                 Icon(
                     modifier = Modifier.size(48.dp),
-                    imageVector = Icons.Default.Clear,
+                    imageVector = Icons.Default.DeleteForever,
                     contentDescription = "Borrar texto",
                     tint = Color.Red
                 )

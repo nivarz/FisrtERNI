@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.material3.AlertDialog
@@ -19,6 +20,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -112,11 +114,12 @@ fun InventoryReportsFragment(
         }
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -152,7 +155,7 @@ fun InventoryReportsFragment(
             puedeModificarRegistro = { usuario, tipoCreador ->
                 userViewModel.puedeModificarRegistro(usuario, tipoCreador)
             },
-            onUserInteraction = { actualizarActividad() }
+            onUserInteraction = { actualizarActividad(context) }
         )
     }
 }

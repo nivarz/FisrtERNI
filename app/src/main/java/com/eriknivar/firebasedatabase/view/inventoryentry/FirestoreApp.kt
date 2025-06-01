@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
@@ -41,6 +42,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.view.utility.contarRegistrosDelDia
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -73,6 +75,8 @@ fun FirestoreApp(
     val context = LocalContext.current
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
+
+
 
     DisposableEffect(currentUserId, currentSessionId) {
         val firestore = Firebase.firestore
@@ -146,12 +150,14 @@ fun FirestoreApp(
         }
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
+
 
     LaunchedEffect(lastInteractionTime.longValue) {
         while (true) {
@@ -314,7 +320,7 @@ fun FirestoreApp(
                         dateText = dateText,
                         quantity = quantity,
                         isVisible = expandedForm.value, // 🔵 Usamos esto para mostrar/ocultar internamente
-                        onUserInteraction = { actualizarActividad() }
+                        onUserInteraction = { actualizarActividad(context) }
                     )
                 }
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -90,7 +91,7 @@ fun DatePickerTextField(
             ) {
                 Icon(
                     modifier = Modifier.size(48.dp),
-                    imageVector = Icons.Default.Clear,
+                    imageVector = Icons.Default.DeleteForever,
                     contentDescription = "Borrar texto",
                     tint = Color.Red
                 )

@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.AuditoriaCard
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.view.utility.exportarAuditoriaAExcel
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -127,11 +129,12 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
         } else null
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -173,7 +176,7 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
 
         Button(
             onClick = {
-                actualizarActividad()
+                actualizarActividad(context)
                 exportarAuditoriaAExcel(
                     context = context,
                     snackbarHostState = snackbarHostState,

@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
@@ -67,11 +69,12 @@ fun ReconteoAsignadoScreen(
         }
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -151,7 +154,7 @@ fun ReconteoAsignadoScreen(
                             .fillMaxSize()
                             .pointerInput(Unit) {
                                 detectTapGestures {
-                                    actualizarActividad()
+                                    actualizarActividad(context)
                                 }
                             }
                     ) {
@@ -171,9 +174,9 @@ fun ReconteoAsignadoScreen(
                                 item = item,
                                 onEliminarCard = {
                                     reconteos.remove(item)
-                                    actualizarActividad()
+                                    actualizarActividad(context)
                                 },
-                                actualizarActividad = { actualizarActividad() }
+                                actualizarActividad = { actualizarActividad(context) }
 
                             )
 

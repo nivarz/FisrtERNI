@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.storagetype
 
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -88,11 +90,12 @@ fun SelectStorageFragment(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -175,7 +178,7 @@ fun SelectStorageFragment(
                     // ⬇️ Aquí el selector real
                     DropDownUpScreen(
                         navController,
-                        onUserInteraction = { actualizarActividad() }
+                        onUserInteraction = { actualizarActividad(context) }
 
                     )
                 }

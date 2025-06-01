@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
 import android.app.Activity
+import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.inventoryentry.QRCodeScanner
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
@@ -128,16 +130,18 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val expandedLocalidad = remember { mutableStateOf(false) }
 
     val context = LocalContext.current
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var showErrorLocalidad by remember { mutableStateOf(false) }
 
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -241,7 +245,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 colors = ButtonDefaults.buttonColors(
                     containerColor = navyBlue, contentColor = Color.White
                 ), onClick = {
-                    actualizarActividad()
+                    actualizarActividad(context)
                     codigoInput = ""
                     zonaInput = ""
                     docIdToEdit = ""

@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -241,7 +241,7 @@ fun OutlinedTextFieldsInputsSku(
             ) {
                 Icon(
                     modifier = Modifier.size(48.dp),
-                    imageVector = Icons.Default.Clear,
+                    imageVector = Icons.Default.DeleteForever,
                     contentDescription = "Borrar texto",
                     tint = Color.Red
                 )

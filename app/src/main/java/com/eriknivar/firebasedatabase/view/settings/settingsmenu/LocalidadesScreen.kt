@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -109,11 +111,12 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
     LaunchedEffect(Unit) { cargarLocalidades() }
 
     val context = LocalContext.current
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -154,7 +157,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
         Column(modifier = Modifier.fillMaxSize()) {
             ElevatedButton(
                 onClick = {
-                    actualizarActividad()
+                    actualizarActividad(context)
                     nombreInput = ""
                     docIdToEdit = ""
                     isEditing = false

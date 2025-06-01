@@ -1,6 +1,7 @@
 package com.eriknivar.firebasedatabase.view.settings
 
 import android.app.Activity
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.view.Usuario
+import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -83,11 +85,12 @@ fun ConfiguracionUsuariosScreen(
 
     val navyBlue = Color(0xFF001F5B)
 
-    val lastInteractionTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad() {
-        lastInteractionTime.longValue = System.currentTimeMillis()
-
+    fun actualizarActividad(context: Context) {
+        val tiempoActual = System.currentTimeMillis()
+        lastInteractionTime.longValue = tiempoActual
+        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
@@ -194,7 +197,7 @@ fun ConfiguracionUsuariosScreen(
                 containerColor = navyBlue, contentColor = Color.White
             ),
             onClick = {
-                actualizarActividad()
+                actualizarActividad(context)
                 selectedUser = null
                 nombre = ""
                 usuario = ""
