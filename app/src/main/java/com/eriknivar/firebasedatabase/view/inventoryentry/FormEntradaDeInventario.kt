@@ -424,7 +424,6 @@ fun FormEntradaDeInventario(
                                 // 🔁 Aquí ejecutas el bloque que graba en Firestore y limpia campos
                                 validarRegistroDuplicado(
                                     db = firestore,
-                                    usuario = userViewModel.nombre.value ?: "",
                                     ubicacion = location.value,
                                     sku = sku.value,
                                     lote = lot.value,

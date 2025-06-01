@@ -4,7 +4,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 fun validarRegistroDuplicado(
     db: FirebaseFirestore,
-    usuario: String,
     ubicacion: String,
     sku: String,
     lote: String,
@@ -13,8 +12,8 @@ fun validarRegistroDuplicado(
     onResult: (Boolean) -> Unit,
     onError: (Exception) -> Unit
 ) {
+
     db.collection("inventario")
-        .whereEqualTo("usuario", usuario)
         .whereEqualTo("ubicacion", ubicacion)
         .whereEqualTo("codigoProducto", sku)
         .whereEqualTo("lote", lote)
