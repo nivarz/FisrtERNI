@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val userViewModel = remember { UserViewModel() }
 
-            inactivityHandler = InactivityHandler(600_000) {
+            inactivityHandler = InactivityHandler(1_800_000) {
 
 
 
