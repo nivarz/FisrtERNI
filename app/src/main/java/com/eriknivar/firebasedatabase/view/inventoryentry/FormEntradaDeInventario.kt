@@ -41,6 +41,12 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
@@ -116,6 +122,8 @@ fun FormEntradaDeInventario(
     val usuario by userViewModel.nombre.observeAsState("")
     val restored = remember { mutableStateOf(false) }
     val showSuccessDialog = remember { mutableStateOf(false) }
+    var usuarioDuplicado by remember { mutableStateOf("Desconocido") }
+
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -429,8 +437,9 @@ fun FormEntradaDeInventario(
                                     lote = lot.value,
                                     cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
                                     localidad = localidad,
-                                    onResult = { existeDuplicado ->
+                                    onResult = { existeDuplicado, usuarioEncontrado ->
                                         if (existeDuplicado) {
+                                            usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
                                             showDialogRegistroDuplicado.value = true
                                         } else {
                                             saveToFirestore(
@@ -478,9 +487,11 @@ fun FormEntradaDeInventario(
                                         ).show()
                                     }
                                 )
+
+
                             }
                         ) {
-                            Text("Sí, grabar",color = Color(0xFF003366))
+                            Text("Sí, grabar", color = Color(0xFF003366))
                         }
                     },
                     dismissButton = {
@@ -543,14 +554,34 @@ fun FormEntradaDeInventario(
             }
 
             if (showDialogRegistroDuplicado.value) {
-                AlertDialog(onDismissRequest = { showDialogRegistroDuplicado.value = true },
+                AlertDialog(
+                    onDismissRequest = { showDialogRegistroDuplicado.value = false },
                     title = { Text("Registro Duplicado") },
-                    text = { Text("Ya existe un registro con los mismos datos. Verifica antes de grabar nuevamente.") },
+                    text = {
+                        Text(
+                            buildAnnotatedString {
+                                append("Ya existe un registro con los mismos datos realizado por: ")
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontWeight = FontWeight.Bold,
+                                        fontStyle = FontStyle.Italic,
+                                        color = Color.DarkGray,
+                                        fontFamily = FontFamily.SansSerif
+                                    )
+                                ) {
+                                    append("\"$usuarioDuplicado\"")
+                                }
+                                append(". Verifica antes de grabar nuevamente.")
+                            },
+                            fontSize = 14.sp // opcional, ajusta tamaño a gusto
+                        )
+                    },
                     confirmButton = {
                         Button(onClick = { showDialogRegistroDuplicado.value = false }) {
                             Text("Aceptar")
                         }
-                    })
+                    }
+                )
             }
 
             if (showSuccessDialog.value) {

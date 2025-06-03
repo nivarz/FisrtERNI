@@ -9,10 +9,9 @@ fun validarRegistroDuplicado(
     lote: String,
     cantidad: Double,
     localidad: String,
-    onResult: (Boolean) -> Unit,
+    onResult: (Boolean, String?) -> Unit, // 🔴 Agregamos el usuario como segundo parámetro
     onError: (Exception) -> Unit
 ) {
-
     db.collection("inventario")
         .whereEqualTo("ubicacion", ubicacion)
         .whereEqualTo("codigoProducto", sku)
@@ -21,12 +20,17 @@ fun validarRegistroDuplicado(
         .whereEqualTo("localidad", localidad)
         .get()
         .addOnSuccessListener { result ->
-            val existeDuplicado = result.isEmpty.not()
-            onResult(existeDuplicado)
+            if (!result.isEmpty) {
+                val usuarioDuplicado = result.documents.firstOrNull()?.getString("usuario") ?: "Desconocido"
+                onResult(true, usuarioDuplicado) // 🔴 Pasamos el nombre del usuario
+            } else {
+                onResult(false, null)
+            }
         }
         .addOnFailureListener { e ->
             onError(e)
         }
 }
+
 
 
