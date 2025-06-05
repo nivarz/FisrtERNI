@@ -24,7 +24,9 @@ fun saveToFirestore(
     localidad: String,
     userViewModel: UserViewModel,
     showSuccessDialog: MutableState<Boolean>,
-    listState: LazyListState
+    listState: LazyListState,
+    fotoUrl: String? = null
+
 ) {
 
     val data = hashMapOf(
@@ -38,7 +40,8 @@ fun saveToFirestore(
         "fechaRegistro" to Timestamp.now(),
         "usuario" to usuario,
         "localidad" to localidad,
-        "tipoUsuarioCreador" to userViewModel.tipo.value.orEmpty()
+        "tipoUsuarioCreador" to userViewModel.tipo.value.orEmpty(),
+        "fotoUrl" to fotoUrl
     )
 
     db.collection("inventario")

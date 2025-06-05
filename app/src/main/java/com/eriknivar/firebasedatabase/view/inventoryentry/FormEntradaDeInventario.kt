@@ -1,7 +1,10 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.graphics.Bitmap
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -51,8 +55,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.eriknivar.firebasedatabase.view.utility.validarRegistroDuplicado
+import com.google.firebase.storage.storage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.util.UUID
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material3.Icon
+
 
 @Composable
 fun FormEntradaDeInventario(
@@ -123,6 +136,12 @@ fun FormEntradaDeInventario(
     val restored = remember { mutableStateOf(false) }
     val showSuccessDialog = remember { mutableStateOf(false) }
     var usuarioDuplicado by remember { mutableStateOf("Desconocido") }
+
+    val imagenBitmap = remember { mutableStateOf<Bitmap?>(null) }
+    val tomarFotoLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+            imagenBitmap.value = bitmap
+        }
 
 
     LaunchedEffect(Unit) {
@@ -261,6 +280,89 @@ fun FormEntradaDeInventario(
                 keyboardController = LocalSoftwareKeyboardController.current
             )
 
+            fun continuarGuardadoConFoto(fotoUrl: String?) {
+                validarRegistroDuplicado(
+                    db = firestore,
+                    ubicacion = location.value,
+                    sku = sku.value,
+                    lote = lot.value,
+                    cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
+                    localidad = localidad,
+                    onResult = { existeDuplicado, usuarioEncontrado ->
+                        if (existeDuplicado) {
+                            usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
+                            showDialogRegistroDuplicado.value = true
+                        } else {
+                            saveToFirestore(
+                                firestore,
+                                location.value,
+                                sku.value,
+                                productoDescripcion.value,
+                                lot.value,
+                                dateText.value,
+                                quantity.value.toDoubleOrNull() ?: 0.0,
+                                unidadMedida.value,
+                                allData,
+                                usuario = userViewModel.nombre.value ?: "",
+                                coroutineScope,
+                                localidad = localidad,
+                                userViewModel,
+                                showSuccessDialog,
+                                listState,
+                                fotoUrl = fotoUrl
+                            )
+
+                            fetchDataFromFirestore(
+                                db = firestore,
+                                allData = allData,
+                                usuario = usuario,
+                                listState = listState,
+                                localidad = localidad
+                            )
+
+                            // limpiar campos
+                            sku.value = ""
+                            lot.value = ""
+                            dateText.value = ""
+                            quantity.value = ""
+                            productoDescripcion.value = ""
+                            unidadMedida.value = ""
+                            qrCodeContentSku.value = ""
+                            qrCodeContentLot.value = ""
+                            imagenBitmap.value = null
+                            userViewModel.limpiarValoresTemporales()
+                        }
+                    },
+                    onError = {
+                        Toast.makeText(
+                            context,
+                            "Error al validar duplicados",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                )
+            }
+
+            fun subirImagenAFirebase(bitmap: Bitmap, onUrlLista: (String) -> Unit) {
+                val baos = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
+                val data = baos.toByteArray()
+
+                val storageRef =
+                    Firebase.storage.reference.child("fotos_registro/${UUID.randomUUID()}.jpg")
+
+                storageRef.putBytes(data)
+                    .addOnSuccessListener {
+                        storageRef.downloadUrl.addOnSuccessListener { uri ->
+                            onUrlLista(uri.toString())
+                        }
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(context, "Error al subir imagen", Toast.LENGTH_SHORT).show()
+                        onUrlLista("") // en caso de fallo se puede pasar vacío o null
+                    }
+            }
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -270,6 +372,16 @@ fun FormEntradaDeInventario(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+
+                Button(
+                    onClick = { tomarFotoLauncher.launch(null) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                ) {
+                    Text("📷 Foto", fontSize = 13.sp, color = Color.White)
+                }
 
                 Button(
                     onClick = {
@@ -365,9 +477,10 @@ fun FormEntradaDeInventario(
                         .weight(1f)
                         .height(40.dp),
                 ) {
-                    Text("Grabar Registro", fontSize = 13.sp)
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Grabar", fontSize = 13.sp, color = Color.White)
                 }
-
 
                 // 🔘 Botón Limpiar
                 Button(
@@ -407,7 +520,9 @@ fun FormEntradaDeInventario(
                         .weight(1f)
                         .height(40.dp)
                 ) {
-                    Text("Limpiar Campos", fontSize = 13.sp, color = Color.White)
+                    Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Limpiar", fontSize = 13.sp, color = Color.White)
                 }
             }
 
@@ -429,65 +544,13 @@ fun FormEntradaDeInventario(
                             onClick = {
                                 showConfirmDialog.value = false
 
-                                // 🔁 Aquí ejecutas el bloque que graba en Firestore y limpia campos
-                                validarRegistroDuplicado(
-                                    db = firestore,
-                                    ubicacion = location.value,
-                                    sku = sku.value,
-                                    lote = lot.value,
-                                    cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
-                                    localidad = localidad,
-                                    onResult = { existeDuplicado, usuarioEncontrado ->
-                                        if (existeDuplicado) {
-                                            usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
-                                            showDialogRegistroDuplicado.value = true
-                                        } else {
-                                            saveToFirestore(
-                                                firestore,
-                                                location.value,
-                                                sku.value,
-                                                productoDescripcion.value,
-                                                lot.value,
-                                                dateText.value,
-                                                quantity.value.toDoubleOrNull() ?: 0.0,
-                                                unidadMedida.value,
-                                                allData,
-                                                usuario = userViewModel.nombre.value ?: "",
-                                                coroutineScope,
-                                                localidad = localidad,
-                                                userViewModel,
-                                                showSuccessDialog,
-                                                listState
-                                            )
-
-                                            fetchDataFromFirestore(
-                                                db = firestore,
-                                                allData = allData,
-                                                usuario = usuario,
-                                                listState = listState,
-                                                localidad = localidad
-                                            )
-
-                                            sku.value = ""
-                                            lot.value = ""
-                                            dateText.value = ""
-                                            quantity.value = ""
-                                            productoDescripcion.value = ""
-                                            unidadMedida.value = ""
-                                            qrCodeContentSku.value = ""
-                                            qrCodeContentLot.value = ""
-                                            userViewModel.limpiarValoresTemporales()
-                                        }
-                                    },
-                                    onError = {
-                                        Toast.makeText(
-                                            context,
-                                            "Error al validar duplicados",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                if (imagenBitmap.value != null) {
+                                    subirImagenAFirebase(imagenBitmap.value!!) { urlFoto ->
+                                        continuarGuardadoConFoto(urlFoto)
                                     }
-                                )
-
+                                } else {
+                                    continuarGuardadoConFoto(null)
+                                }
 
                             }
                         ) {
@@ -613,6 +676,6 @@ fun FormEntradaDeInventario(
             }
         }
     }
+
+
 }
-
-

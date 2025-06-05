@@ -57,6 +57,7 @@ firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
 androidx-navigation-compose = {module = "androidx.navigation:navigation-compose" , version.ref = "navigationCompose"}
 androidx-icons-extended = {group="androidx.compose.material", name ="material-icons-extended-android", version.ref="iconsExtended"}
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poiVersion" }
+ui = { module = "androidx.compose.ui:ui" }
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
 androidx-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata", version.ref = "runtimeLivedata" }
 firebase-storage-ktx = { group = "com.google.firebase", name = "firebase-storage-ktx", version.ref = "firebaseStorageKtx" }

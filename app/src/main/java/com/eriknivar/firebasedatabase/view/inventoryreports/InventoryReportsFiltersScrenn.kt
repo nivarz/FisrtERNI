@@ -162,7 +162,8 @@ fun InventoryReportFiltersScreen(
             )
             Spacer(
                 modifier = Modifier
-                    .width(8.dp))
+                    .width(8.dp)
+            )
             Text(
                 text = "Filtros de búsqueda",
                 fontWeight = FontWeight.Bold,
@@ -228,7 +229,8 @@ fun InventoryReportFiltersScreen(
                 )
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     OutlinedTextField(
                         value = startDate.value,
                         onValueChange = {},
@@ -351,7 +353,10 @@ fun InventoryReportFiltersScreen(
 
                     ElevatedButton(
                         onClick = {
-                            Log.d("EXPORT_DEBUG", "Botón presionado. Estado isExportEnabled = $isExportEnabled")
+                            Log.d(
+                                "EXPORT_DEBUG",
+                                "Botón presionado. Estado isExportEnabled = $isExportEnabled"
+                            )
                             if (!isExportEnabled) return@ElevatedButton
 
                             isExportEnabled = false
@@ -369,7 +374,8 @@ fun InventoryReportFiltersScreen(
                                     file?.let { shareExcelFile(context, it) }
 
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Error al exportar", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Error al exportar", Toast.LENGTH_SHORT)
+                                        .show()
                                 } finally {
                                     delay(800) // 🔐 Tiempo extra antes de reactivar
                                     isExportEnabled = true
@@ -403,12 +409,6 @@ fun InventoryReportFiltersScreen(
                             }
                         }
                     }
-
-
-
-
-
-
 
                 }
 

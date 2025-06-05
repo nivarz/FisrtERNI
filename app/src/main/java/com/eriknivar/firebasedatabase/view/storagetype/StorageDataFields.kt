@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.storagetype
 
 import com.google.firebase.Timestamp
 
+@com.google.firebase.firestore.IgnoreExtraProperties
 data class DataFields (
     val documentId: String,
     val location: String,
@@ -14,7 +15,9 @@ data class DataFields (
     val fechaRegistro: Timestamp?, // 🔥 Agrega el campo con valor por defecto `null`
     val usuario: String,
     val localidad: String,
-    val tipoUsuarioCreador: String
+    val tipoUsuarioCreador: String,
+    @com.google.firebase.firestore.PropertyName("fotoUrl")
+    val fotoUrl: String? = null
 
 
 )

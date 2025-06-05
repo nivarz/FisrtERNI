@@ -38,7 +38,8 @@ fun fetchFilteredInventoryFromFirestore(
                     fechaRegistro = doc.getTimestamp("fechaRegistro"),
                     usuario = doc.getString("usuario").orEmpty(),
                     localidad = doc.getString("localidad").orEmpty(),
-                    tipoUsuarioCreador = doc.getString("tipoUsuarioCreador").orEmpty()
+                    tipoUsuarioCreador = doc.getString("tipoUsuarioCreador").orEmpty(),
+                    fotoUrl = doc.getString("fotoUrl")
                 )
             }
             onResult(lista)
