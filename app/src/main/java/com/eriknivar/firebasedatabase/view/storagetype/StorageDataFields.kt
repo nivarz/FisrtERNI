@@ -17,7 +17,5 @@ data class DataFields (
     val localidad: String,
     val tipoUsuarioCreador: String,
     @com.google.firebase.firestore.PropertyName("fotoUrl")
-    val fotoUrl: String? = null
-
-
+    val fotoUrl: String = ""
 )

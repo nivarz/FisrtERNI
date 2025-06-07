@@ -134,11 +134,16 @@ fun FirestoreApp(
     val usuario by userViewModel.nombre.observeAsState("")
 
     LaunchedEffect(usuario, storageType) {
-        Log.d("FirestoreApp", "🔄 LaunchedEffect lanzado para localidad: $storageType y usuario: $usuario")
+        Log.d(
+            "FirestoreApp",
+            "🔄 LaunchedEffect lanzado para localidad: $storageType y usuario: $usuario"
+        )
 
         if (usuario.isNotEmpty()) {
+            Log.d("FotoDebug", "🔄 Llamando a fetchFilteredInventoryFromFirestore...")
             // 🔵 Limpiamos la lista antes de cargar nuevos datos
             allData.clear()
+
 
             fetchDataFromFirestore(
                 db = Firebase.firestore,
@@ -150,7 +155,8 @@ fun FirestoreApp(
         }
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
+    val lastInteractionTime =
+        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
     fun actualizarActividad(context: Context) {
         val tiempoActual = System.currentTimeMillis()
@@ -180,7 +186,8 @@ fun FirestoreApp(
                 productoDescripcion.value = ""
                 unidadMedida.value = ""
 
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
 
                 userViewModel.clearUser()
 
@@ -211,7 +218,7 @@ fun FirestoreApp(
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
-            ){
+            ) {
 
                 val nombre = userViewModel.nombre.observeAsState("").value
                 val cantidadRegistrosHoy by remember(allData, nombre) {
@@ -227,7 +234,7 @@ fun FirestoreApp(
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
 
-                ) {
+                    ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -304,7 +311,7 @@ fun FirestoreApp(
                     }
                 }
 
-                    // 🔷 FORMULARIO (colapsable)
+                // 🔷 FORMULARIO (colapsable)
                 Box(modifier = Modifier.fillMaxWidth()) {
                     FormEntradaDeInventario(
                         productoDescripcion = productoDescripcion,
@@ -330,28 +337,20 @@ fun FirestoreApp(
                         .weight(1f) // ⬅️ Solo ocupa el espacio disponible
                         .background(Color.White),
                     state = listState
-                ){
+                ) {
                     itemsIndexed(
                         items = allData,
                         key = { _, item -> item.documentId }
                     ) { index, item ->
                         MessageCard(
-                            documentId = item.documentId,
-                            location = item.location,
-                            sku = item.sku,
-                            lote = item.lote,
-                            expirationDate = item.expirationDate,
-                            quantity = item.quantity,
-                            unidadMedida = item.unidadMedida,
+                            item = item,
                             firestore = Firebase.firestore,
                             allData = allData,
-                            fechaRegistro = item.fechaRegistro,
-                            descripcion = item.description,
                             onSuccess = { showSuccessDialog = true },
                             listState = listState,
                             index = index,
                             expandedStates = expandedStates,
-                            userViewModel = userViewModel
+                            userViewModel = userViewModel,
                         )
                     }
                 }

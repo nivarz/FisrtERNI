@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
+import android.util.Log
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -26,6 +27,8 @@ fun fetchFilteredInventoryFromFirestore(
     query.get()
         .addOnSuccessListener { result ->
             val lista = result.map { doc ->
+                Log.d("FotoDebug", "Desde Firestore: ${doc.getString("fotoUrl")}")
+
                 DataFields(
                     documentId = doc.id,
                     location = doc.getString("ubicacion").orEmpty(),
@@ -39,7 +42,8 @@ fun fetchFilteredInventoryFromFirestore(
                     usuario = doc.getString("usuario").orEmpty(),
                     localidad = doc.getString("localidad").orEmpty(),
                     tipoUsuarioCreador = doc.getString("tipoUsuarioCreador").orEmpty(),
-                    fotoUrl = doc.getString("fotoUrl")
+                    fotoUrl = doc.getString("fotoUrl")?.trim().orEmpty()
+
                 )
             }
             onResult(lista)

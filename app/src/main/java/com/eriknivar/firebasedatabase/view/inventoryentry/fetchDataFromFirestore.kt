@@ -62,7 +62,9 @@ fun fetchDataFromFirestore(
                         fechaRegistro,
                         usuario,
                         localidad = document.getString("localidad") ?: "",
-                        tipoUsuarioCreador = document.getString("tipoUsuarioCreador") ?: ""
+                        tipoUsuarioCreador = document.getString("tipoUsuarioCreador") ?: "",
+                        fotoUrl = document.getString("fotoUrl")?.trim().orEmpty()
+
                     )
                 )
             }

@@ -30,13 +30,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -112,9 +116,78 @@ fun InventoryReportItem(
                 InfoRow("Usuario:", item.usuario)
                 InfoRow("Localidad:", item.localidad)
 
-                Log.d("PERMISO", "Evaluando permiso para registro. Usuario del registro: ${item.usuario}, Tipo creador: ${item.tipoUsuarioCreador}")
+                // 🟦 Mostrar enlace a foto si existe
+                if (item.fotoUrl.isNotBlank()) {
+                    var showImageDialog by remember { mutableStateOf(false) }
 
-                if (!esInvitadoActual && puedeModificarRegistro(item.usuario, item.tipoUsuarioCreador)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text(
+                            "Foto: ",
+                            fontSize = 13.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(150.dp)
+                        )
+                        Text(
+                            text = "VER",
+                            color = Color.Black,
+                            fontSize = 13.sp,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                Log.d("FotoDebug", "🟢 VER presionado en Reporte: ${item.fotoUrl}")
+                                showImageDialog = true
+                            }
+                        )
+                    }
+
+                    if (showImageDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showImageDialog = false },
+                            confirmButton = {
+                                TextButton(onClick = { showImageDialog = false }) {
+                                    Text("Cerrar", color = Color(0xFF003366))
+                                }
+                            },
+                            title = {
+                                Text(
+                                    text = "📷 Imagen Asociada",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            text = {
+                                Log.d(
+                                    "FotoDebug",
+                                    "📷 Mostrando imagen en Reporte desde URL: ${item.fotoUrl}"
+                                )
+                                AsyncImage(
+                                    model = item.fotoUrl.trim(),
+                                    contentDescription = "Imagen asociada",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(300.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+
+
+                Log.d(
+                    "PERMISO",
+                    "Evaluando permiso para registro. Usuario del registro: ${item.usuario}, Tipo creador: ${item.tipoUsuarioCreador}"
+                )
+
+                if (!esInvitadoActual && puedeModificarRegistro(
+                        item.usuario,
+                        item.tipoUsuarioCreador
+                    )
+                ) {
                     Log.d("PERMISO", "✅ PUEDE MODIFICAR este registro")
 
                     Spacer(modifier = Modifier.height(8.dp))

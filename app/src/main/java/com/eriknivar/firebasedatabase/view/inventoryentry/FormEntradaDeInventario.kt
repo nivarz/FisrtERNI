@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -64,6 +65,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 
 
@@ -293,6 +295,8 @@ fun FormEntradaDeInventario(
                             usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
                             showDialogRegistroDuplicado.value = true
                         } else {
+                            Log.d("FotoDebug", "📤 Enviando a Firestore: $fotoUrl")
+
                             saveToFirestore(
                                 firestore,
                                 location.value,
@@ -354,8 +358,12 @@ fun FormEntradaDeInventario(
                 storageRef.putBytes(data)
                     .addOnSuccessListener {
                         storageRef.downloadUrl.addOnSuccessListener { uri ->
-                            onUrlLista(uri.toString())
+                            val fotoUrl = uri.toString()
+                            Log.d("FotoDebug", "✅ URL generada: $fotoUrl") // 👈 útil para confirmar
+
+                            onUrlLista(fotoUrl)
                         }
+
                     }
                     .addOnFailureListener {
                         Toast.makeText(context, "Error al subir imagen", Toast.LENGTH_SHORT).show()
@@ -534,6 +542,8 @@ fun FormEntradaDeInventario(
                     .padding(8.dp)
             )
 
+            val showSavingDialog = remember { mutableStateOf(false) }
+
             if (showConfirmDialog.value) {
                 AlertDialog(
                     onDismissRequest = { showConfirmDialog.value = false },
@@ -544,11 +554,15 @@ fun FormEntradaDeInventario(
                             onClick = {
                                 showConfirmDialog.value = false
 
+                                showSavingDialog.value = true // 🟢 MOSTRAR CARGANDO
+
                                 if (imagenBitmap.value != null) {
                                     subirImagenAFirebase(imagenBitmap.value!!) { urlFoto ->
+                                        showSavingDialog.value = false // 🔴 OCULTAR CARGANDO
                                         continuarGuardadoConFoto(urlFoto)
                                     }
                                 } else {
+                                    showSavingDialog.value = false // 🔴 OCULTAR CARGANDO
                                     continuarGuardadoConFoto(null)
                                 }
 
@@ -564,7 +578,6 @@ fun FormEntradaDeInventario(
                     }
                 )
             }
-
 
             if (showDialog) {
                 AlertDialog(onDismissRequest = {
@@ -662,6 +675,37 @@ fun FormEntradaDeInventario(
                     delay(1000) // ✅ o el tiempo que prefieras
                     showSuccessDialog.value = false
                 }
+            }
+
+            if (showSavingDialog.value) {
+                AlertDialog(
+                    onDismissRequest = {}, // No se puede cerrar manualmente
+                    confirmButton = {},
+                    title = null,
+                    text = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .padding(24.dp)
+                                .fillMaxWidth()
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFF003366),
+                                strokeWidth = 3.dp
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Guardando registro...",
+                                fontSize = 16.sp,
+                                color = Color.Black,
+                                fontStyle = FontStyle.Italic
+                            )
+                        }
+                    },
+                    containerColor = Color.Black.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(16.dp),
+                    tonalElevation = 4.dp
+                )
             }
 
             if (openUbicacionInvalidaDialog.value) {

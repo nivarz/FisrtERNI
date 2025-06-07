@@ -71,22 +71,25 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.crashlytics)
     implementation(platform(libs.firebase.bom))
-    implementation (libs.firebase.firestore.ktx)
-    implementation (libs.firebase.auth) // Para Firebase Auth
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.auth) // Para Firebase Auth
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.icons.extended)
     implementation(libs.zxing.android.embedded)
     implementation(libs.coil.compose)
     implementation(libs.androidx.runtime.livedata)
-    implementation (libs.apache.poi)
-    implementation (libs.poi.ooxml)
+    implementation(libs.apache.poi)
+    implementation(libs.poi.ooxml)
     implementation(libs.androidx.material3.v121)
     implementation(libs.coil.compose.v250)
     implementation(libs.firebase.storage.ktx)
     implementation(libs.identity.jvm)
     implementation(libs.firebase.messaging.ktx)
-    implementation (libs.androidx.fragment)
-    implementation (libs.ui)
+    implementation(libs.androidx.fragment)
+    implementation(libs.ui)
+    implementation(libs.coil.compose.v222)
+
+
 
 
     testImplementation(libs.junit)

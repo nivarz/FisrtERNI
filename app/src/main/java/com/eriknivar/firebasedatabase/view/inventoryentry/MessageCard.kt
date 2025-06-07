@@ -1,7 +1,10 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.icu.text.SimpleDateFormat
+import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
@@ -35,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,11 +49,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -62,49 +68,45 @@ import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import registrarAuditoriaConteo
+import coil.request.ImageRequest
+import coil.compose.AsyncImage
+
 
 @Composable
 fun MessageCard(
-    documentId: String,
-    location: String,
-    sku: String,
-    lote: String,
-    expirationDate: String,
-    quantity: Double,
-    unidadMedida: String,
+    item: DataFields,
     firestore: FirebaseFirestore,
     allData: MutableList<DataFields>,
-    fechaRegistro: Timestamp? = null,
-    descripcion: String,
     onSuccess: () -> Unit,
     listState: LazyListState,
     index: Int,
     expandedStates: MutableMap<String, Boolean>,
-    userViewModel: UserViewModel,
+    userViewModel: UserViewModel
 
 
-    ) {
+) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
     var confirmDeletion by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
+    var showImageDialog by remember { mutableStateOf(false) }
 
-    var editedLocation by remember { mutableStateOf(location) }
-    var editedLote by remember { mutableStateOf(lote) }
-    var editedExpirationDate by remember { mutableStateOf(expirationDate) }
-    var editedQuantity by remember { mutableStateOf(quantity.toString()) }
+
+    var editedLocation by remember { mutableStateOf(item.location) }
+    var editedLote by remember { mutableStateOf(item.lote) }
+    var editedExpirationDate by remember { mutableStateOf(item.expirationDate) }
+    var editedQuantity by remember { mutableStateOf(item.quantity.toString()) }
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
-    val fechaFormateada = fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
+    val fechaFormateada = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-
     LaunchedEffect(confirmDeletion) {
         if (confirmDeletion) {
-            deleteFromFirestore(firestore, documentId, allData) {
+            deleteFromFirestore(firestore, item.documentId, allData) {
                 confirmDeletion = false
             }
         }
@@ -118,17 +120,17 @@ fun MessageCard(
                 Button(onClick = {
                     // ✅ Registrar la auditoría antes de borrar
                     val valoresAntes = mapOf(
-                        "ubicacion" to location,
-                        "sku" to sku,
-                        "lote" to lote,
-                        "fecha_vencimiento" to expirationDate,
-                        "cantidad" to quantity.toString(),
-                        "unidad_medida" to unidadMedida,
-                        "descripcion" to descripcion
+                        "ubicacion" to item.location,
+                        "sku" to item.sku,
+                        "lote" to item.lote,
+                        "fecha_vencimiento" to item.expirationDate,
+                        "cantidad" to item.quantity.toString(),
+                        "unidad_medida" to item.unidadMedida,
+                        "descripcion" to item.description
                     )
 
                     registrarAuditoriaConteo(
-                        registroId = documentId,
+                        registroId = item.documentId,
                         tipoAccion = "Eliminación",
                         usuario = userViewModel.nombre.value ?: "Desconocido",
                         valoresAntes = valoresAntes
@@ -136,7 +138,7 @@ fun MessageCard(
 
                     // 🗑️ Borrar
                     showDialog = false
-                    deleteFromFirestore(firestore, documentId, allData) {
+                    deleteFromFirestore(firestore, item.documentId, allData) {
                         confirmDeletion = false
                     }
                 }) {
@@ -161,7 +163,7 @@ fun MessageCard(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-    val isExpanded = expandedStates[documentId] ?: false
+    val isExpanded = expandedStates[item.documentId] ?: false
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         label = "RotationAnimation"
@@ -188,7 +190,9 @@ fun MessageCard(
                 color = if (isExpanded) Color(0xFF2196F3) else Color.Transparent,
                 shape = RoundedCornerShape(12.dp) // 🔵 Bordes suaves tipo SAP Fiori
             )
-            .clickable { expandedStates[documentId] = !(expandedStates[documentId] ?: false) },
+            .clickable {
+                expandedStates[item.documentId] = !(expandedStates[item.documentId] ?: false)
+            },
         elevation = CardDefaults.cardElevation(4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColorCard)
@@ -206,7 +210,7 @@ fun MessageCard(
                         .fillMaxWidth()
                 ) {
                     Text(
-                        text = descripcion,
+                        text = item.description,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         color = Color.Blue,
@@ -223,7 +227,6 @@ fun MessageCard(
                             fontSize = 12.sp,
                             color = Color.Black
                         )
-
 
                         Spacer(modifier = Modifier.weight(1f))
 
@@ -253,27 +256,79 @@ fun MessageCard(
                         ) {
                             Row {
                                 Text("Ubicación: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(location, fontSize = 13.sp, color = Color.Black)
+                                Text(item.location, fontSize = 13.sp, color = Color.Black)
                             }
                             Row {
                                 Text("SKU: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(sku, fontSize = 13.sp, color = Color.Black)
+                                Text(item.sku, fontSize = 13.sp, color = Color.Black)
                             }
                             Row {
                                 Text("Lote: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(lote, fontSize = 13.sp, color = Color.Black)
+                                Text(item.lote, fontSize = 13.sp, color = Color.Black)
                             }
                             Row {
                                 Text("Fecha Vencimiento: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(expirationDate, fontSize = 13.sp, color = Color.Black)
+                                Text(item.expirationDate, fontSize = 13.sp, color = Color.Black)
                             }
                             Row {
                                 Text("Cantidad: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(quantity.toString(), fontSize = 13.sp, color = Color.Black)
+                                Text(
+                                    item.quantity.toString(),
+                                    fontSize = 13.sp,
+                                    color = Color.Black
+                                )
                             }
                             Row {
                                 Text("Unidad de Medida: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(unidadMedida, fontSize = 13.sp, color = Color.Black)
+                                Text(item.unidadMedida, fontSize = 13.sp, color = Color.Black)
+                            }
+
+                            // 🟦 Mostrar enlace a foto si existe
+                            if (!item.fotoUrl.isNullOrBlank()) {
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                ) {
+                                    Text("Foto: ", fontSize = 13.sp, color = Color.Blue)
+                                    Text(
+                                        text = "VER",
+                                        color = Color.Black,
+                                        textDecoration = TextDecoration.Underline,
+                                        modifier = Modifier.clickable {
+                                            Log.d("FotoDebug", "🟢 VER presionado en Reporte: ${item.fotoUrl}")
+                                            showImageDialog = true
+                                        }
+                                    )
+                                }
+
+                                if (showImageDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showImageDialog = false },
+                                        confirmButton = {
+                                            TextButton(onClick = { showImageDialog = false }) {
+                                                Text("Cerrar", color = Color(0xFF003366))
+                                            }
+                                        },
+                                        title = {
+                                            Text(
+                                                text = "📷 Imagen Asociada",
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        text = {
+                                            Log.d("FotoDebug", "📷 Mostrando imagen en Reporte desde URL: ${item.fotoUrl}")
+                                            AsyncImage(
+                                                model = item.fotoUrl.trim(),
+                                                contentDescription = "Imagen asociada",
+                                                contentScale = ContentScale.Fit,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(300.dp)
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
 
@@ -313,10 +368,10 @@ fun MessageCard(
                     if (isEditing) {
                         AlertDialog(onDismissRequest = {
                             isEditing = false
-                            editedLocation = location
-                            editedLote = lote
-                            editedExpirationDate = expirationDate
-                            editedQuantity = quantity.toString()
+                            editedLocation = item.location
+                            editedLote = item.lote
+                            editedExpirationDate = item.expirationDate
+                            editedQuantity = item.quantity.toString()
                         }, title = {
                             Text(
                                 "Editar Registro", fontWeight = FontWeight.Bold
@@ -398,10 +453,10 @@ fun MessageCard(
                                             }
 
                                             val valoresAntes = mapOf(
-                                                "ubicacion" to location,
-                                                "lote" to lote,
-                                                "fechaVencimiento" to expirationDate,
-                                                "cantidad" to quantity.toString()
+                                                "ubicacion" to item.location,
+                                                "lote" to item.lote,
+                                                "fechaVencimiento" to item.expirationDate,
+                                                "cantidad" to item.quantity.toString()
                                             )
 
                                             val valoresDespues = mapOf(
@@ -415,7 +470,7 @@ fun MessageCard(
 
                                             if (huboCambios) {
                                                 registrarAuditoriaConteo(
-                                                    registroId = documentId,
+                                                    registroId = item.documentId,
                                                     tipoAccion = "Modificación",
                                                     usuario = userViewModel.nombre.value
                                                         ?: "Desconocido",
@@ -426,12 +481,12 @@ fun MessageCard(
 
                                             updateFirestore(
                                                 firestore,
-                                                documentId,
+                                                item.documentId,
                                                 editedLocation,
-                                                sku,
+                                                item.sku,
                                                 editedLote,
                                                 editedExpirationDate,
-                                                editedQuantity.toDoubleOrNull() ?: quantity,
+                                                editedQuantity.toDoubleOrNull() ?: item.quantity,
                                                 allData,
                                                 onSuccess = onSuccess
                                             )
@@ -440,20 +495,21 @@ fun MessageCard(
                                         }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color( 0xFF003366), contentColor = Color.White
+                                    containerColor = Color(0xFF003366), contentColor = Color.White
                                 )
                             ) {
                                 Text("Guardar")
                             }
 
                         }, dismissButton = {
-                            Button(onClick = {
-                                isEditing = false
-                                editedLocation = location
-                                editedLote = lote
-                                editedExpirationDate = expirationDate
-                                editedQuantity = quantity.toString()
-                            },
+                            Button(
+                                onClick = {
+                                    isEditing = false
+                                    editedLocation = item.location
+                                    editedLote = item.lote
+                                    editedExpirationDate = item.expirationDate
+                                    editedQuantity = item.quantity.toString()
+                                },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xD8692121), contentColor = Color.White
                                 )
