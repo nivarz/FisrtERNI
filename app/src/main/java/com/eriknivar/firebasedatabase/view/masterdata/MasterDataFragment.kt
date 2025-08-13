@@ -89,6 +89,8 @@ fun MasterDataFragment(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
+    val clienteIdUsuarioActual = userViewModel.clienteId.value ?: ""
+
     val navyBlue = Color(0xFF001F5B)
 
     val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
@@ -180,6 +182,7 @@ fun MasterDataFragment(
     fun cargarProductos() {
         isLoading = true
         firestore.collection("productos")
+            .whereEqualTo("clienteId", clienteIdUsuarioActual)
             .get()
             .addOnSuccessListener { result ->
                 productos.clear()
@@ -413,7 +416,8 @@ fun MasterDataFragment(
                                         .set(
                                             mapOf(
                                                 "descripcion" to descripcionInput.uppercase(),
-                                                "UM" to unidadInput.uppercase()
+                                                "UM" to unidadInput.uppercase(),
+                                                "clienteId" to clienteIdUsuarioActual
                                             )
                                         )
                                         .addOnSuccessListener {
@@ -522,11 +526,3 @@ fun MasterDataFragment(
         }
     }
 }
-
-
-
-
-
-
-
-

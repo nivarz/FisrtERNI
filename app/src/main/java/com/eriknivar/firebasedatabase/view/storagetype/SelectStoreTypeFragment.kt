@@ -178,7 +178,8 @@ fun SelectStorageFragment(
                     // ⬇️ Aquí el selector real
                     DropDownUpScreen(
                         navController,
-                        onUserInteraction = { actualizarActividad(context) }
+                        userViewModel = userViewModel,
+                        onUserInteraction = { actualizarActividad(context) },
 
                     )
                 }

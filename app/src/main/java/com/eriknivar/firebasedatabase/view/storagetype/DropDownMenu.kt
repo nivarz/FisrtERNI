@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 
@@ -39,26 +41,46 @@ import com.google.firebase.firestore.firestore
 fun DropDownUpScreen(
     navController: NavHostController,
     onUserInteraction: () -> Unit = {},
+    userViewModel: UserViewModel,
 ) {
     val firestore = Firebase.firestore
-    val localidades = remember { mutableStateListOf<String>() }
+    val localidades =
+        remember { mutableStateListOf<Pair<String, String>>() }  // (documentId, nombre)
 
     var valueText by remember { mutableStateOf("") }
     var expandedDropdown by remember { mutableStateOf(false) }
 
+    val tipo = userViewModel.tipo.observeAsState("").value
+    val clienteId = userViewModel.clienteId.observeAsState(null).value
+
+
     val navyBlue = Color(0xFF001F5B)
 
     // 🔄 Cargar localidades desde Firebase
-    LaunchedEffect(Unit) {
-        firestore.collection("localidades")
+    LaunchedEffect(tipo, clienteId) {
+        if (tipo.isBlank()) return@LaunchedEffect
+
+        var q: com.google.firebase.firestore.Query = firestore.collection("localidades")
+        q = if (tipo.lowercase().trim() == "superuser") {
+            q // sin filtro: ve todas
+        } else {
+            q.whereEqualTo("clienteId", clienteId)
+        }
+
+        q.orderBy("nombre")
             .get()
             .addOnSuccessListener { result ->
                 localidades.clear()
                 localidades.addAll(
-                    result.mapNotNull { it.getString("nombre") }.sortedDescending()
+                    result.documents.mapNotNull { doc ->
+                        val nombre = doc.getString("nombre")
+                        if (nombre != null) doc.id to nombre else null
+                    }
                 )
             }
     }
+
+
 
     Column(
         modifier = Modifier
@@ -129,24 +151,20 @@ fun DropDownUpScreen(
             expanded = expandedDropdown,
             onDismissRequest = { expandedDropdown = false },
             modifier = Modifier
-                .width(200.dp) // ✅ Ajusta el ancho aquí
-                .background(Color.White) // Color crema claro
+                .width(200.dp)
+                .background(Color.White)
         ) {
-            localidades.forEach { localidad ->
+            localidades.forEach { (id, nombre) ->
                 DropdownMenuItem(
-                    text = { Text(localidad) },
+                    text = { Text(nombre) },
                     onClick = {
                         onUserInteraction()
-                        valueText = localidad
+                        valueText = nombre
                         expandedDropdown = false
-                        navController.navigate("inventoryentry/${valueText}")
+                        navController.navigate("inventoryentry/$id")  // ← usamos el documentId aquí
                     }
                 )
             }
         }
     }
 }
-
-
-
-

@@ -25,6 +25,7 @@ import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.AuditoriaRegistrosScreen
+import com.eriknivar.firebasedatabase.view.settings.settingsmenu.GestionClientesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.LocalidadesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UbicacionesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UsuariosScreen
@@ -160,6 +161,11 @@ fun NetworkAwareNavGraph(
                     userViewModel = userViewModel
                 )
             }
+
+            composable("gestion_clientes") {
+                GestionClientesScreen(navController = navController, userViewModel = userViewModel)
+            }
+
 
 
         }

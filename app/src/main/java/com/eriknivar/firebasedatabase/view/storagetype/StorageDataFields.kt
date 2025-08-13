@@ -3,7 +3,7 @@ package com.eriknivar.firebasedatabase.view.storagetype
 import com.google.firebase.Timestamp
 
 @com.google.firebase.firestore.IgnoreExtraProperties
-data class DataFields (
+data class DataFields(
     val documentId: String,
     val location: String,
     val sku: String,

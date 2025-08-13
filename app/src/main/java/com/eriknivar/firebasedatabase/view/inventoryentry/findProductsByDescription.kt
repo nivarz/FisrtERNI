@@ -1,11 +1,12 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import com.eriknivar.firebasedatabase.view.utility.clienteIdUsuarioActual
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-
-// 🔥 Función para buscar productos en Firestore
 
 fun findProducts(db: FirebaseFirestore, onResult: (List<String>, Map<String, Pair<String, String>>) -> Unit) {
     db.collection("productos")
+        .whereEqualTo("clienteId", clienteIdUsuarioActual)
         .get()
         .addOnSuccessListener { result ->
             val productos = mutableListOf<String>()
@@ -26,12 +27,3 @@ fun findProducts(db: FirebaseFirestore, onResult: (List<String>, Map<String, Pai
             onResult(emptyList(), emptyMap()) // 🔥 Si hay error, devolver listas vacías
         }
 }
-
-
-
-
-
-
-
-
-

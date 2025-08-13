@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.android.identity.util.UUID
+import com.eriknivar.firebasedatabase.view.utility.clienteIdUsuarioActual
 import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -115,60 +116,84 @@ fun LoginButton(
 
     ElevatedButton(
         onClick = {
-            if (isButtonEnabled) {
-                val usuarioTrimmed = username.value.trim().uppercase()
-                val contrasenaTrimmed = password.value.trim()
+            if (!isButtonEnabled) return@ElevatedButton
 
-                if (usuarioTrimmed.isNotBlank() && contrasenaTrimmed.isNotBlank()) {
-                    isButtonEnabled = false
-                    isLoading = true
+            val email = username.value.trim()           // debe ser email registrado en Firebase Auth
+            val pass  = password.value.trim()
 
-                    Firebase.firestore.collection("usuarios")
-                        .whereEqualTo("usuario", usuarioTrimmed)
-                        .whereEqualTo("contrasena", contrasenaTrimmed)
-                        .get()
-                        .addOnSuccessListener { result ->
-                            if (!result.isEmpty) {
-                                val document = result.documents[0]
-                                val documentId = document.id
-                                val nombre = document.getString("nombre") ?: ""
-                                val tipo = document.getString("tipo") ?: "invitado"
-                                val sessionEnUso = document.getString("sessionId") ?: ""
-                                val requiereCambio = document.getBoolean("requiereCambioPassword") ?: false
+            if (email.isBlank() || pass.isBlank()) {
+                Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT).show()
+                return@ElevatedButton
+            }
 
-                                if (sessionEnUso.isNotBlank() && tipo.lowercase() != "superuser") {
-                                    mostrarErrorToast(
-                                        context,
-                                        "Sesión activa, cerrado erróneo. Contactar al administrador."
-                                    )
-                                    isButtonEnabled = true
-                                    isLoading = false
-                                } else {
-                                    val sessionId = UUID.randomUUID().toString()
-                                    userViewModel.setUser(nombre, tipo, documentId)
+            isButtonEnabled = false
+            isLoading = true
+
+            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+
+            auth.signInWithEmailAndPassword(email, pass)
+                .addOnSuccessListener { authResult ->
+                    val user = authResult.user
+                    if (user == null) {
+                        mostrarErrorToast(context, "No se pudo iniciar sesión")
+                        isButtonEnabled = true; isLoading = false
+                        return@addOnSuccessListener
+                    }
+
+                    // 1) Refrescar token para cargar custom claims (tipo, clienteId)
+                    user.getIdToken(true)
+                        .addOnSuccessListener {
+                            val uid = user.uid
+
+                            // 2) Leer perfil en tu colección `usuarios` (docId = uid)
+                            Firebase.firestore.collection("usuarios").document(uid)
+                                .get()
+                                .addOnSuccessListener { document ->
+                                    if (!document.exists()) {
+                                        mostrarErrorToast(context, "Perfil no encontrado")
+                                        auth.signOut()
+                                        isButtonEnabled = true; isLoading = false
+                                        return@addOnSuccessListener
+                                    }
+
+                                    val nombre      = document.getString("nombre").orEmpty()
+                                    val tipo        = document.getString("tipo") ?: "invitado"
+                                    val clienteId   = document.getString("clienteId").orEmpty()
+                                    val sessionEnUso= document.getString("sessionId").orEmpty()
+                                    val requiereCambio = document.getBoolean("requiereCambioPassword") ?: false
+
+                                    if (sessionEnUso.isNotBlank() && tipo.lowercase() != "superuser") {
+                                        mostrarErrorToast(context, "Sesión activa, cerrado erróneo. Contactar al administrador.")
+                                        isButtonEnabled = true; isLoading = false
+                                        return@addOnSuccessListener
+                                    }
+
+                                    // 3) Actualizar sessionId y continuar como antes
+                                    val sessionId = java.util.UUID.randomUUID().toString()
+                                    clienteIdUsuarioActual = clienteId
+
+                                    userViewModel.setUser(nombre, tipo, uid, clienteId)
                                     userViewModel.setSessionId(sessionId)
 
-                                    FirebaseMessaging.getInstance().token
+                                    // Token FCM opcional
+                                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
                                         .addOnCompleteListener { task ->
                                             if (task.isSuccessful) {
-                                                val token = task.result
-                                                Firebase.firestore.collection("usuarios")
-                                                    .document(documentId)
-                                                    .update("token", token)
+                                                val fcm = task.result
+                                                Firebase.firestore.collection("usuarios").document(uid)
+                                                    .update("token", fcm)
                                             }
                                         }
 
-                                    Firebase.firestore.collection("usuarios")
-                                        .document(documentId)
+                                    Firebase.firestore.collection("usuarios").document(uid)
                                         .update("sessionId", sessionId)
                                         .addOnSuccessListener {
                                             if (requiereCambio) {
-                                                // 🔐 Redirigir a pantalla de cambio de contraseña
                                                 navController.navigate("cambiarPassword") {
                                                     popUpTo(0) { inclusive = true }
                                                 }
                                             } else {
-                                                userViewModel.cargarFotoUrl(documentId)
+                                                userViewModel.cargarFotoUrl(uid)
                                                 nombreUsuario = nombre
                                                 showWelcomeDialog = true
                                             }
@@ -176,33 +201,26 @@ fun LoginButton(
                                         }
                                         .addOnFailureListener {
                                             mostrarErrorToast(context, "Error al guardar sesión")
-                                            isButtonEnabled = true
-                                            isLoading = false
+                                            isButtonEnabled = true; isLoading = false
                                         }
                                 }
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Usuario o contraseña incorrectos",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                isButtonEnabled = true
-                                isLoading = false
-                            }
+                                .addOnFailureListener {
+                                    mostrarErrorToast(context, "Error al cargar perfil")
+                                    auth.signOut()
+                                    isButtonEnabled = true; isLoading = false
+                                }
                         }
                         .addOnFailureListener {
-                            isButtonEnabled = true
-                            isLoading = false
-                            Toast.makeText(
-                                context,
-                                "Error al conectar con Firestore",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            mostrarErrorToast(context, "No se pudo refrescar el token")
+                            auth.signOut()
+                            isButtonEnabled = true; isLoading = false
                         }
-                } else {
-                    Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT).show()
                 }
-            }
+                .addOnFailureListener {
+                    isButtonEnabled = true
+                    isLoading = false
+                    Toast.makeText(context, "Usuario o contraseña incorrectos", Toast.LENGTH_SHORT).show()
+                }
         },
         enabled = isButtonEnabled,
         colors = ButtonDefaults.buttonColors(
@@ -227,10 +245,4 @@ fun LoginButton(
             }
         }
     }
-
-
 }
-
-
-
-

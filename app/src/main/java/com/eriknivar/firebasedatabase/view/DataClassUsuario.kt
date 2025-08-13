@@ -6,7 +6,7 @@ data class Usuario(
     val usuario: String,
     val contrasena: String,
     val tipo: String,
-    val sessionId: String? = "",
-    val requiereCambioPassword: Boolean = false
-
+    val clienteId: String = "",
+    val requiereCambioPassword: Boolean = false,
+    val sessionId: String? = null
 )

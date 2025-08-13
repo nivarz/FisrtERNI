@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -56,6 +55,7 @@ import com.eriknivar.firebasedatabase.view.Usuario
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 
@@ -69,6 +69,10 @@ fun ConfiguracionUsuariosScreen(
     val context = LocalContext.current
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
+
+    val clienteId = remember { mutableStateOf("") }
+    val esSuperuser = userViewModel.tipo.value?.lowercase() == "superuser"
+
 
     var showUserDialog by remember { mutableStateOf(false) }
     var selectedUser by remember { mutableStateOf<Usuario?>(null) }
@@ -85,7 +89,8 @@ fun ConfiguracionUsuariosScreen(
 
     val navyBlue = Color(0xFF001F5B)
 
-    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
+    val lastInteractionTime =
+        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
     fun actualizarActividad(context: Context) {
         val tiempoActual = System.currentTimeMillis()
@@ -104,7 +109,8 @@ fun ConfiguracionUsuariosScreen(
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
 
                 userViewModel.clearUser()
 
@@ -165,7 +171,10 @@ fun ConfiguracionUsuariosScreen(
                     val contrasenaDoc = document.getString("contrasena") ?: ""
                     val tipoDoc = document.getString("tipo") ?: ""
                     val sessionIdDoc = document.getString("sessionId") ?: ""
-                    val requiereCambioPasswordDoc = document.getBoolean("requiereCambioPassword") ?: true
+                    val requiereCambioPasswordDoc =
+                        document.getBoolean("requiereCambioPassword") ?: true
+                    val clienteIdDoc = document.getString("clienteId") ?: ""
+
 
                     // ⚠️ Filtrar superuser para admin
                     if (tipoUsuarioActual == "admin" && tipoDoc == "superuser") return@forEach
@@ -178,7 +187,8 @@ fun ConfiguracionUsuariosScreen(
                             contrasena = contrasenaDoc,
                             tipo = tipoDoc,
                             sessionId = sessionIdDoc,
-                            requiereCambioPassword = requiereCambioPasswordDoc
+                            requiereCambioPassword = requiereCambioPasswordDoc,
+                            clienteId = clienteIdDoc
                         )
                     )
                 }
@@ -188,8 +198,6 @@ fun ConfiguracionUsuariosScreen(
             listenerRegistration.remove()
         }
     }
-
-
 
     Column(modifier = Modifier.fillMaxSize()) {
         ElevatedButton(
@@ -216,7 +224,6 @@ fun ConfiguracionUsuariosScreen(
 
         LazyColumn(modifier = Modifier.padding(16.dp)) {
             items(usuarios) { user ->
-
 
                 Card(
                     modifier = Modifier
@@ -273,13 +280,13 @@ fun ConfiguracionUsuariosScreen(
                                 Row {
                                     IconButton(
                                         onClick = {
-                                        selectedUser = user
-                                        nombre = user.nombre
-                                        usuario = user.usuario
-                                        contrasena = user.contrasena
-                                        tipo = user.tipo
-                                        showUserDialog = true
-                                    }) {
+                                            selectedUser = user
+                                            nombre = user.nombre
+                                            usuario = user.usuario
+                                            contrasena = user.contrasena
+                                            tipo = user.tipo
+                                            showUserDialog = true
+                                        }) {
                                         Icon(
                                             Icons.Default.Edit,
                                             contentDescription = "Editar",
@@ -306,10 +313,18 @@ fun ConfiguracionUsuariosScreen(
                                             .document(user.id)
                                             .update("sessionId", "")
                                             .addOnSuccessListener {
-                                                Toast.makeText(context, "Sesión cerrada correctamente", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(
+                                                    context,
+                                                    "Sesión cerrada correctamente",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                             }
                                             .addOnFailureListener {
-                                                Toast.makeText(context, "Error al cerrar sesión", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(
+                                                    context,
+                                                    "Error al cerrar sesión",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                             }
 
                                     }) {
@@ -319,34 +334,34 @@ fun ConfiguracionUsuariosScreen(
                                             tint = Color.Gray
                                         )
                                     }
-
-
                                 }
                             }
                         }
                     }
                 }
-
-
             }
         }
     }
 
     if (showUserDialog) {
         UsuarioDialog(
-            selectedUser,
-            nombre,
-            usuario,
-            contrasena,
-            tipo,
-            tipoOpciones,
-            expandedTipo,
-            { nombre = it },
-            { usuario = it },
-            { contrasena = it },
-            { tipo = it },
-            { expandedTipo = it },
+            selectedUser = selectedUser,
+            nombre = nombre,
+            usuario = usuario,
+            contrasena = contrasena,
+            tipo = tipo,
+            tipoOpciones = tipoOpciones,
+            expandedTipo = expandedTipo,
+            onNombreChange = { nombre = it },
+            onUsuarioChange = { usuario = it },
+            onContrasenaChange = { contrasena = it },
+            onTipoChange = { tipo = it },
+            onExpandedTipoChange = { expandedTipo = it },
             onDismiss = { showUserDialog = false },
+            clienteId = clienteId.value,
+            onClienteIdChange = { clienteId.value = it },
+            esSuperuser = esSuperuser,
+
 
             //Crea nuevo usuario
             onSave = { nuevoUsuario ->
@@ -361,18 +376,24 @@ fun ConfiguracionUsuariosScreen(
                         .addOnSuccessListener { documents ->
                             if (documents.isEmpty) {
                                 // No existe, lo podemos guardar
+                                val datosUsuario = mutableMapOf(
+                                    "nombre" to nombreUpper,
+                                    "usuario" to usuarioUpper,
+                                    "contrasena" to nuevoUsuario.contrasena,
+                                    "tipo" to nuevoUsuario.tipo,
+                                    "requiereCambioPassword" to true,
+                                )
+
+                                if (esSuperuser) {
+                                    datosUsuario["clienteId"] = clienteId.value
+                                }
+
                                 firestore.collection("usuarios")
-                                    .add(
-                                        mapOf(
-                                            "nombre" to nombreUpper,
-                                            "usuario" to usuarioUpper,
-                                            "contrasena" to nuevoUsuario.contrasena,
-                                            "tipo" to nuevoUsuario.tipo,
-                                            "requiereCambioPassword" to true,
-                                        )
-                                    )
+                                    .add(datosUsuario)
+
                                     .addOnSuccessListener {
-                                        showUserDialog = false // El listener en tiempo real se encargará de actualizar la lista
+                                        showUserDialog =
+                                            false // El listener en tiempo real se encargará de actualizar la lista
                                     }
 
                             } else {
@@ -390,32 +411,25 @@ fun ConfiguracionUsuariosScreen(
                                 showUserExistsDialog = true
 
                             } else {
-                                firestore.collection("usuarios").document(selectedUser!!.id)
-                                    .update(
-                                        mapOf(
-                                            "nombre" to nombreUpper,
-                                            "usuario" to usuarioUpper,
-                                            "contrasena" to nuevoUsuario.contrasena,
-                                            "tipo" to nuevoUsuario.tipo,
-                                            "requiereCambioPassword" to selectedUser!!.requiereCambioPassword
-                                        )
-                                    )
+                                val datosUsuario = mutableMapOf(
+                                    "nombre" to nombreUpper,
+                                    "usuario" to usuarioUpper,
+                                    "contrasena" to nuevoUsuario.contrasena,
+                                    "tipo" to nuevoUsuario.tipo,
+                                    "requiereCambioPassword" to true,
+                                )
 
+                                if (esSuperuser) {
+                                    datosUsuario["clienteId"] = clienteId.value
+                                }
+
+                                firestore.collection("usuarios")
+                                    .document(selectedUser!!.id)
+                                    .set(
+                                        datosUsuario,
+                                        SetOptions.merge()
+                                    ) // ✅ actualizar en lugar de crear
                                     .addOnSuccessListener {
-                                        val index =
-                                            usuarios.indexOfFirst { it.id == selectedUser!!.id }
-                                        if (index != -1) {
-                                            usuarios[index] = Usuario(
-                                                selectedUser!!.id,
-                                                nombreUpper,
-                                                usuarioUpper,
-                                                nuevoUsuario.contrasena,
-                                                nuevoUsuario.tipo,
-                                                selectedUser!!.sessionId,
-                                                selectedUser!!.requiereCambioPassword
-
-                                            )
-                                        }
                                         Toast.makeText(
                                             context,
                                             "Usuario actualizado",
@@ -470,8 +484,3 @@ fun ConfiguracionUsuariosScreen(
         )
     }
 }
-
-
-
-
-

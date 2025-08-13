@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -418,7 +417,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
                             if (!showErrorLocalidad) {
                                 Text(
-                                    text = if (selectedLocalidad.value.isNotEmpty()) selectedLocalidad.value else "Seleccionar una localidad",
+                                    text = selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" },
                                     color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
                                 )
                             }
@@ -460,7 +459,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         }
 
                         firestore.collection("ubicaciones").whereEqualTo("codigo_ubi", codigoInput)
-                            .whereEqualTo("zona", zonaInput).get()
+                            .whereEqualTo("zona", zonaInput)
+                            .get()
                             .addOnSuccessListener { documents ->
                                 val yaExiste = documents.any { doc ->
                                     !isEditing || doc.id != docIdToEdit

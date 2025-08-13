@@ -95,9 +95,18 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
     var localidadAEliminar by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showNombreExistenteDialog by remember { mutableStateOf(false) }
 
-    fun cargarLocalidades() {
-        firestore.collection("localidades")
-            .orderBy("nombre")
+    val clienteId = userViewModel.clienteId.value
+
+    fun cargarLocalidades(tipoUsuario: String, clienteId: String?) {
+        var query = firestore.collection("localidades") as com.google.firebase.firestore.Query
+
+        query = if (tipoUsuario == "superuser") {
+            query // sin filtro: ve todas
+        } else {
+            query.whereEqualTo("clienteId", clienteId)
+        }
+
+        query.orderBy("nombre")
             .get()
             .addOnSuccessListener { result ->
                 localidades.clear()
@@ -106,9 +115,13 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                     localidades.add(doc.id to nombre)
                 }
             }
+            .addOnFailureListener {
+                // log/mostrar error si quieres
+            }
     }
 
-    LaunchedEffect(Unit) { cargarLocalidades() }
+
+    LaunchedEffect(Unit) { cargarLocalidades(tipo, clienteId) }
 
     val context = LocalContext.current
     val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
@@ -191,7 +204,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                         ) {
                             Text(buildAnnotatedString {
                                 withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                    append("Código: ")
+                                    append("Localidad: ")
                                 }
                                 append(codigo)
                             })
@@ -234,29 +247,41 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                 confirmButton = {
                     Button(onClick = {
                         if (nombreInput.isNotEmpty()) {
-                            firestore.collection("localidades")
-                                .whereEqualTo("nombre", nombreInput)
-                                .get()
-                                .addOnSuccessListener { documents ->
-                                    val yaExiste = documents.any { doc -> !isEditing || doc.id != docIdToEdit }
+                            // Filtro de existencia: global para superuser, por cliente para admin
+                            val base = firestore.collection("localidades")
+                            val existenciaQuery = if (tipo == "superuser") {
+                                base.whereEqualTo("nombre", nombreInput)
+                            } else {
+                                base.whereEqualTo("nombre", nombreInput)
+                                    .whereEqualTo("clienteId", clienteId)
+                            }
 
-                                    if (yaExiste) {
-                                        showNombreExistenteDialog = true
+                            existenciaQuery.get().addOnSuccessListener { documents ->
+                                val yaExiste = documents.any { doc -> !isEditing || doc.id != docIdToEdit }
+
+                                if (yaExiste) {
+                                    showNombreExistenteDialog = true
+                                } else {
+                                    val data = if (tipo == "superuser") {
+                                        mapOf("nombre" to nombreInput)
                                     } else {
-                                        val data = mapOf("nombre" to nombreInput)
-                                        val operacion = if (isEditing) {
-                                            firestore.collection("localidades").document(docIdToEdit).update(data)
-                                        } else {
-                                            firestore.collection("localidades").add(data)
-                                        }
-                                        operacion.addOnSuccessListener {
-                                            successMessage = if (isEditing) "Localidad actualizada" else "Localidad creada"
-                                            showSuccessDialog = true
-                                            showDialog = false
-                                            cargarLocalidades()
-                                        }
+                                        mapOf("nombre" to nombreInput, "clienteId" to (clienteId ?: ""))
+                                    }
+
+                                    val operacion = if (isEditing) {
+                                        firestore.collection("localidades").document(docIdToEdit).update(data)
+                                    } else {
+                                        firestore.collection("localidades").add(data)
+                                    }
+
+                                    operacion.addOnSuccessListener {
+                                        successMessage = if (isEditing) "Localidad actualizada" else "Localidad creada"
+                                        showSuccessDialog = true
+                                        showDialog = false
+                                        cargarLocalidades(tipo, clienteId)
                                     }
                                 }
+                            }
                         }
                     }) {
                         Text(if (isEditing) "Actualizar" else "Guardar")
@@ -301,7 +326,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                             firestore.collection("localidades").document(id).delete().addOnSuccessListener {
                                 showDeleteDialog = false
                                 localidadAEliminar = null
-                                cargarLocalidades()
+                                cargarLocalidades(tipo, clienteId)
                                 successMessage = "Localidad eliminada"
                                 showSuccessDialog = true
                             }
