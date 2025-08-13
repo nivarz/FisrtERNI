@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
@@ -38,6 +37,11 @@ import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
 
+// 🔧 TEMPORAL - PREFIJO SOLO PARA CLIENTE "Duralon"
+// TODO: Eliminar o ajustar al finalizar este inventario
+private const val CLIENTE_CON_PREFIJO = false
+private const val PREFIJO_UBICACION = "L1A10"
+
 @Composable
 fun OutlinedTextFieldsInputsLocation(
     location: MutableState<String>,
@@ -53,7 +57,6 @@ fun OutlinedTextFieldsInputsLocation(
     val isZebraScan = remember { mutableStateOf(false) }
     val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
     val focusRequesterLocation = remember { FocusRequester() }
-
 
     val qrScanLauncherLocation =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -78,9 +81,17 @@ fun OutlinedTextFieldsInputsLocation(
             if (scannedValue.isNotBlank()) {
                 tempLocationInput.value = scannedValue
 
+                val codigoFinal = if (CLIENTE_CON_PREFIJO) PREFIJO_UBICACION + scannedValue else scannedValue
+
                 validarUbicacionEnMaestro(
-                    scannedValue, location, showErrorLocation, showUbicacionNoExisteDialog, nextFocusRequester, keyboardController
+                    codigoFinal,
+                    location,
+                    showErrorLocation,
+                    showUbicacionNoExisteDialog,
+                    nextFocusRequester,
+                    keyboardController
                 )
+
             }
 
             wasScanned.value = false
@@ -125,8 +136,14 @@ fun OutlinedTextFieldsInputsLocation(
             .focusRequester(focusRequesterLocation)
             .onFocusChanged { focusState ->
                 if (!focusState.isFocused && tempLocationInput.value.length >= 4) {
+                    val codigoFinal = if (CLIENTE_CON_PREFIJO) {
+                        PREFIJO_UBICACION + tempLocationInput.value
+                    } else {
+                        tempLocationInput.value
+                    }
+
                     validarUbicacionEnMaestro(
-                        tempLocationInput.value,
+                        codigoFinal,
                         location,
                         showErrorLocation,
                         showUbicacionNoExisteDialog,
@@ -143,6 +160,14 @@ fun OutlinedTextFieldsInputsLocation(
                 tempLocationInput.value = clean
                 onUserInteraction()
 
+                val codigoFinal = if (CLIENTE_CON_PREFIJO) {
+                    PREFIJO_UBICACION + clean
+                } else {
+                    clean
+                }
+
+                location.value = codigoFinal
+
                 // Detectar entrada rápida tipo Zebra
                 if (clean.length > 4 && clean.length - location.value.length > 2) {
                     isZebraScan.value = true
@@ -156,8 +181,14 @@ fun OutlinedTextFieldsInputsLocation(
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = {
                 if (tempLocationInput.value.length >= 4) {
+
+                    val codigoFinal = if (CLIENTE_CON_PREFIJO) {
+                        PREFIJO_UBICACION + tempLocationInput.value
+                    } else {
+                        tempLocationInput.value
+                    }
                     validarUbicacionEnMaestro(
-                        tempLocationInput.value,
+                        codigoFinal,
                         location,
                         showErrorLocation,
                         showUbicacionNoExisteDialog,
@@ -221,9 +252,7 @@ fun OutlinedTextFieldsInputsLocation(
                     }
                 })
         }
-
     }
-
 }
 
 fun validarUbicacionEnMaestro(

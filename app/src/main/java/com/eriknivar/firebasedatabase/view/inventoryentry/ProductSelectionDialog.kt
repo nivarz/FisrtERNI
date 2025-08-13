@@ -142,5 +142,3 @@ fun ProductSelectionDialog(
         )
     }
 }
-
-

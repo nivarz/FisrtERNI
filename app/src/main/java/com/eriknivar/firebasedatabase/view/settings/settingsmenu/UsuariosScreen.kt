@@ -36,7 +36,7 @@ fun UsuariosScreen(
 
     val tipo = userViewModel.tipo.value ?: ""
 
-    if (tipo.lowercase() != "admin" && tipo.lowercase() != "superuser") {
+    if (tipo.lowercase() != "superuser") {
         Box(
             modifier = Modifier
                 .fillMaxSize()

@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.googleServices)
     alias(libs.plugins.crashlytics)
 
-
 }
 
 android {
@@ -53,8 +52,6 @@ android {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
-
-
 }
 
 apply(plugin = "com.google.gms.google-services")
@@ -76,7 +73,6 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.icons.extended)
     implementation(libs.zxing.android.embedded)
-    implementation(libs.coil.compose)
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.apache.poi)
     implementation(libs.poi.ooxml)
@@ -87,10 +83,7 @@ dependencies {
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.androidx.fragment)
     implementation(libs.ui)
-    implementation(libs.coil.compose.v222)
-
-
-
+    implementation (libs.firebase.auth.ktx)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

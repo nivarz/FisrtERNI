@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.android.identity.util.UUID
+import com.eriknivar.firebasedatabase.view.utility.clienteIdUsuarioActual
 import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
@@ -133,6 +134,7 @@ fun LoginButton(
                                 val documentId = document.id
                                 val nombre = document.getString("nombre") ?: ""
                                 val tipo = document.getString("tipo") ?: "invitado"
+                                val clienteId = document.getString("clienteId") ?: ""
                                 val sessionEnUso = document.getString("sessionId") ?: ""
                                 val requiereCambio = document.getBoolean("requiereCambioPassword") ?: false
 
@@ -145,7 +147,9 @@ fun LoginButton(
                                     isLoading = false
                                 } else {
                                     val sessionId = UUID.randomUUID().toString()
-                                    userViewModel.setUser(nombre, tipo, documentId)
+                                    clienteIdUsuarioActual = clienteId
+
+                                    userViewModel.setUser(nombre, tipo, documentId, clienteId )
                                     userViewModel.setSessionId(sessionId)
 
                                     FirebaseMessaging.getInstance().token
@@ -227,10 +231,4 @@ fun LoginButton(
             }
         }
     }
-
-
 }
-
-
-
-
