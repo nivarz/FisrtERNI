@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -61,7 +60,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.inventoryentry.QRCodeScanner
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel

@@ -1,0 +1,158 @@
+rules_version = '2'; 
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ===== Helpers ===== */
+    function isAuthed() { return request.auth != null; }
+
+    // Rol: token -> doc usuario -> ""
+    function tipoFromToken() {
+  		return isAuthed() && ('tipo' in request.auth.token)
+    	? request.auth.token.tipo
+    	: null;
+		}    
+    
+    function tipoFromDoc() {
+      return isAuthed()
+        ? get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.tipo
+        : null;
+    }
+    function role() {
+      return tipoFromToken() != null ? tipoFromToken()
+           : (tipoFromDoc()   != null ? tipoFromDoc()   : "");
+    }
+
+    function isSuper()    { return role() == "superuser"; }
+    function isAdmin()    { return role() == "admin"; }
+    function isInvitado() { return role() == "invitado"; }
+
+    // clienteId: token -> doc usuario
+    function clienteIdFromToken() {
+  		return isAuthed() && ('clienteId' in request.auth.token)
+    	? request.auth.token.clienteId
+    	: null;
+		}
+        
+    function clienteIdFromDoc() {
+      return isAuthed()
+        ? get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.clienteId
+        : null;
+    }
+    function currentClienteId() {
+      let t = clienteIdFromToken();
+      return t != null ? t : clienteIdFromDoc();
+    }
+
+    // data = resource.data (doc actual) o request.resource.data (doc nuevo/actualizado)
+    function sameClient(data) {
+      return isAuthed() && data.clienteId == currentClienteId();
+    }
+
+    // Limitar updates a un set de campos
+    function changedOnly(allowed) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowed);
+    }   
+    
+    /* ===== USUARIOS ===== */
+    match /usuarios/{uid} {
+      allow get: if isAuthed() && (
+        isSuper() ||
+        (isAdmin() && sameClient(resource.data)) ||
+        uid == request.auth.uid                // su propio doc (permite el fallback)
+      );
+
+      allow list: if isAuthed() && (
+        isSuper() ||
+        (isAdmin() && sameClient(resource.data))
+      );
+
+      allow create, delete: if isSuper();
+
+      allow update: if isAuthed() && (
+        isSuper() ||
+        (uid == request.auth.uid && changedOnly(['sessionId','token','fotoUrl'])) ||
+        (isAdmin() && sameClient(resource.data) && changedOnly(['sessionId','token','fotoUrl']))
+      );
+    }
+
+    /* ===== CLIENTES ===== */
+    match /clientes/{id} {
+      allow read: if isAuthed() && (
+        isSuper() ||
+        (isAdmin() && sameClient(resource.data)) // admin solo su cliente
+      );
+      allow create, update, delete: if isAuthed() && isSuper();
+    }
+
+    /* ===== LOCALIDADES ===== */
+    match /localidades/{doc} {
+      allow read: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(resource.data)) || (isInvitado() && sameClient(resource.data))
+      );
+      allow create, update, delete: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(request.resource.data))
+      );
+    }
+
+    /* ===== UBICACIONES ===== */
+    match /ubicaciones/{doc} {
+      allow read: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(resource.data)) || (isInvitado() && sameClient(resource.data))
+      );
+      allow create, update, delete: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(request.resource.data))
+      );
+    }
+
+    /* ===== PRODUCTOS ===== */
+    match /productos/{doc} {
+      allow read: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(resource.data)) || (isInvitado() && sameClient(resource.data))
+      );
+      allow create, update, delete: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(request.resource.data))
+      );
+    }
+
+    /* ===== INVENTARIO ===== */
+    match /inventario/{doc} {
+      allow read: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(resource.data)) || (isInvitado() && sameClient(resource.data))
+      );
+      allow create, update, delete: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(request.resource.data))
+      );
+    }
+
+    /* ===== RECONTEO ===== */
+    match /reconteo_pendiente/{doc} {
+      allow read: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(resource.data)) || (isInvitado() && sameClient(resource.data))
+      );
+      allow create, update, delete: if isAuthed() && (
+        isSuper() || (isAdmin() && sameClient(request.resource.data))
+      );
+    }
+    
+    /* ===== CONTADORES =====
+   	- Solo superuser puede leer/escribir contadores    */
+		match /contadores/{doc} {
+  		allow read, write: if isAuthed() && isSuper();
+		}
+
+		/* ===== ÍNDICES DE CLIENTES POR RNC/CÉDULA =====
+   	- Solo superuser (se usan para unicidad)          */
+		match /indices_clientes_rnc/{rnc} {
+  		allow read, write: if isAuthed() && isSuper();
+		}
+
+		/* ===== AUDITORÍA DE CLIENTES =====
+   	- Crear y leer solo por superuser (ajustable luego) */
+		match /auditoria_clientes/{doc} {
+  		allow read, write: if isAuthed() && isSuper();
+		}
+
+    // Cierre por defecto
+    match /{document=**} { allow read, write: if false; }
+  }
+}

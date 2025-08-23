@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view
+package com.eriknivar.firebasedatabase.navigation
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,7 +45,6 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
@@ -56,6 +55,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LocationOn
@@ -265,6 +265,15 @@ fun NavigationDrawer(
                             color = Color.LightGray
                         )
                         DrawerMenuItem(
+                            icon = Icons.Filled.Group,     // si no compila, usa Icons.Outlined.Group
+                            label = "Clientes",
+                            isSubItem = true,
+                            onClick = {
+                                navController.navigate("clientes")   // <- ruta del listado
+                                scope.launch { drawerState.close() }
+                            }
+                        )
+                        DrawerMenuItem(
                             icon = Icons.Default.Person,
                             label = "Usuarios",
                             isSubItem = true,
@@ -395,37 +404,38 @@ fun NavigationDrawer(
 
         Scaffold(
             topBar = {
-                TopAppBar(navigationIcon = {
-                    IconButton(onClick = {
-                        keyboardController?.hide() // 🔽 Oculta el teclado si está activo
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            keyboardController?.hide() // 🔽 Oculta el teclado si está activo
 
-                        scope.launch {
-                            if (drawerState.isClosed) {
-                                drawerState.open()
-                            } else {
-                                drawerState.close()
+                            scope.launch {
+                                if (drawerState.isClosed) {
+                                    drawerState.open()
+                                } else {
+                                    drawerState.close()
+                                }
                             }
+
+
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                tint = Color.White,
+                                modifier = Modifier.size(30.dp),
+                                contentDescription = "Menu"
+
+                            )
                         }
 
-
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            tint = Color.White,
-                            modifier = Modifier.size(30.dp),
-                            contentDescription = "Menu"
-
-                        )
-                    }
-
-                }, colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = customColorBackGround, titleContentColor = Color.Black,
-                ), title = {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                       // Spacer(modifier = Modifier.weight(0.85f)) // Empuja el texto al centro
+                    }, colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = customColorBackGround, titleContentColor = Color.Black,
+                    ), title = {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Spacer(modifier = Modifier.weight(0.85f)) // Empuja el texto al centro
 
 
                             Text(
@@ -435,12 +445,12 @@ fun NavigationDrawer(
                                 textAlign = TextAlign.Center,
                                 fontSize = 18.sp,
 
-                            )
+                                )
 
 
-                        //Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
-                    }
-                })
+                            //Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
+                        }
+                    })
             }) { innerPadding ->
 
             LaunchedEffect(isLoggedOut, isInitialized) {

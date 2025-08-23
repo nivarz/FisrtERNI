@@ -58,7 +58,7 @@ fun TextFieldsLogin(
             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = "User") },
             label = { Text("Usuario", color = Color.White, fontWeight = FontWeight.Thin) },
             value = username.value,
-            onValueChange = { username.value = it.uppercase().trim() },
+            onValueChange = { username.value = it.trim() },
             singleLine = true,
             maxLines = 1,
             modifier = Modifier

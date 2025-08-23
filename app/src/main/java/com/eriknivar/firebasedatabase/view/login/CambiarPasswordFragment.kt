@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import java.util.UUID
 
@@ -50,182 +55,171 @@ fun CambiarPasswordScreen(
     userViewModel: UserViewModel
 ) {
     val context = LocalContext.current
+    val navyBlue = Color(0xFF001F5B)
+
     val nuevaPassword = remember { mutableStateOf("") }
     val confirmarPassword = remember { mutableStateOf("") }
     val error = remember { mutableStateOf("") }
-    val customColorBackGroundScreenLogin = Color(0xFF527782)
-
-    val navyBlue = Color(0xFF001F5B)
-
-    var showPassword by remember { mutableStateOf(false) }
-    var showPasswordConfirm by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
 
-    DisposableEffect(currentUserId, currentSessionId) {
-        val listenerRegistration = Firebase.firestore.collection("usuarios")
-            .document(currentUserId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
+    // 👇 Evita que el snapshot listener cierre la app mientras actualizamos sesión
+    var ignoreSessionCheck by remember { mutableStateOf(false) }
 
-                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
-                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+    // 🔒 Listener de cierre de sesión remoto (respeta ignoreSessionCheck)
+    DisposableEffect(currentUserId, currentSessionId, ignoreSessionCheck) {
+        if (currentUserId.isBlank()) return@DisposableEffect onDispose { }
+        val reg = Firebase.firestore.collection("usuarios")
+            .document(currentUserId)
+            .addSnapshotListener { snap, _ ->
+                if (ignoreSessionCheck) return@addSnapshotListener
+                val remote = snap?.getString("sessionId") ?: ""
+                if (remote != currentSessionId && !userViewModel.isManualLogout.value) {
                     Toast.makeText(context, "Tu sesión fue cerrada por el administrador", Toast.LENGTH_LONG).show()
                     userViewModel.clearUser()
                     (context as? Activity)?.finishAffinity()
                 }
             }
-
-        onDispose {
-            listenerRegistration.remove()
-        }
-    }
-
-    val activity = (context as? Activity)
-
-    DisposableEffect(currentUserId, currentSessionId) {
-        val handler = Handler(Looper.getMainLooper())
-        var lastInteractionTime = System.currentTimeMillis()
-        val logoutTimeout = 10 * 60 * 1000L // 10 minutos
-
-        val runnable = object : Runnable {
-            override fun run() {
-                if (System.currentTimeMillis() - lastInteractionTime >= logoutTimeout) {
-                    userViewModel.clearUser()
-                    activity?.finishAffinity()
-                } else {
-                    handler.postDelayed(this, 1000L)
-                }
-            }
-        }
-
-        val listener = View.OnTouchListener { _, _ ->
-            lastInteractionTime = System.currentTimeMillis()
-            false
-        }
-
-        activity?.window?.decorView?.rootView?.setOnTouchListener(listener)
-        handler.post(runnable)
-
-        onDispose {
-            handler.removeCallbacks(runnable)
-            activity?.window?.decorView?.rootView?.setOnTouchListener(null)
-        }
+        onDispose { reg.remove() }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(customColorBackGroundScreenLogin)
+            .background(Color(0xFF527782))
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Actualizar Contraseña", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-
-        Spacer(modifier = Modifier.height(24.dp))
+        Text("Actualizar Contraseña", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
-            leadingIcon = { Icon(Icons.Filled.Key, contentDescription = "Password") },
-            trailingIcon = {
-                IconButton(onClick = { showPassword = !showPassword }) {
-                    Icon(
-                        imageVector = if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                        contentDescription = "Toggle Password Visibility"
-                    )
-                }
-            },
-
+            leadingIcon = { Icon(Icons.Filled.Key, contentDescription = null) },
             value = nuevaPassword.value,
-            onValueChange = {
-                nuevaPassword.value = it.trim()
-                error.value = ""
-            },
+            onValueChange = { nuevaPassword.value = it.trim(); error.value = "" },
             label = { Text("Nueva Contraseña") },
             singleLine = true,
-            maxLines = 1,
-            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
 
         OutlinedTextField(
-            leadingIcon = { Icon(Icons.Filled.Key, contentDescription = "Password") },
-            trailingIcon = {
-                IconButton(onClick = { showPasswordConfirm = !showPasswordConfirm }) {
-                    Icon(
-                        imageVector = if (showPasswordConfirm) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                        contentDescription = "Toggle Password Visibility"
-                    )
-                }
-            },
-
+            leadingIcon = { Icon(Icons.Filled.Key, contentDescription = null) },
             value = confirmarPassword.value,
-            onValueChange = {
-                confirmarPassword.value = it.trim()
-                error.value = ""
-            },
+            onValueChange = { confirmarPassword.value = it.trim(); error.value = "" },
             label = { Text("Confirmar Contraseña") },
             singleLine = true,
-            maxLines = 1,
-            visualTransformation = if (showPasswordConfirm) VisualTransformation.None else PasswordVisualTransformation(),
+            visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
 
         if (error.value.isNotBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(error.value, color = Color.Red)
+            Spacer(Modifier.height(8.dp))
+            Text(error.value, color = Color.Yellow)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp))
 
         ElevatedButton(
             onClick = {
                 val nueva = nuevaPassword.value
                 val confirmar = confirmarPassword.value
 
-                if (nueva.length < 4) {
-                    error.value = "La contraseña debe tener al menos 4 caracteres"
-                } else if (nueva != confirmar) {
-                    error.value = "Las contraseñas no coinciden"
-                } else {
-                    val documentId = userViewModel.documentId.value ?: return@ElevatedButton
-                    Firebase.firestore.collection("usuarios")
-                        .document(documentId)
-                        .update(
-                            mapOf(
-                                "contrasena" to nueva,
-                                "requiereCambioPassword" to false
+                // 🔐 Reglas de Auth: mínimo 6 caracteres
+                when {
+                    nueva.length < 6 -> {
+                        error.value = "La contraseña debe tener al menos 6 caracteres"
+                        return@ElevatedButton
+                    }
+                    nueva != confirmar -> {
+                        error.value = "Las contraseñas no coinciden"
+                        return@ElevatedButton
+                    }
+                }
+
+                val authUser = Firebase.auth.currentUser
+                if (authUser == null) {
+                    Toast.makeText(context, "Debes iniciar sesión nuevamente", Toast.LENGTH_LONG).show()
+                    navController.navigate("login") { popUpTo(0) { inclusive = true } }
+                    return@ElevatedButton
+                }
+
+                isLoading = true
+                ignoreSessionCheck = true
+
+                authUser.updatePassword(nueva)
+                    .addOnSuccessListener {
+                        // ✅ Actualiza flags + sessionId en Firestore (en una sola operación)
+                        val nuevoSessionId = UUID.randomUUID().toString()
+                        userViewModel.setSessionId(nuevoSessionId)
+
+                        Firebase.firestore.collection("usuarios")
+                            .document(authUser.uid)
+                            .update(
+                                mapOf(
+                                    "requiereCambioPassword" to false,
+                                    "sessionId" to nuevoSessionId
+                                )
                             )
-                        )
-                        .addOnSuccessListener {
-                            Toast.makeText(context, "Contraseña actualizada", Toast.LENGTH_SHORT)
-                                .show()
+                            .addOnSuccessListener {
+                                // pequeña ventana para que el listener no dispare
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    ignoreSessionCheck = false
+                                }, 400)
 
-                            val nuevoSessionId = UUID.randomUUID().toString()
-                            userViewModel.setSessionId(nuevoSessionId)
-
-                            Firebase.firestore.collection("usuarios")
-                                .document(documentId)
-                                .update("sessionId", nuevoSessionId)
-
-
-                            // Redirigir a pantalla principal
-                            navController.navigate("storagetype") {
-                                popUpTo(0) { inclusive = true }
+                                Toast.makeText(context, "Contraseña actualizada", Toast.LENGTH_SHORT).show()
+                                navController.navigate("storagetype") {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                ignoreSessionCheck = false
+                                error.value = "Error al guardar sesión: ${e.message}"
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        ignoreSessionCheck = false
+                        when (e) {
+                            is FirebaseAuthRecentLoginRequiredException -> {
+                                // Por seguridad, Auth exige re-login reciente
+                                Toast.makeText(
+                                    context,
+                                    "Por seguridad debes volver a iniciar sesión para cambiar la contraseña.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                Firebase.auth.signOut()
+                                userViewModel.clearUser()
+                                navController.navigate("login") {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
+                            else -> {
+                                error.value = "No se pudo actualizar la contraseña: ${e.message}"
                             }
                         }
-                        .addOnFailureListener {
-                            error.value = "Error al actualizar contraseña"
-                        }
-                }
+                    }
+                    .addOnCompleteListener {
+                        isLoading = false
+                    }
             },
             colors = ButtonDefaults.buttonColors(containerColor = navyBlue),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
         ) {
-            Text("Actualizar")
+            if (isLoading) {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(if (isLoading) "Actualizando..." else "Actualizar")
         }
     }
 }
+

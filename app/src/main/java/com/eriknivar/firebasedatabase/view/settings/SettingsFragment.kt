@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
 @Composable

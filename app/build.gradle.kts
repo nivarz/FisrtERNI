@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,9 +10,10 @@ plugins {
 
 }
 
+
 android {
     namespace = "com.eriknivar.firebasedatabase"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.eriknivar.firebasedatabase"
@@ -26,25 +29,19 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
         }
         debug { }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-    buildFeatures {
-        compose = true
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
+
+    buildFeatures {
+        compose = true
     }
 
     packaging {
@@ -53,13 +50,18 @@ android {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
-
-
 }
 
-apply(plugin = "com.google.gms.google-services")
+kotlin {
+    jvmToolchain(17)
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
 
 dependencies {
+    // Compose / AndroidX (deja las que ya usas)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -67,30 +69,27 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-
-    implementation(libs.firebase.firestore)
-    implementation(libs.firebase.crashlytics)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.firestore.ktx)
-    implementation(libs.firebase.auth) // Para Firebase Auth
+    implementation(libs.androidx.material3.v121)
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.icons.extended)
-    implementation(libs.zxing.android.embedded)
-    implementation(libs.coil.compose)
     implementation(libs.androidx.runtime.livedata)
+    implementation(libs.androidx.fragment)
+    implementation("androidx.compose.material:material-icons-extended")
+
+
+    // 🔹 Firebase — un solo BOM + artefactos KTX (sin versión individual)
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    //implementation("com.google.firebase:firebase-crashlytics")
+
+
+    // Otras libs
+    implementation(libs.zxing.android.embedded)
+    implementation(libs.coil.compose.v250)   // usa solo una variante
     implementation(libs.apache.poi)
     implementation(libs.poi.ooxml)
-    implementation(libs.androidx.material3.v121)
-    implementation(libs.coil.compose.v250)
-    implementation(libs.firebase.storage.ktx)
-    implementation(libs.identity.jvm)
-    implementation(libs.firebase.messaging.ktx)
-    implementation(libs.androidx.fragment)
-    implementation(libs.ui)
-    implementation(libs.coil.compose.v222)
-
-
-
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -100,3 +99,5 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+
+

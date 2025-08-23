@@ -16,7 +16,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
@@ -24,7 +24,6 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.tasks.await
 
 @Composable
 fun ReconteoAsignadoScreen(

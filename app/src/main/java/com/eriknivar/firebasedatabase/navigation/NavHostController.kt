@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase
+package com.eriknivar.firebasedatabase.navigation
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -15,8 +15,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.eriknivar.firebasedatabase.view.settings.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
 import com.eriknivar.firebasedatabase.view.inventoryentry.ReconteoAsignadoScreen
@@ -25,10 +27,12 @@ import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.AuditoriaRegistrosScreen
+import com.eriknivar.firebasedatabase.view.settings.settingsmenu.ClientesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.LocalidadesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UbicacionesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UsuariosScreen
 import com.eriknivar.firebasedatabase.view.storagetype.SelectStorageFragment
+import com.eriknivar.firebasedatabase.view.utility.ClienteFormRoute
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
 import com.eriknivar.firebasedatabase.viewmodel.SplashScreen
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
@@ -162,6 +166,32 @@ fun NetworkAwareNavGraph(
             }
 
 
+            composable(Rutas.CLIENTES) {
+                ClientesScreen(navController, userViewModel)
+            }
+
+            composable(
+                route = Rutas.CLIENTE_FORM_ROUTE,
+                arguments = listOf(
+                    navArgument(Rutas.ARG_CLIENTE_ID) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) {
+                ClienteFormRoute(
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
+                        // ✳️ avisa a la pantalla anterior (Clientes) que recargue
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("clientes_refresh", true)
+
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
     }
 }

@@ -1,5 +1,4 @@
 package com.eriknivar.firebasedatabase.view.storagetype
-
 import com.google.firebase.Timestamp
 
 @com.google.firebase.firestore.IgnoreExtraProperties
@@ -18,4 +17,6 @@ data class DataFields (
     val tipoUsuarioCreador: String,
     @com.google.firebase.firestore.PropertyName("fotoUrl")
     val fotoUrl: String = ""
-)
+) {
+
+}

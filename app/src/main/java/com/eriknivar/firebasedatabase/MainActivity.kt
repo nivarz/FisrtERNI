@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.navigation.compose.rememberNavController
+import com.eriknivar.firebasedatabase.navigation.NetworkAwareNavGraph
 import com.eriknivar.firebasedatabase.view.utility.InactivityHandler
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 

@@ -18,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel

@@ -1,5 +1,6 @@
 package com.eriknivar.firebasedatabase.view.login
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,13 +38,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
-import com.android.identity.util.UUID
 import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
+import com.google.firebase.auth.GetTokenResult
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.firestore
+import com.google.firebase.ktx.app
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
+
 
 @Composable
 fun LoginButton(
@@ -113,96 +119,115 @@ fun LoginButton(
         }
     }
 
+    val opts = com.google.firebase.ktx.Firebase.app.options
+    android.util.Log.d("FirebaseProject", "projectId=${opts.projectId}, appId=${opts.applicationId}")
+
+
     ElevatedButton(
         onClick = {
-            if (isButtonEnabled) {
-                val usuarioTrimmed = username.value.trim().uppercase()
-                val contrasenaTrimmed = password.value.trim()
+            if (!isButtonEnabled) return@ElevatedButton
 
-                if (usuarioTrimmed.isNotBlank() && contrasenaTrimmed.isNotBlank()) {
-                    isButtonEnabled = false
-                    isLoading = true
-
-                    Firebase.firestore.collection("usuarios")
-                        .whereEqualTo("usuario", usuarioTrimmed)
-                        .whereEqualTo("contrasena", contrasenaTrimmed)
-                        .get()
-                        .addOnSuccessListener { result ->
-                            if (!result.isEmpty) {
-                                val document = result.documents[0]
-                                val documentId = document.id
-                                val nombre = document.getString("nombre") ?: ""
-                                val tipo = document.getString("tipo") ?: "invitado"
-                                val sessionEnUso = document.getString("sessionId") ?: ""
-                                val requiereCambio = document.getBoolean("requiereCambioPassword") ?: false
-
-                                if (sessionEnUso.isNotBlank() && tipo.lowercase() != "superuser") {
-                                    mostrarErrorToast(
-                                        context,
-                                        "Sesión activa, cerrado erróneo. Contactar al administrador."
-                                    )
-                                    isButtonEnabled = true
-                                    isLoading = false
-                                } else {
-                                    val sessionId = UUID.randomUUID().toString()
-                                    userViewModel.setUser(nombre, tipo, documentId)
-                                    userViewModel.setSessionId(sessionId)
-
-                                    FirebaseMessaging.getInstance().token
-                                        .addOnCompleteListener { task ->
-                                            if (task.isSuccessful) {
-                                                val token = task.result
-                                                Firebase.firestore.collection("usuarios")
-                                                    .document(documentId)
-                                                    .update("token", token)
-                                            }
-                                        }
-
-                                    Firebase.firestore.collection("usuarios")
-                                        .document(documentId)
-                                        .update("sessionId", sessionId)
-                                        .addOnSuccessListener {
-                                            if (requiereCambio) {
-                                                // 🔐 Redirigir a pantalla de cambio de contraseña
-                                                navController.navigate("cambiarPassword") {
-                                                    popUpTo(0) { inclusive = true }
-                                                }
-                                            } else {
-                                                userViewModel.cargarFotoUrl(documentId)
-                                                nombreUsuario = nombre
-                                                showWelcomeDialog = true
-                                            }
-                                            isLoading = false
-                                        }
-                                        .addOnFailureListener {
-                                            mostrarErrorToast(context, "Error al guardar sesión")
-                                            isButtonEnabled = true
-                                            isLoading = false
-                                        }
-                                }
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Usuario o contraseña incorrectos",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                isButtonEnabled = true
-                                isLoading = false
-                            }
-                        }
-                        .addOnFailureListener {
-                            isButtonEnabled = true
-                            isLoading = false
-                            Toast.makeText(
-                                context,
-                                "Error al conectar con Firestore",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                } else {
-                    Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT).show()
-                }
+            val usuarioInput = username.value.trim()
+            val passwordInput = password.value.trim()
+            if (usuarioInput.isBlank() || passwordInput.isBlank()) {
+                Toast.makeText(context, "Debe completar ambos campos", Toast.LENGTH_SHORT).show()
+                return@ElevatedButton
             }
+
+            isButtonEnabled = false
+            isLoading = true
+
+            // Usa el mismo dominio que empleaste en la migración
+            val email = if (usuarioInput.contains("@")) usuarioInput
+            else "${usuarioInput.lowercase()}@erni.local"
+
+            val auth = Firebase.auth
+            auth.signInWithEmailAndPassword(email, passwordInput)
+                .addOnSuccessListener {
+                    // Ya hay currentUser no nulo
+                    val user = auth.currentUser!!
+                    user.getIdToken(true)
+                        .addOnSuccessListener { tokenResult: GetTokenResult ->
+                            val claims = tokenResult.claims
+                            val tipoClaim = (claims["tipo"] as? String).orEmpty()
+                            val clienteIdClaim = (claims["clienteId"] as? String).orEmpty()
+                            val uid = user.uid
+
+                            // Cargar perfil (nombre, flags) desde usuarios/{uid}
+                            Firebase.firestore.collection("usuarios").document(uid).get()
+                                .addOnSuccessListener { doc: DocumentSnapshot ->
+                                    val nombre = doc.getString("nombre")
+                                        ?: email.substringBefore("@").uppercase()
+                                    val requiereCambio = doc.getBoolean("requiereCambioPassword") ?: false
+                                    val sessionEnUso = doc.getString("sessionId") ?: ""
+                                    val tipoDoc = doc.getString("tipo") ?: "invitado"
+                                    val clienteIdDoc = doc.getString("clienteId") ?: ""
+
+                                    // Resuelve rol/cliente (claims priorizan)
+                                    val tipoFinal = if (tipoClaim.isNotBlank()) tipoClaim else tipoDoc
+                                    val clienteFinal = if (clienteIdClaim.isNotBlank()) clienteIdClaim else clienteIdDoc
+
+                                    if (sessionEnUso.isNotBlank() && !tipoFinal.equals("superuser", true)) {
+                                        mostrarErrorToast(context, "Sesión activa, cerrado erróneo. Contactar al administrador.")
+                                        auth.signOut()
+                                        isLoading = false
+                                        isButtonEnabled = true
+                                    } else {
+                                        // Popular VM
+                                        val sessionId = java.util.UUID.randomUUID().toString()
+                                        userViewModel.setUser(nombre, tipoFinal, uid)
+                                        userViewModel.setClienteId(clienteFinal)
+                                        userViewModel.setSessionId(sessionId)
+
+                                        // Guardar FCM token (best-effort)
+                                        FirebaseMessaging.getInstance().token
+                                            .addOnCompleteListener { t: Task<String> ->
+                                                if (t.isSuccessful) {
+                                                    Firebase.firestore.collection("usuarios").document(uid)
+                                                        .update("token", t.result)
+                                                }
+                                            }
+
+                                        // Persistir sessionId y navegar
+                                        Firebase.firestore.collection("usuarios").document(uid)
+                                            .update("sessionId", sessionId)
+                                            .addOnSuccessListener {
+                                                if (requiereCambio && !tipoFinal.equals("superuser", true)) {
+                                                    navController.navigate("cambiarPassword") {
+                                                        popUpTo(0) { inclusive = true }
+                                                    }
+                                                } else {
+                                                    userViewModel.cargarFotoUrl(uid)
+                                                    nombreUsuario = nombre
+                                                    showWelcomeDialog = true
+                                                }
+                                                isLoading = false
+                                                isButtonEnabled = true
+                                            }
+                                            .addOnFailureListener { e ->
+                                                mostrarErrorToast(context, "Error al guardar sesión: ${e.message}")
+                                                isLoading = false
+                                                isButtonEnabled = true
+                                            }
+                                    }
+                                }
+                                .addOnFailureListener { e ->
+                                    mostrarErrorToast(context, "No se pudo cargar el perfil: ${e.message}")
+                                    isLoading = false
+                                    isButtonEnabled = true
+                                }
+                        }
+                        .addOnFailureListener { e ->
+                            mostrarErrorToast(context, "No se pudieron leer los claims: ${e.message}")
+                            isLoading = false
+                            isButtonEnabled = true
+                        }
+                }
+                .addOnFailureListener { e ->
+                    isLoading = false
+                    isButtonEnabled = true
+                    Toast.makeText(context, "Login inválido: ${e.message}", Toast.LENGTH_LONG).show()
+                }
         },
         enabled = isButtonEnabled,
         colors = ButtonDefaults.buttonColors(

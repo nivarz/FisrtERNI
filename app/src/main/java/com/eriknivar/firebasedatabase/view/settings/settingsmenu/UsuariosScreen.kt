@@ -16,7 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.view.NavigationDrawer
+import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.settings.ConfiguracionUsuariosScreen
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 
@@ -36,7 +36,7 @@ fun UsuariosScreen(
 
     val tipo = userViewModel.tipo.value ?: ""
 
-    if (tipo.lowercase() != "admin" && tipo.lowercase() != "superuser") {
+    if (tipo.lowercase() != "superuser") {
         Box(
             modifier = Modifier
                 .fillMaxSize()

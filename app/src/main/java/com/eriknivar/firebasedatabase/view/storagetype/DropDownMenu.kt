@@ -1,5 +1,7 @@
 package com.eriknivar.firebasedatabase.view.storagetype
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,13 +35,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.firestore
 
 @Composable
 fun DropDownUpScreen(
     navController: NavHostController,
-    onUserInteraction: () -> Unit = {},
+    userViewModel: UserViewModel,
+    onUserInteraction: () -> Unit = {}
 ) {
     val firestore = Firebase.firestore
     val localidades = remember { mutableStateListOf<String>() }
@@ -48,15 +54,37 @@ fun DropDownUpScreen(
 
     val navyBlue = Color(0xFF001F5B)
 
-    // 🔄 Cargar localidades desde Firebase
-    LaunchedEffect(Unit) {
-        firestore.collection("localidades")
-            .get()
+    // 👇 Observa LiveData como State
+    val rolRaw by userViewModel.tipo.observeAsState("")
+    val cliente by userViewModel.clienteId.observeAsState("")
+
+    // 🔄 Cargar localidades según rol
+    LaunchedEffect(rolRaw, cliente) {
+        val rol = rolRaw.trim().lowercase()
+        if (rol.isBlank()) return@LaunchedEffect  // evita correr con datos vacíos
+
+        val col = firestore.collection("localidades")
+        val q = if (rol == "superuser") col else col.whereEqualTo("clienteId", cliente)
+
+        q.get()
             .addOnSuccessListener { result ->
+                val nombres = result.documents.mapNotNull { it.getString("nombre") }
+                Log.d("Localidades", "rol=$rol cliente=$cliente count=${nombres.size}")
                 localidades.clear()
-                localidades.addAll(
-                    result.mapNotNull { it.getString("nombre") }.sortedDescending()
-                )
+                localidades.addAll(nombres.sortedDescending())
+            }
+            .addOnFailureListener { e ->
+                val code = (e as? FirebaseFirestoreException)?.code?.name ?: "?"
+                Log.e("Localidades", "Error $code: ${e.message}", e)
+                localidades.clear()
+                Toast.makeText(
+                    navController.context,
+                    when (code) {
+                        "PERMISSION_DENIED" -> "Sin permisos para leer localidades (reglas)"
+                        else -> "Error cargando localidades"
+                    },
+                    Toast.LENGTH_LONG
+                ).show()
             }
     }
 
@@ -72,21 +100,15 @@ fun DropDownUpScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White, shape = RoundedCornerShape(12.dp)) // ✅ Fondo completo
-                .border(2.dp, navyBlue, RoundedCornerShape(12.dp))            // ✅ Borde visible
+                .background(Color.White, shape = RoundedCornerShape(12.dp))
+                .border(2.dp, navyBlue, RoundedCornerShape(12.dp))
         ) {
             OutlinedTextField(
                 value = valueText,
-                onValueChange = { }, // No editable manualmente
-                placeholder = {
-                    Text(
-                        "Selecciona una localidad",
-                        color = Color.Gray
-                    )
-                }, // ✅ Ajustado
-                readOnly = true, // ✅ Evita teclado y cursor
+                onValueChange = { /* readOnly */ },
+                placeholder = { Text("Selecciona una localidad", color = Color.Gray) },
+                readOnly = true,
                 singleLine = true,
-                enabled = true,
                 shape = RoundedCornerShape(12.dp),
                 trailingIcon = {
                     IconButton(onClick = {
@@ -107,7 +129,7 @@ fun DropDownUpScreen(
                     unfocusedTextColor = navyBlue,
                     focusedLabelColor = navyBlue,
                     unfocusedLabelColor = navyBlue,
-                    focusedContainerColor = Color.Transparent,   // Fondo lo da el Box
+                    focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent
                 ),
                 modifier = Modifier
@@ -117,20 +139,18 @@ fun DropDownUpScreen(
                         indication = null
                     ) {
                         onUserInteraction()
-                        expandedDropdown = !expandedDropdown // ✅ Solo despliega
+                        expandedDropdown = !expandedDropdown
                     },
                 interactionSource = interactionSource
             )
         }
 
-
-// 👇 DropdownMenu con fondo crema
         DropdownMenu(
             expanded = expandedDropdown,
             onDismissRequest = { expandedDropdown = false },
             modifier = Modifier
-                .width(200.dp) // ✅ Ajusta el ancho aquí
-                .background(Color.White) // Color crema claro
+                .width(200.dp)
+                .background(Color.White)
         ) {
             localidades.forEach { localidad ->
                 DropdownMenuItem(

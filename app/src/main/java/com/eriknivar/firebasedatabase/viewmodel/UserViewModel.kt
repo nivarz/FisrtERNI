@@ -27,6 +27,20 @@ class UserViewModel : ViewModel() {
 
     private val _fotoUrl = MutableLiveData<String?>()
 
+    private val _clienteId = MutableLiveData("")      // ← NUEVO
+    val clienteId: LiveData<String> = _clienteId
+
+    fun setUser(nombre: String, tipo: String, documentId: String) {
+        _nombre.value = nombre
+        _tipo.value = tipo
+        _documentId.value = documentId
+        _isInitialized.value = true
+    }
+
+    fun setClienteId(id: String) {                    // ← NUEVO
+        _clienteId.value = id
+    }
+
     fun cargarFotoUrl(documentId: String) {
         Firebase.firestore.collection("usuarios")
             .document(documentId)
@@ -63,12 +77,6 @@ class UserViewModel : ViewModel() {
     var tempUbicacion = ""
     var tempFecha = ""
 
-    fun setUser(nombre: String, tipo: String, documentId: String) {
-        _nombre.value = nombre
-        _tipo.value = tipo
-        _documentId.value = documentId
-        _isInitialized.value = true
-    }
 
     fun clearUser() {
         _nombre.value = ""
