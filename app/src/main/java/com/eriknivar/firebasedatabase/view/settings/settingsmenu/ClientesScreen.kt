@@ -7,7 +7,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.material3.FloatingActionButtonDefaults.elevation
@@ -26,6 +31,9 @@ import com.eriknivar.firebasedatabase.navigation.Rutas
 import com.eriknivar.firebasedatabase.viewmodel.ClientesListViewModel
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.eriknivar.firebasedatabase.view.utility.ClientesRepository
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,10 +43,21 @@ private fun ClientesListScreen(
     onEdit: (String) -> Unit,
     onRetry: () -> Unit,
     onQueryChange: (String) -> Unit = {},
-    onLoadMore: () -> Unit = {}
+    onLoadMore: () -> Unit = {},
+    onToggleRequest: (ClientesRepository.ClienteListItem, Boolean) -> Unit,
+    onDeleteRequest: (ClientesRepository.ClienteListItem) -> Unit,
+    showDelete: Boolean
+
 ) {
     val snackbarHost = remember { SnackbarHostState() }
+
     val BrandGreen = Color(0xFF527782)
+
+    // Tamaños típicos de FAB + margen
+    val fabSize = 56.dp
+    val fabMargin = 16.dp
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val extraBottom = fabSize + fabMargin * 2 + navInset
 
     LaunchedEffect(ui.error) {
         ui.error?.let { snackbarHost.showSnackbar(it, withDismissAction = true) }
@@ -59,7 +78,8 @@ private fun ClientesListScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nuevo cliente")
             }
-        }
+        },
+        floatingActionButtonPosition = FabPosition.End // 👈 opcional, pero recomendado
     ) { padding ->
         Column(
             modifier = Modifier
@@ -130,6 +150,12 @@ private fun ClientesListScreen(
                 else -> {
                     val listState = rememberLazyListState()
 
+                    // 👇 1) Calculamos el extra inferior para que el FAB no tape los items
+                    val fabSize = 56.dp
+                    val fabMargin = 16.dp
+                    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val extraBottom = fabSize + fabMargin * 2 + navInset
+
                     val shouldLoadMore by remember {
                         derivedStateOf {
                             val lastVisible =
@@ -144,12 +170,31 @@ private fun ClientesListScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(12.dp),
+                        contentPadding = PaddingValues(
+                            start = 12.dp,
+                            top = 12.dp,
+                            end = 12.dp,
+                            bottom = 12.dp + extraBottom
+                        ),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(ui.items, key = { it.clienteId }) { item ->
-                            ClienteCard(item = item, onClick = { onEdit(item.clienteId) })
+                            ClienteCard(
+                                item = item,
+                                onClick = { onEdit(item.clienteId) },
+                                onToggleRequest = { target, activar ->
+                                    onToggleRequest(
+                                        target,
+                                        activar
+                                    )
+                                },
+                                onEdit = { onEdit(item.clienteId) },
+                                onDeleteRequest = { onDeleteRequest(it) },   // 👈 pasa callback
+                                showDelete = showDelete                      // 👈 propaga flag de rol
+                            )
                         }
+
+
                         if (ui.loading && ui.items.isNotEmpty()) {
                             item {
                                 Box(
@@ -165,13 +210,22 @@ private fun ClientesListScreen(
             }
         }
     }
+
+
+
 }
 
 @Composable
 private fun ClienteCard(
     item: ClientesRepository.ClienteListItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onToggleRequest: (ClientesRepository.ClienteListItem, Boolean) -> Unit,
+    onEdit: () -> Unit,
+    onDeleteRequest: (ClientesRepository.ClienteListItem) -> Unit,
+    showDelete: Boolean
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
+
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -182,8 +236,44 @@ private fun ClienteCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+
                 EstadoChip(activo = item.activo)
+                Spacer(Modifier.width(4.dp))
+
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Más acciones"
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Editar") },
+                            leadingIcon = { Icon(Icons.Default.Edit, null) },
+                            onClick = { menuOpen = false; onEdit() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (item.activo) "Desactivar" else "Activar") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (item.activo) Icons.Default.Block else Icons.Default.Check,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = { menuOpen = false; onToggleRequest(item, !item.activo) }
+                        )
+                        if (showDelete) {
+                            DropdownMenuItem(
+                                text = { Text("Eliminar") },
+                                leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                onClick = { menuOpen = false; onDeleteRequest(item) }
+                            )
+                        }
+                    }
+                }
             }
+
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "${item.clienteId} • ${item.rncOCedula}",
@@ -195,6 +285,7 @@ private fun ClienteCard(
         }
     }
 }
+
 
 @Composable
 private fun EstadoChip(activo: Boolean) {
@@ -223,6 +314,9 @@ fun ClientesScreen(
     val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
     val isInitialized = userViewModel.isInitialized.observeAsState(false).value
     if (isInitialized && isLoggedOut) return
+
+    val esSuper = (userViewModel.tipo.value ?: "").equals("superuser", ignoreCase = true)
+
 
     val refreshFlag by navController.currentBackStackEntry
         ?.savedStateHandle
@@ -262,6 +356,12 @@ fun ClientesScreen(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
+    var pendingToggle by remember {
+        mutableStateOf<Pair<ClientesRepository.ClienteListItem, Boolean>?>(null)
+    }
+    var pendingDelete by remember { mutableStateOf<ClientesRepository.ClienteListItem?>(null) }
+
+
     NavigationDrawer(
         navController = navController,
         storageType = "Clientes",
@@ -272,16 +372,87 @@ fun ClientesScreen(
         lot = dummyLot,
         expirationDate = dummyDateText
     ) {
-        val ui by vm.ui.collectAsState()
+        val ui = vm.ui.collectAsState().value
+        val esSuper = (userViewModel.tipo.value ?: "")
+            .equals("superuser", ignoreCase = true)
+
         ClientesListScreen(
             ui = ui,
             onNew = { navController.navigate(Rutas.CLIENTE_FORM) },
             onEdit = { id -> navController.navigate("${Rutas.CLIENTE_FORM}?${Rutas.ARG_CLIENTE_ID}=$id") },
             onRetry = { vm.retry() },
             onQueryChange = { vm.onQueryChange(it) },
-            onLoadMore = { vm.loadNextPage() }
+            onLoadMore = { vm.loadNextPage() },
+            onToggleRequest = { item, activar -> pendingToggle = item to activar },
+            onDeleteRequest = { item -> pendingDelete = item },
+            showDelete = esSuper
+
+        )
+    }
+
+    // Diálogo de motivo
+    val deleteItem = pendingDelete
+    if (deleteItem != null) {
+        MotivoDialog(
+            visible = true,
+            titulo = "Eliminar cliente",
+            onDismiss = { pendingDelete = null },
+            onConfirm = { motivo ->
+                val uid =
+                    com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                vm.eliminar(deleteItem, motivo, uid)   // 👈 llama al ViewModel
+                pendingDelete = null
+            }
+        )
+    }
+
+    // Diálogo de motivo
+    val togglePair = pendingToggle
+    if (togglePair != null) {
+        val (item, activar) = togglePair
+        MotivoDialog(
+            visible = true,
+            titulo = if (activar) "Activar cliente" else "Desactivar cliente",
+            onDismiss = { pendingToggle = null },
+            onConfirm = { motivo ->
+                val uid =
+                    com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                vm.cambiarEstado(item, activar, motivo, uid)
+                pendingToggle = null
+            }
         )
     }
 }
 
+
+@Composable
+private fun MotivoDialog(
+    visible: Boolean,
+    titulo: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    if (!visible) return
+    var motivo by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(titulo) },
+        text = {
+            OutlinedTextField(
+                value = motivo,
+                onValueChange = { motivo = it },
+                label = { Text("Motivo") },
+                singleLine = false
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = motivo.isNotBlank(),
+                onClick = { onConfirm(motivo.trim()) }
+            ) { Text("Aceptar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
 

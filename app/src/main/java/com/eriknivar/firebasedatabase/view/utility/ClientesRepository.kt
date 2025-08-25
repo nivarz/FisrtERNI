@@ -378,4 +378,46 @@ class ClientesRepository {
             notas = snap.getString("notas").orEmpty()
         )
     }
+
+    class ClienteNoEncontradoException(message: String) : Exception(message)
+
+    suspend fun eliminarCliente(
+        clienteId: String,
+        motivo: String,
+        hechoPorUid: String
+    ) {
+        val clienteRef = db.collection("clientes").document(clienteId)
+        val auditRef = db.collection("auditoria_clientes").document()
+
+        db.runTransaction { tx ->
+            val snap = tx.get(clienteRef)
+            if (!snap.exists()) throw ClienteNoEncontradoException("Cliente no encontrado.")
+
+            val before = snap.data ?: emptyMap<String, Any?>()
+            val rncLimpio = before["rncLimpio"] as? String
+
+            // Borrar doc principal
+            tx.delete(clienteRef)
+
+            // Borrar índice por RNC si existe
+            if (!rncLimpio.isNullOrBlank()) {
+                val idxRef = db.collection("indices_clientes_rnc").document(rncLimpio)
+                tx.delete(idxRef)
+            }
+
+            // Auditoría
+            val now = com.google.firebase.firestore.FieldValue.serverTimestamp()
+            val audit = hashMapOf(
+                "accion" to "eliminar",
+                "clienteId" to clienteId,
+                "payloadAntes" to before,
+                "payloadDespues" to null,
+                "motivo" to motivo,
+                "hechoPorUid" to hechoPorUid,
+                "fecha" to now
+            )
+            tx.set(auditRef, audit)
+            null
+        }.await()
+    }
 }

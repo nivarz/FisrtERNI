@@ -7,6 +7,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ClientesListViewModel(
@@ -139,6 +140,66 @@ class ClientesListViewModel(
             }
         }
     }
+
+    fun cambiarEstado(
+        item: ClientesRepository.ClienteListItem,
+        activar: Boolean,
+        motivo: String,
+        uid: String
+    ) = viewModelScope.launch {
+        try {
+            // opcional: loader suave
+            _ui.update { it.copy(error = null) }
+
+            repo.cambiarEstadoCliente(
+                ClientesRepository.ClienteChangeEstadoInput(
+                    clienteId = item.clienteId,
+                    activar = activar,
+                    motivo = motivo,
+                    hechoPorUid = uid
+                )
+            )
+
+            // Actualiza en memoria sin relistar
+            _ui.update { st ->
+                st.copy(
+                    items = st.items.map {
+                        if (it.clienteId == item.clienteId) it.copy(activo = activar) else it
+                    },
+                    error = null
+                )
+            }
+        } catch (e: Exception) {
+            _ui.update { it.copy(error = e.message ?: "No se pudo cambiar el estado") }
+        }
+    }
+
+    fun eliminar(
+        item: ClientesRepository.ClienteListItem,
+        motivo: String,
+        uid: String
+    ) = viewModelScope.launch {
+        try {
+            _ui.value = _ui.value.copy(error = null)
+
+            // 🔥 elimina en Firestore + auditoría
+            repo.eliminarCliente(
+                clienteId = item.clienteId,
+                motivo = motivo,
+                hechoPorUid = uid
+            )
+
+            // ✅ Actualiza la lista en memoria sin relistar
+            _ui.value = _ui.value.let { st ->
+                val nueva = st.items.filterNot { it.clienteId == item.clienteId }
+                st.copy(items = nueva, empty = nueva.isEmpty())
+            }
+        } catch (e: Exception) {
+            _ui.value = _ui.value.copy(error = e.message ?: "No se pudo eliminar")
+        }
+    }
+
+
 }
 
 

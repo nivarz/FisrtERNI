@@ -4,10 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eriknivar.firebasedatabase.view.utility.ClienteCreateInput
+import com.eriknivar.firebasedatabase.view.utility.ClienteUtils
 import com.eriknivar.firebasedatabase.view.utility.ClientesRepository
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 enum class ClienteFormMode { CREATE, EDIT }
 
@@ -119,4 +123,49 @@ class ClienteFormViewModel(
     fun clearError() {
         _ui.value = _ui.value.copy(error = null)
     }
+
+    fun recargarInicial() {
+        if (_ui.value.mode == ClienteFormMode.EDIT) {
+            cargarInicial() // usa el private de adentro
+        }
+    }
+
+    // --- Verificación asíncrona de RNC/Cédula (cliente duplicado) ---
+    sealed class RncStatus {
+        data object Idle : RncStatus()
+        data object Checking : RncStatus()
+        data object Libre : RncStatus()
+        data object EnUso : RncStatus()
+        data class Error(val msg: String) : RncStatus()
+    }
+
+    private val _rncStatus = MutableStateFlow<RncStatus>(RncStatus.Idle)
+    val rncStatus: StateFlow<RncStatus> = _rncStatus
+
+    fun checkRncDisponible(rncActual: String, rncOriginalDeEdicion: String?) {
+        viewModelScope.launch {
+            val limpio = ClienteUtils.limpiarRncOCedula(rncActual)
+            // Si está vacío o no cambió en EDIT, no chequees
+            if (limpio.isBlank() ||
+                (!rncOriginalDeEdicion.isNullOrBlank()
+                        && ClienteUtils.limpiarRncOCedula(rncOriginalDeEdicion) == limpio)
+            ) {
+                _rncStatus.value = RncStatus.Idle
+                return@launch
+            }
+
+            try {
+                _rncStatus.value = RncStatus.Checking
+                val idxRef = Firebase.firestore
+                    .collection("indices_clientes_rnc")
+                    .document(limpio)
+                val exists = idxRef.get().await().exists()
+                _rncStatus.value = if (exists) RncStatus.EnUso else RncStatus.Libre
+            } catch (e: Exception) {
+                _rncStatus.value = RncStatus.Error(e.message ?: "Error verificando RNC")
+            }
+        }
+    }
+
+
 }
