@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import registrarAuditoriaConteo
 import coil.request.ImageRequest
 import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
 
 
 @Composable
@@ -113,12 +114,15 @@ fun MessageCard(
     }
 
     if (showDialog) {
-        AlertDialog(onDismissRequest = { showDialog = true },
+        AlertDialog(
+            onDismissRequest = { showDialog = true },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que deseas borrar este registro?") },
             confirmButton = {
                 Button(onClick = {
-                    // ✅ Registrar la auditoría antes de borrar
+                    val cidAudit = (userViewModel.clienteId.value ?: "").trim().uppercase()
+                    val uidAudit = FirebaseAuth.getInstance().currentUser?.uid
+
                     val valoresAntes = mapOf(
                         "ubicacion" to item.location,
                         "sku" to item.sku,
@@ -129,21 +133,20 @@ fun MessageCard(
                         "descripcion" to item.description
                     )
 
-                    registrarAuditoriaConteo(
-                        registroId = item.documentId,
-                        tipoAccion = "Eliminación",
-                        usuario = userViewModel.nombre.value ?: "Desconocido",
-                        valoresAntes = valoresAntes
-                    )
-
-                    // 🗑️ Borrar
                     showDialog = false
                     deleteFromFirestore(firestore, item.documentId, allData) {
+                        // ✅ Audita SOLO si borró OK
+                        registrarAuditoriaConteo(
+                            clienteId = cidAudit,
+                            registroId = item.documentId,
+                            tipoAccion = "Eliminación",
+                            usuarioNombre = userViewModel.nombre.value ?: "Desconocido",
+                            usuarioUid = uidAudit,
+                            valoresAntes = valoresAntes
+                        )
                         confirmDeletion = false
                     }
-                }) {
-                    Text("Sí")
-                }
+                }) { Text("Sí") }
             },
             dismissButton = {
                 Button(onClick = { showDialog = false }) {
@@ -296,7 +299,10 @@ fun MessageCard(
                                         color = Color.Black,
                                         textDecoration = TextDecoration.Underline,
                                         modifier = Modifier.clickable {
-                                            Log.d("FotoDebug", "🟢 VER presionado en Reporte: ${item.fotoUrl}")
+                                            Log.d(
+                                                "FotoDebug",
+                                                "🟢 VER presionado en Reporte: ${item.fotoUrl}"
+                                            )
                                             showImageDialog = true
                                         }
                                     )
@@ -317,7 +323,10 @@ fun MessageCard(
                                             )
                                         },
                                         text = {
-                                            Log.d("FotoDebug", "📷 Mostrando imagen en Reporte desde URL: ${item.fotoUrl}")
+                                            Log.d(
+                                                "FotoDebug",
+                                                "📷 Mostrando imagen en Reporte desde URL: ${item.fotoUrl}"
+                                            )
                                             AsyncImage(
                                                 model = item.fotoUrl.trim(),
                                                 contentDescription = "Imagen asociada",
@@ -398,7 +407,8 @@ fun MessageCard(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                OutlinedTextField(value = editedExpirationDate,
+                                OutlinedTextField(
+                                    value = editedExpirationDate,
                                     onValueChange = { editedExpirationDate = it },
                                     label = { Text("Editar Fecha Vencimiento") },
                                     readOnly = true,
@@ -425,7 +435,13 @@ fun MessageCard(
                         }, confirmButton = {
                             Button(
                                 onClick = {
-                                    if (editedLocation.isBlank() || editedLote.isBlank() || editedExpirationDate.isBlank() || editedQuantity.isBlank()) {
+                                    // 1) Validaciones básicas
+                                    if (
+                                        editedLocation.isBlank() ||
+                                        editedLote.isBlank() ||
+                                        editedExpirationDate.isBlank() ||
+                                        editedQuantity.isBlank()
+                                    ) {
                                         Toast.makeText(
                                             context,
                                             "Todos los campos deben estar completos",
@@ -434,68 +450,113 @@ fun MessageCard(
                                         return@Button
                                     }
 
-                                    Firebase.firestore.collection("ubicaciones")
+                                    val cid =
+                                        (userViewModel.clienteId.value ?: "").trim().uppercase()
+
+                                    // 2) Validar que la ubicación existe en /clientes/{cid}/ubicaciones
+                                    Firebase.firestore
+                                        .collection("clientes").document(cid)
+                                        .collection("ubicaciones")
                                         .whereEqualTo(
                                             "codigo_ubi",
                                             editedLocation.trim().uppercase()
                                         )
+                                        .limit(1)
                                         .get()
                                         .addOnSuccessListener { documents ->
                                             val ubicacionExiste = documents.any()
-
                                             if (!ubicacionExiste) {
-
                                                 coroutineScope.launch {
                                                     snackbarHostState.showSnackbar("La ubicación no existe en la base de datos")
                                                 }
-
-                                                return@addOnSuccessListener // ✅ Detiene el flujo aquí
+                                                return@addOnSuccessListener
                                             }
 
+                                            // 3) Auditoría: valores antes / después (normalizados)
                                             val valoresAntes = mapOf(
                                                 "ubicacion" to item.location,
                                                 "lote" to item.lote,
                                                 "fechaVencimiento" to item.expirationDate,
                                                 "cantidad" to item.quantity.toString()
                                             )
-
                                             val valoresDespues = mapOf(
-                                                "ubicacion" to editedLocation,
-                                                "lote" to editedLote,
-                                                "fechaVencimiento" to editedExpirationDate,
-                                                "cantidad" to editedQuantity
+                                                "ubicacion" to editedLocation.trim().uppercase(),
+                                                "lote" to editedLote.trim().ifBlank { "-" }
+                                                    .uppercase(),
+                                                "fechaVencimiento" to editedExpirationDate.trim(),
+                                                "cantidad" to editedQuantity.trim()
                                             )
-
                                             val huboCambios = valoresAntes != valoresDespues
 
-                                            if (huboCambios) {
-                                                registrarAuditoriaConteo(
-                                                    registroId = item.documentId,
-                                                    tipoAccion = "Modificación",
-                                                    usuario = userViewModel.nombre.value
-                                                        ?: "Desconocido",
-                                                    valoresAntes = valoresAntes,
-                                                    valoresDespues = valoresDespues
-                                                )
-                                            }
+                                            // 4) Construir updates según rol (reglas)
+                                            val rol = (userViewModel.tipo.value ?: "").lowercase()
+                                            val soloCantidad = (rol == "invitado")
 
-                                            updateFirestore(
-                                                firestore,
-                                                item.documentId,
-                                                editedLocation,
-                                                item.sku,
-                                                editedLote,
-                                                editedExpirationDate,
-                                                editedQuantity.toDoubleOrNull() ?: item.quantity,
-                                                allData,
-                                                onSuccess = onSuccess
-                                            )
+                                            val updates: MutableMap<String, Any> =
+                                                if (soloCantidad) {
+                                                    mutableMapOf(
+                                                        "cantidad" to (editedQuantity.toDoubleOrNull()
+                                                            ?: item.quantity)
+                                                    )
+                                                } else {
+                                                    mutableMapOf(
+                                                        "cantidad" to (editedQuantity.toDoubleOrNull()
+                                                            ?: item.quantity),
+                                                        "ubicacion" to editedLocation.trim()
+                                                            .uppercase(),
+                                                        "lote" to editedLote.trim().ifBlank { "-" }
+                                                            .uppercase(),
+                                                        "fechaVencimiento" to editedExpirationDate.trim(),
+                                                        "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                                                    )
+                                                }
 
-                                            isEditing = false
+                                            // 5) Update del documento (una sola vez)
+                                            // usa la subcolección del cliente
+                                            val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+
+                                            Firebase.firestore
+                                                .collection("clientes").document(cid)
+                                                .collection("inventario")
+                                                .document(item.documentId)
+                                                .update(updates)
+
+                                                .addOnSuccessListener {
+                                                    // 6) Registrar auditoría SOLO si el update fue exitoso
+                                                    if (huboCambios) {
+                                                        val cidAudit =
+                                                            userViewModel.clienteId.value?.trim()
+                                                                ?.uppercase().orEmpty()
+                                                        val uidAudit =
+                                                            FirebaseAuth.getInstance().currentUser?.uid
+                                                        registrarAuditoriaConteo(
+                                                            clienteId = cidAudit,
+                                                            registroId = item.documentId,
+                                                            tipoAccion = "Modificación",
+                                                            usuarioNombre = userViewModel.nombre.value
+                                                                ?: "Desconocido",
+                                                            usuarioUid = uidAudit,
+                                                            valoresAntes = valoresAntes,
+                                                            valoresDespues = valoresDespues
+                                                        )
+                                                    }
+
+                                                    onSuccess()
+                                                    isEditing = false
+                                                }
+                                                .addOnFailureListener { e ->
+                                                    Log.e("UpdateInv", "❌ Error al actualizar", e)
+                                                    val msg = if (soloCantidad)
+                                                        "Como invitado solo puedes editar CANTIDAD y solo el mismo día."
+                                                    else e.message ?: "No se pudo actualizar"
+                                                    Toast.makeText(context, msg, Toast.LENGTH_LONG)
+                                                        .show()
+                                                }
                                         }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF003366), contentColor = Color.White
+                                    containerColor = Color(0xFF003366),
+                                    contentColor = Color.White
                                 )
                             ) {
                                 Text("Guardar")

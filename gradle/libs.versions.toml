@@ -1,5 +1,5 @@
 [versions]
-agp = "8.12.1"
+agp = "8.12.3"
 coilComposeVersion = "2.7.0"
 fragment = "1.8.9"
 kotlin = "2.2.10"
@@ -17,6 +17,7 @@ navigationCompose = "2.9.3"
 crashlytics = "3.0.6"
 zxingAndroidEmbedded = "4.3.0"
 runtimeLivedata = "1.9.0"
+ui = "1.9.1"
 
 
 [libraries]
@@ -46,6 +47,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poiVersion" }
 
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
+ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

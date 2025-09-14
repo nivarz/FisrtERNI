@@ -84,12 +84,20 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx")
     //implementation("com.google.firebase:firebase-crashlytics")
 
+    // para Tasks.await
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.android.gms:play-services-tasks:18.0.2")
 
     // Otras libs
     implementation(libs.zxing.android.embedded)
     implementation(libs.coil.compose.v250)   // usa solo una variante
     implementation(libs.apache.poi)
     implementation(libs.poi.ooxml)
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    implementation(libs.ui)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -39,6 +39,8 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.firestore
+import com.eriknivar.firebasedatabase.network.SelectedClientStore
+
 
 @Composable
 fun DropDownUpScreen(
@@ -61,32 +63,48 @@ fun DropDownUpScreen(
     // 🔄 Cargar localidades según rol
     LaunchedEffect(rolRaw, cliente) {
         val rol = rolRaw.trim().lowercase()
-        if (rol.isBlank()) return@LaunchedEffect  // evita correr con datos vacíos
+        if (rol.isBlank()) return@LaunchedEffect
 
-        val col = firestore.collection("localidades")
-        val q = if (rol == "superuser") col else col.whereEqualTo("clienteId", cliente)
+        // Cliente real: superuser lo toma del selector; admin/invitado del VM
+        val clienteIdActual: String? =
+            if (rol == "superuser") SelectedClientStore.selectedClienteId else cliente
 
-        q.get()
+        val cid = clienteIdActual?.trim()?.uppercase()
+        if (cid.isNullOrBlank()) {
+            localidades.clear()
+            Log.e("Localidades", "Cliente no resuelto (rol=$rol, cliente='$cliente')")
+            return@LaunchedEffect
+        }
+
+        val col = firestore
+            .collection("clientes")
+            .document(cid)
+            .collection("localidades")
+
+        col.get()
             .addOnSuccessListener { result ->
                 val nombres = result.documents.mapNotNull { it.getString("nombre") }
-                Log.d("Localidades", "rol=$rol cliente=$cliente count=${nombres.size}")
+                Log.d("Localidades", "ruta=clientes/$cid/localidades count=${nombres.size}")
                 localidades.clear()
-                localidades.addAll(nombres.sortedDescending())
+                localidades.addAll(nombres.sorted())
             }
             .addOnFailureListener { e ->
                 val code = (e as? FirebaseFirestoreException)?.code?.name ?: "?"
-                Log.e("Localidades", "Error $code: ${e.message}", e)
+                Log.e(
+                    "Localidades",
+                    "Error $code leyendo clientes/$cid/localidades: ${e.message}",
+                    e
+                )
                 localidades.clear()
                 Toast.makeText(
                     navController.context,
-                    when (code) {
-                        "PERMISSION_DENIED" -> "Sin permisos para leer localidades (reglas)"
-                        else -> "Error cargando localidades"
-                    },
+                    if (code == "PERMISSION_DENIED") "Sin permisos para leer localidades (reglas)"
+                    else "Error cargando localidades",
                     Toast.LENGTH_LONG
                 ).show()
             }
     }
+
 
     Column(
         modifier = Modifier

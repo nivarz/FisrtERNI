@@ -25,6 +25,9 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
+import com.eriknivar.firebasedatabase.view.inventoryreports.fetchFilteredInventoryFromFirestore
+import com.eriknivar.firebasedatabase.view.inventoryreports.fetchAllInventory
+
 
 @Composable
 fun InventoryReportsFragment(
@@ -78,18 +81,36 @@ fun InventoryReportsFragment(
         }
     }
 
-    LaunchedEffect(usuario, tipoUsuario) {
+    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+
+    LaunchedEffect(usuario, tipoUsuario, cid) {
         if (usuario.isNotEmpty()) {
             val firestore = Firebase.firestore
 
             if (tipoUsuario.lowercase().trim() == "admin" || tipoUsuario.lowercase()
                     .trim() == "superuser"
             ) {
-                fetchAllInventory(firestore, allData, tipoUsuario)
+                fetchAllInventory(
+                    firestore,
+                    allData,
+                    tipoUsuario,
+                    clienteId = cid          // ✅ deja SOLO esta forma
+                )
             } else {
-                fetchFilteredInventoryByUser(firestore, allData, usuario, tipoUsuario)
+                fetchFilteredInventoryFromFirestore(
+                    db = firestore,
+                    clienteId = cid,
+                    filters = mapOf("usuario" to usuario),
+                    onResult = { nuevos ->
+                        allData.clear()
+                        allData.addAll(nuevos)
+                        Log.d("Reportes", "Cargados (usuario): ${allData.size}")
+                    },
+                    onError = { e ->
+                        Log.e("Reportes", "❌ Error al cargar por usuario", e)
+                    }
+                )
             }
-
         }
     }
 
@@ -114,7 +135,8 @@ fun InventoryReportsFragment(
         }
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
+    val lastInteractionTime =
+        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
     fun actualizarActividad(context: Context) {
         val tiempoActual = System.currentTimeMillis()
@@ -133,7 +155,8 @@ fun InventoryReportsFragment(
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
 
                 userViewModel.clearUser()
 
@@ -146,7 +169,16 @@ fun InventoryReportsFragment(
         }
     }
 
-    NavigationDrawer(navController, "Reportes del Inventario", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
+    NavigationDrawer(
+        navController,
+        "Reportes del Inventario",
+        userViewModel,
+        dummyLocation,
+        dummySku,
+        dummyQuantity,
+        dummyLot,
+        dummyDateText
+    ) {
         InventoryReportFiltersScreen(
             userViewModel = userViewModel,
             allData = allData,
@@ -159,12 +191,3 @@ fun InventoryReportsFragment(
         )
     }
 }
-
-
-
-
-
-
-
-
-

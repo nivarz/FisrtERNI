@@ -308,13 +308,3 @@ fun InventoryReportItem(
         )
     }
 }
-
-
-
-
-
-
-
-
-
-

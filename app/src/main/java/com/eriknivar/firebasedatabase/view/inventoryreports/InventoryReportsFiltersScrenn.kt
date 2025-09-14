@@ -88,21 +88,31 @@ fun InventoryReportFiltersScreen(
     val filtrosExpandido = remember { mutableStateOf(false) }
 
     val usuarioFiltro = remember { mutableStateOf("") }
-    val filteredData = remember { mutableStateListOf<DataFields>() }
 
     val context = LocalContext.current
     val calendar = remember { Calendar.getInstance() }
     val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
 
-    val firestore = Firebase.firestore
     val listaLocalidades = remember { mutableStateListOf<String>() }
     val localidadSeleccionada = remember { mutableStateOf("") }
 
     val isLoading = remember { mutableStateOf(false) }
 
-// 🔄 Cargar localidades desde Firestore
-    LaunchedEffect(Unit) {
-        firestore.collection("localidades")
+    // --- Carga para Reportes ---
+    val firestore = Firebase.firestore
+    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+
+    // La lista que la UI pinta
+    val filteredData = remember { mutableStateListOf<DataFields>() }
+
+    // Cambia estos nombres si tus estados se llaman distinto
+    val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
+    val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
+
+
+    LaunchedEffect(cid) {
+        firestore.collection("clientes").document(cid)
+            .collection("localidades")
             .get()
             .addOnSuccessListener { result ->
                 listaLocalidades.clear()
@@ -141,6 +151,32 @@ fun InventoryReportFiltersScreen(
             calendar.get(Calendar.DAY_OF_MONTH)
         )
     }
+
+    fun cargarReportes() {
+        val filtros = buildMap<String, String> {
+            val loc = selectedLocalidadState.value.trim()
+            val usr = selectedUsuarioState.value.trim()
+            if (loc.isNotBlank()) put("localidad", loc.uppercase())
+            if (usr.isNotBlank()) put("usuario", usr)              // nombres no van en upper
+        }
+
+        fetchFilteredInventoryFromFirestore(
+            db = firestore,
+            clienteId = cid,
+            filters = filtros,
+            onResult = { nuevos ->
+                filteredData.clear()
+                filteredData.addAll(nuevos)
+                Log.d("Reportes", "Cargados: ${filteredData.size}")
+            },
+            onError = { e ->
+                Log.e("Reportes", "❌ Error al cargar", e)
+            }
+        )
+    }
+
+    // Carga inicial (y cuando cambie el cliente)
+    LaunchedEffect(cid) { cargarReportes() }
 
     Column(
         modifier = Modifier
@@ -277,14 +313,17 @@ fun InventoryReportFiltersScreen(
                             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                             isLoading.value = true
 
-                            val filtros = mapOf(
-                                "usuario" to usuarioFiltro.value.uppercase(),
-                                "localidad" to localidadSeleccionada.value
-                                // Puedes agregar más si tu estructura de Firestore lo permite
-                            )
+                            val filtros = buildMap<String, String> {
+                                if (usuarioFiltro.value.isNotBlank())
+                                    put("usuario", usuarioFiltro.value.trim())          // 👈 SIN uppercase
+                                if (localidadSeleccionada.value.isNotBlank())
+                                    put("localidad", localidadSeleccionada.value.trim().uppercase())
+                            }
+
 
                             fetchFilteredInventoryFromFirestore(
                                 db = Firebase.firestore,
+                                clienteId = cid,
                                 filters = filtros,
                                 tipoUsuario = tipoUsuario,
                                 onResult = { nuevosDatos ->
@@ -308,7 +347,7 @@ fun InventoryReportFiltersScreen(
                                             val matchesDate = try {
                                                 (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
                                                         (endDate.value.isBlank() || dateFormatted <= endDate.value)
-                                            } catch (e: Exception) {
+                                            } catch (_: Exception) {
                                                 true
                                             }
 
@@ -373,7 +412,7 @@ fun InventoryReportFiltersScreen(
 
                                     file?.let { shareExcelFile(context, it) }
 
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     Toast.makeText(context, "Error al exportar", Toast.LENGTH_SHORT)
                                         .show()
                                 } finally {
@@ -495,7 +534,10 @@ fun InventoryReportFiltersScreen(
                         tipoUsuarioActual = userViewModel.tipo.value
                             ?: "", // ✅ Aquí el nuevo parámetro
                         onDelete = { documentId ->
-                            Firebase.firestore.collection("inventario").document(documentId)
+                            Firebase.firestore
+                                .collection("clientes").document(cid)
+                                .collection("inventario")
+                                .document(documentId)
                                 .delete()
                                 .addOnSuccessListener {
                                     Toast.makeText(
@@ -513,6 +555,7 @@ fun InventoryReportFiltersScreen(
                         onEdit = { updatedItem ->
                             updateFirestore(
                                 Firebase.firestore,
+                                cid,
                                 updatedItem.documentId,
                                 updatedItem.location,
                                 updatedItem.sku,

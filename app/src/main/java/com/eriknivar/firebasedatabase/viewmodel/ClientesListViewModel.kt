@@ -2,7 +2,7 @@ package com.eriknivar.firebasedatabase.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.eriknivar.firebasedatabase.view.utility.ClientesRepository
+import com.eriknivar.firebasedatabase.view.utility.clientes.ClientesRepository
 import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow

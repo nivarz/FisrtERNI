@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view.settings.settingsmenu
+package com.eriknivar.firebasedatabase.view.utility.auditoria
 
 import android.content.Context
 import android.util.Log
@@ -42,44 +42,41 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
-import com.eriknivar.firebasedatabase.view.utility.AuditoriaCard
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.view.utility.exportarAuditoriaAExcel
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.Timestamp
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: UserViewModel) {
-
+fun AuditoriaRegistrosScreen(
+    navController: NavHostController,
+    userViewModel: UserViewModel
+) {
     val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
     val isInitialized = userViewModel.isInitialized.observeAsState(false).value
+    if (isInitialized && isLoggedOut) return
 
-    if (isInitialized && isLoggedOut) {
-        // 🔴 No muestres nada, Compose lo ignora y se cerrará la app correctamente
-        return
-    }
+    val firestore = FirebaseFirestore.getInstance()
+    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+    val baseAud = firestore.collection("clientes").document(cid).collection("auditoria_conteos")
 
     val auditorias = remember { mutableStateListOf<DocumentSnapshot>() }
-    val firestore = FirebaseFirestore.getInstance()
-
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-
     val context = LocalContext.current
     val isExporting = remember { mutableStateOf(false) }
     val tipoFiltro = remember { mutableStateOf("Todos") }
 
-
+    // Borrar auditoría (ruta correcta)
     fun eliminarAuditoria(doc: DocumentSnapshot) {
-        firestore.collection("auditoria_conteos").document(doc.id)
-            .delete()
+        baseAud.document(doc.id).delete()
             .addOnSuccessListener {
                 auditorias.remove(doc)
                 coroutineScope.launch {
@@ -93,14 +90,11 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
             }
     }
 
-    val dummy = remember { mutableStateOf("") }
-
+    // Acceso
     val tipo = userViewModel.tipo.value ?: ""
     if (tipo.lowercase() !in listOf("admin", "superuser")) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White),
+            modifier = Modifier.fillMaxSize().background(Color.White),
             contentAlignment = Alignment.TopCenter
         ) {
             Text(
@@ -113,14 +107,17 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
         return
     }
 
-    LaunchedEffect(Unit) {
-        firestore.collection("auditoria_conteos").orderBy("fecha", Query.Direction.DESCENDING).get()
+    // Carga inicial
+    LaunchedEffect(cid) {
+        baseAud.orderBy("fecha", Query.Direction.DESCENDING)
+            .get()
             .addOnSuccessListener {
                 auditorias.clear()
                 auditorias.addAll(it.documents)
             }
     }
 
+    // Helper de casteo seguro para mostrar mapas en el card
     fun Any?.safeMapCast(): Map<String, Any?>? {
         return if (this is Map<*, *>) {
             this.entries
@@ -129,37 +126,37 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
         } else null
     }
 
-    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
+    // Control de sesión por inactividad
+    val lastInteractionTime =
+        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
     fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
+        val now = System.currentTimeMillis()
+        lastInteractionTime.longValue = now
+        SessionUtils.guardarUltimaInteraccion(context, now)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {
         while (true) {
             delay(60_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-
-            if (tiempoInactivo >= 30 * 60_000) {
+            val now = System.currentTimeMillis()
+            val inactive = now - lastInteractionTime.longValue
+            if (inactive >= 30 * 60_000) {
                 val documentId = userViewModel.documentId.value ?: ""
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
-
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
                 userViewModel.clearUser()
-
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
-                }
-
+                navController.navigate("login") { popUpTo(0) { inclusive = true } }
                 break
             }
         }
     }
+
+    // Dummy refs que usa tu NavigationDrawer
+    val dummy = remember { mutableStateOf("") }
 
     NavigationDrawer(
         navController = navController,
@@ -171,9 +168,9 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
         lot = dummy,
         expirationDate = dummy
     ) {
-
         SnackbarHost(hostState = snackbarHostState)
 
+        // Exportar a Excel
         Button(
             onClick = {
                 actualizarActividad(context)
@@ -190,35 +187,33 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF001F5B),
                 contentColor = Color.White
-
             )
-        )
-        {
+        ) {
             Icon(Icons.Default.FileDownload, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Exportar a Excel")
         }
 
+        // Filtro
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Filtrar por :", modifier = Modifier
-                .padding(end = 8.dp), fontWeight = FontWeight.Bold)
+            Text(
+                "Filtrar por :", modifier = Modifier.padding(end = 8.dp),
+                fontWeight = FontWeight.Bold
+            )
             var expanded by remember { mutableStateOf(false) }
-
             Box {
-                Button(onClick = { expanded = true }) {
-                    Text(tipoFiltro.value)
-                }
+                Button(onClick = { expanded = true }) { Text(tipoFiltro.value) }
                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    listOf("Todos", "Modificación", "Eliminación").forEach { tipo ->
+                    listOf("Todos", "Modificación", "Eliminación").forEach { tipoOpt ->
                         DropdownMenuItem(
-                            text = { Text(tipo) },
+                            text = { Text(tipoOpt) },
                             onClick = {
-                                tipoFiltro.value = tipo
+                                tipoFiltro.value = tipoOpt
                                 expanded = false
                             }
                         )
@@ -227,17 +222,19 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
             }
         }
 
-        val auditoriasFiltradas = auditorias.filter { doc ->
-            val tipoAccion = doc.getString("tipo_accion")?.lowercase() ?: ""
-            tipoFiltro.value.lowercase() == "todos" || tipoAccion == tipoFiltro.value.lowercase()
-        }
+        // Lista
         LazyColumn(modifier = Modifier.padding(16.dp)) {
+            val auditoriasFiltradas = auditorias.filter { doc ->
+                val t = doc.getString("tipo_accion")?.lowercase() ?: ""
+                tipoFiltro.value.lowercase() == "todos" || t == tipoFiltro.value.lowercase()
+            }
+
             items(items = auditoriasFiltradas, key = { it.id }) { doc ->
                 runCatching {
                     val tipoAccion = doc.getString("tipo_accion") ?: "Desconocido"
                     val registroId = doc.getString("registro_id") ?: "N/A"
-                    val usuario = doc.getString("usuario") ?: "N/A"
-                    val fecha = (doc.get("fecha") as? Timestamp) ?: Timestamp.now()
+                    val usuario = doc.getString("usuarioNombre") ?: "N/A"
+                    val fecha = doc.getTimestamp("fecha") ?: Timestamp.now()
                     val valoresAntes = doc.get("valores_antes").safeMapCast()
                     val valoresDespues = doc.get("valores_despues").safeMapCast()
 
@@ -249,20 +246,16 @@ fun AuditoriaRegistrosScreen(navController: NavHostController, userViewModel: Us
                         valoresAntes = valoresAntes,
                         valoresDespues = valoresDespues,
                         tipoUsuario = userViewModel.tipo.value ?: "",
-                        onDelete = {
-                            eliminarAuditoria(doc)
-                        }
+                        onDelete = { eliminarAuditoria(doc) }
                     )
-                }.onFailure {
+                }.onFailure { e ->
                     Log.e(
                         "Auditoría",
-                        "Campo 'fecha' no es Timestamp: ${doc.get("fecha")?.javaClass}"
+                        "Campo 'fecha' no es Timestamp: ${doc.get("fecha")?.javaClass}",
+                        e
                     )
-
                 }
             }
         }
     }
 }
-
-

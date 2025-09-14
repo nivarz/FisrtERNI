@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view.utility
+package com.eriknivar.firebasedatabase.view.utility.clientes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,7 +29,7 @@ import kotlinx.coroutines.flow.debounce
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun ClienteFormScreen(
-    mode: com.eriknivar.firebasedatabase.viewmodel.ClienteFormMode,
+    mode: ClienteFormMode,
     initial: ClienteFormInput = ClienteFormInput(),
     loading: Boolean = false,
     errorGlobal: String? = null,

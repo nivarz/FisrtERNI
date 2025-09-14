@@ -1,55 +1,49 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
-import android.util.Log
-import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.Timestamp
+import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 
 fun fetchFilteredInventoryFromFirestore(
     db: FirebaseFirestore,
+    clienteId: String,
     filters: Map<String, String>,
     tipoUsuario: String,
     onResult: (List<DataFields>) -> Unit,
     onError: (Exception) -> Unit
 ) {
-    var query: Query = db.collection("inventario")
+    val cid = clienteId.trim().uppercase()
+    var q: Query = db.collection("clientes").document(cid).collection("inventario")
 
-    filters["usuario"]?.takeIf { it.isNotBlank() }?.let {
-        if (tipoUsuario != "admin") {
-            query = query.whereEqualTo("usuario", it)
-        }
-    }
+    filters["localidad"]?.let { if (it.isNotBlank()) q = q.whereEqualTo("localidad", it.trim().uppercase()) }
+    filters["usuario"]?.let { if (it.isNotBlank()) q = q.whereEqualTo("usuario", it.trim()) }
 
-    filters["localidad"]?.takeIf { it.isNotBlank() }?.let {
-        query = query.whereEqualTo("localidad", it)
-    }
+    // Nota: si luego quieres filtrar por fecha en servidor, lo añadimos; por ahora se filtra en cliente.
 
-    query.get()
-        .addOnSuccessListener { result ->
-            val lista = result.map { doc ->
-                Log.d("FotoDebug", "Desde Firestore: ${doc.getString("fotoUrl")}")
-
+    q.get()
+        .addOnSuccessListener { snap ->
+            val list = snap.documents.map { d ->
                 DataFields(
-                    documentId = doc.id,
-                    location = doc.getString("ubicacion").orEmpty(),
-                    sku = doc.getString("codigoProducto").orEmpty(),
-                    lote = doc.getString("lote").orEmpty(),
-                    expirationDate = doc.getString("fechaVencimiento").orEmpty(),
-                    quantity = doc.getDouble("cantidad") ?: 0.0,
-                    description = doc.getString("descripcion").orEmpty(),
-                    unidadMedida = doc.getString("unidadMedida").orEmpty(),
-                    fechaRegistro = doc.getTimestamp("fechaRegistro"),
-                    usuario = doc.getString("usuario").orEmpty(),
-                    localidad = doc.getString("localidad").orEmpty(),
-                    tipoUsuarioCreador = doc.getString("tipoUsuarioCreador").orEmpty(),
-                    fotoUrl = doc.getString("fotoUrl")?.trim().orEmpty()
-
+                    documentId = d.id,
+                    location = d.getString("ubicacion").orEmpty(),
+                    sku = d.getString("codigoProducto") ?: d.getString("sku").orEmpty(),
+                    lote = d.getString("lote") ?: "-",
+                    expirationDate = d.getString("fechaVencimiento").orEmpty(),
+                    quantity = d.getDouble("cantidad") ?: 0.0,
+                    description = d.getString("descripcion").orEmpty(),
+                    unidadMedida = d.getString("unidadMedida") ?: d.getString("unidad").orEmpty(),
+                    fechaRegistro = d.getTimestamp("fechaRegistro") ?: d.getTimestamp("fecha") ?: Timestamp.now(),
+                    usuario = d.getString("usuario").orEmpty(),
+                    localidad = d.getString("localidad").orEmpty(),
+                    tipoUsuarioCreador = d.getString("tipoUsuarioCreador").orEmpty(),
+                    fotoUrl = d.getString("fotoUrl").orEmpty()
                 )
-            }
-            onResult(lista)
+            }.sortedByDescending { it.fechaRegistro?.toDate() }
+
+            onResult(list)
         }
-        .addOnFailureListener { e ->
-            onError(e)
-        }
+        .addOnFailureListener(onError)
 }
+
 

@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +28,7 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 fun UsuariosScreen(
     navController: NavHostController,
     userViewModel: UserViewModel
+
 ) {
 
     val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
@@ -33,6 +38,25 @@ fun UsuariosScreen(
         // 🔴 No muestres nada, Compose lo ignora y se cerrará la app correctamente
         return
     }
+
+    var refreshKey by remember { mutableIntStateOf(0) }
+
+
+    val refreshFlag = navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getLiveData<Boolean>("usuarios_needs_refresh")
+        ?.observeAsState()
+
+    LaunchedEffect(refreshFlag?.value) {
+        if (refreshFlag?.value == true) {
+            refreshKey++   // 👈 cambia la llave para que el hijo recargue
+            navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.set("usuarios_needs_refresh", false)
+        }
+    }
+
+
 
     val tipo = userViewModel.tipo.value ?: ""
 
@@ -72,7 +96,7 @@ fun UsuariosScreen(
         expirationDate = dummyDateText
     ) {
         ConfiguracionUsuariosScreen(
-            userViewModel = userViewModel, navController = navController
+            userViewModel = userViewModel, navController = navController, refreshKey = refreshKey
         )
     }
 }

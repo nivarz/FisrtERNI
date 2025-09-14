@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
+import com.eriknivar.firebasedatabase.network.SelectedClientStore
 import com.eriknivar.firebasedatabase.view.utility.mostrarErrorToast
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.android.gms.tasks.Task
@@ -122,7 +123,6 @@ fun LoginButton(
     val opts = com.google.firebase.ktx.Firebase.app.options
     android.util.Log.d("FirebaseProject", "projectId=${opts.projectId}, appId=${opts.applicationId}")
 
-
     ElevatedButton(
         onClick = {
             if (!isButtonEnabled) return@ElevatedButton
@@ -167,7 +167,7 @@ fun LoginButton(
                                     val tipoFinal = if (tipoClaim.isNotBlank()) tipoClaim else tipoDoc
                                     val clienteFinal = if (clienteIdClaim.isNotBlank()) clienteIdClaim else clienteIdDoc
 
-                                    if (sessionEnUso.isNotBlank() && !tipoFinal.equals("superuser", true)) {
+                                    if (sessionEnUso.isNotBlank() && !tipoFinal.equals("superuser", true) && !requiereCambio) {
                                         mostrarErrorToast(context, "Sesión activa, cerrado erróneo. Contactar al administrador.")
                                         auth.signOut()
                                         isLoading = false
@@ -177,7 +177,19 @@ fun LoginButton(
                                         val sessionId = java.util.UUID.randomUUID().toString()
                                         userViewModel.setUser(nombre, tipoFinal, uid)
                                         userViewModel.setClienteId(clienteFinal)
-                                        userViewModel.setSessionId(sessionId)
+                                        if (!requiereCambio || tipoFinal.equals("superuser", true)) {
+                                            userViewModel.setSessionId(sessionId)
+                                        } else {
+                                            userViewModel.setSessionId("") // evita mismatch en CambiarPassword
+                                        }
+
+                                        // Marca si es superuser (para que el interceptor sepa si puede enviar X-Cliente-Id)
+                                        SelectedClientStore.setRolSuperuser(tipoFinal.equals("superuser", ignoreCase = true))
+
+                                        // Si NO es superuser, limpia cualquier cliente seleccionado por seguridad
+                                        if (!tipoFinal.equals("superuser", ignoreCase = true)) {
+                                            SelectedClientStore.setCliente(null)
+                                        }
 
                                         // Guardar FCM token (best-effort)
                                         FirebaseMessaging.getInstance().token
@@ -187,28 +199,30 @@ fun LoginButton(
                                                         .update("token", t.result)
                                                 }
                                             }
-
-                                        // Persistir sessionId y navegar
-                                        Firebase.firestore.collection("usuarios").document(uid)
-                                            .update("sessionId", sessionId)
-                                            .addOnSuccessListener {
-                                                if (requiereCambio && !tipoFinal.equals("superuser", true)) {
-                                                    navController.navigate("cambiarPassword") {
-                                                        popUpTo(0) { inclusive = true }
-                                                    }
-                                                } else {
+                                        if (requiereCambio && !tipoFinal.equals("superuser", true)) {
+                                            // Navegamos SIN tocar sessionId; se setea tras cambiar la contraseña
+                                            isLoading = false
+                                            isButtonEnabled = true
+                                            navController.navigate("cambiarPassword") {
+                                                popUpTo(0) { inclusive = true }
+                                            }
+                                        } else {
+                                            // Flujo normal: persistir sessionId y seguir
+                                            Firebase.firestore.collection("usuarios").document(uid)
+                                                .update("sessionId", sessionId)
+                                                .addOnSuccessListener {
                                                     userViewModel.cargarFotoUrl(uid)
                                                     nombreUsuario = nombre
                                                     showWelcomeDialog = true
+                                                    isLoading = false
+                                                    isButtonEnabled = true
                                                 }
-                                                isLoading = false
-                                                isButtonEnabled = true
-                                            }
-                                            .addOnFailureListener { e ->
-                                                mostrarErrorToast(context, "Error al guardar sesión: ${e.message}")
-                                                isLoading = false
-                                                isButtonEnabled = true
-                                            }
+                                                .addOnFailureListener { e ->
+                                                    isLoading = false
+                                                    isButtonEnabled = true
+                                                    mostrarErrorToast(context, "Error al guardar sesión: ${e.message}")
+                                                }
+                                        }
                                     }
                                 }
                                 .addOnFailureListener { e ->

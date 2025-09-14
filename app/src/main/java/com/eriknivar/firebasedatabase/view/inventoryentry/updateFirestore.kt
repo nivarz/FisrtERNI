@@ -1,11 +1,12 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-
+import android.util.Log
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.google.firebase.firestore.FirebaseFirestore
 
 fun updateFirestore(
     db: FirebaseFirestore,
+    clienteId: String,               // 👈 nuevo: para apuntar al cliente
     documentId: String,
     location: String,
     sku: String,
@@ -13,33 +14,38 @@ fun updateFirestore(
     expirationDate: String,
     quantity: Double,
     allData: MutableList<DataFields>,
-    onSuccess: () -> Unit, // ✅ nuevo callback
-
+    onSuccess: () -> Unit,
 ) {
-    db.collection("inventario").document(documentId)
-        .update(
-            "ubicacion", location,
-            "codigoProducto", sku,
-            "lote", lote,
-            "fechaVencimiento", expirationDate,
-            "cantidad", quantity
-        )
-        .addOnSuccessListener {
-            // Actualiza la lista local para reflejar el cambio en la UI
-            val index = allData.indexOfFirst { it.documentId == documentId }
-            if (index != -1) {
-                allData[index] = allData[index].copy(
-                    location = location,
-                    sku = sku,
-                    lote = lote,
-                    expirationDate = expirationDate,
-                    quantity = quantity
-                )
+    val cid = clienteId.trim().uppercase()
 
+    val updates = mapOf(
+        "ubicacion" to location.trim().uppercase(),
+        "codigoProducto" to sku.trim().uppercase(),
+        "lote" to lote.trim().ifBlank { "-" }.uppercase(),
+        "fechaVencimiento" to expirationDate.trim(),
+        "cantidad" to quantity
+    )
+
+    // 👇 ahora en /clientes/{cid}/inventario/{documentId}
+    db.collection("clientes").document(cid)
+        .collection("inventario")
+        .document(documentId)
+        .update(updates)
+        .addOnSuccessListener {
+            // Refleja el cambio en la lista local para la UI
+            val idx = allData.indexOfFirst { it.documentId == documentId }
+            if (idx != -1) {
+                allData[idx] = allData[idx].copy(
+                    location = updates["ubicacion"] as String,
+                    sku = updates["codigoProducto"] as String,
+                    lote = updates["lote"] as String,
+                    expirationDate = updates["fechaVencimiento"] as String,
+                    quantity = updates["cantidad"] as Double
+                )
             }
-            onSuccess() // ✅ señal al Composable
+            onSuccess()
         }
         .addOnFailureListener { e ->
-            println("Error al actualizar: $e")
+            Log.e("UpdateInv", "❌ Error al actualizar", e)
         }
 }

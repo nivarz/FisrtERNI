@@ -93,7 +93,7 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             row.createCell(8).setCellValue(fechaFormateada)
 
             row.createCell(9).setCellValue(item.localidad)
-            row.createCell(10).setCellValue(item.fotoUrl ?: "")
+            row.createCell(10).setCellValue(item.fotoUrl)
 
         }
 

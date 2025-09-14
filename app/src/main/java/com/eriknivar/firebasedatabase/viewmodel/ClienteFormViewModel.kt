@@ -3,9 +3,9 @@ package com.eriknivar.firebasedatabase.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.eriknivar.firebasedatabase.view.utility.ClienteCreateInput
-import com.eriknivar.firebasedatabase.view.utility.ClienteUtils
-import com.eriknivar.firebasedatabase.view.utility.ClientesRepository
+import com.eriknivar.firebasedatabase.view.utility.clientes.ClienteCreateInput
+import com.eriknivar.firebasedatabase.view.utility.clientes.ClienteUtils
+import com.eriknivar.firebasedatabase.view.utility.clientes.ClientesRepository
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.flow.MutableStateFlow

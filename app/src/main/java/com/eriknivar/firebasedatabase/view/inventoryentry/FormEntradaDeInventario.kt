@@ -67,7 +67,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-
+import com.eriknivar.firebasedatabase.network.CatalogoRepository
+import com.eriknivar.firebasedatabase.network.SelectedClientStore
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun FormEntradaDeInventario(
@@ -100,6 +106,7 @@ fun FormEntradaDeInventario(
     val showDialogRegistroDuplicado = remember { mutableStateOf(false) }
     val showConfirmDialog = remember { mutableStateOf(false) }
 
+    val catalogRepo = remember { CatalogoRepository() }
 
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
@@ -115,8 +122,6 @@ fun FormEntradaDeInventario(
     val focusRequesterLocation = remember { FocusRequester() }
     val openUbicacionInvalidaDialog = remember { mutableStateOf(false) }
     val tempLocationInput = remember { mutableStateOf("") }
-
-    //NO VEO ESTOS ESTADOS EN LA NUEVA MODIFICACION
 
     val context = LocalContext.current
     val firestore = Firebase.firestore
@@ -138,6 +143,10 @@ fun FormEntradaDeInventario(
     val restored = remember { mutableStateOf(false) }
     val showSuccessDialog = remember { mutableStateOf(false) }
     var usuarioDuplicado by remember { mutableStateOf("Desconocido") }
+
+    val clienteIdFromUser by userViewModel.clienteId.observeAsState()
+    val clienteIdActual: String? =
+        if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId else clienteIdFromUser
 
     val imagenBitmap = remember { mutableStateOf<Bitmap?>(null) }
     val tomarFotoLauncher =
@@ -193,7 +202,8 @@ fun FormEntradaDeInventario(
                 allData = allData,
                 usuario = usuario,
                 listState = listState,
-                localidad = localidad
+                localidad = localidad,
+                clienteId = userViewModel.clienteId.value.orEmpty()
             )
         }
     }
@@ -211,14 +221,20 @@ fun FormEntradaDeInventario(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
+            val userVM: UserViewModel = viewModel()
+
+
             // 📌 FUNCION PARA LA UBICACION
             OutlinedTextFieldsInputsLocation(
                 location,
                 showErrorLocation,
                 focusRequester = focusRequesterLocation, // 🔥 Este es el inicial
                 nextFocusRequester = focusRequesterSku,
+                onUserInteraction = onUserInteraction,
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
-                tempLocationInput = tempLocationInput
+                tempLocationInput = tempLocationInput,
+                clienteIdActual = clienteIdActual,
+                localidadActual = localidad
 
             )
 
@@ -235,11 +251,22 @@ fun FormEntradaDeInventario(
                 focusRequester = focusRequesterSku,
                 nextFocusRequester = focusRequesterLot,
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
-                keyboardController = keyboardController
+                keyboardController = keyboardController,
+                clienteIdActual = clienteIdActual
 
             )
 
             // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
+
+            // LiveData<String> -> State<String?> en Compose
+            val clienteIdFromUser by userViewModel.clienteId.observeAsState()
+
+            // Regla: si es superuser usamos el seleccionado; si no, usamos el del usuario
+            val clienteIdActual: String? =
+                if (SelectedClientStore.isSuperuser)
+                    SelectedClientStore.selectedClienteId
+                else
+                    clienteIdFromUser
 
             ProductSelectionDialog(
                 productList = productList,
@@ -249,7 +276,9 @@ fun FormEntradaDeInventario(
                 qrCodeContentSku = qrCodeContentSku,
                 productoDescripcion = productoDescripcion,
                 unidadMedida = unidadMedida,
-                focusRequesterLote = focusRequesterLot
+                focusRequesterLote = focusRequesterLot,
+                clienteIdActual = clienteIdActual
+
             )
 
             // 📌 CAMPO DE TEXTO PARA EL LOTE
@@ -290,6 +319,7 @@ fun FormEntradaDeInventario(
                     lote = lot.value,
                     cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
                     localidad = localidad,
+                    clienteId = userViewModel.clienteId.value ?: "",   // 👈 NUEVO
                     onResult = { existeDuplicado, usuarioEncontrado ->
                         if (existeDuplicado) {
                             usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
@@ -321,7 +351,8 @@ fun FormEntradaDeInventario(
                                 allData = allData,
                                 usuario = usuario,
                                 listState = listState,
-                                localidad = localidad
+                                localidad = localidad,
+                                clienteId = userViewModel.clienteId.value.orEmpty()
                             )
 
                             // limpiar campos
@@ -337,11 +368,12 @@ fun FormEntradaDeInventario(
                             userViewModel.limpiarValoresTemporales()
                         }
                     },
-                    onError = {
+                    onError = { e ->                                     // 👈 MEJORADO
+                        Log.e("DupCheck", "Error al validar duplicados: ${e.message}", e)
                         Toast.makeText(
                             context,
-                            "Error al validar duplicados",
-                            Toast.LENGTH_SHORT
+                            "Error al validar duplicados: ${e.message ?: "ver Logcat"}",
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                 )
@@ -405,13 +437,13 @@ fun FormEntradaDeInventario(
                                 Log.e("FocusError", "Error al solicitar foco en SKU: ${e.message}")
                             }
 
-                            // 🟥 1. Validación: ubicación no existe
-                            if (location.value.isEmpty() && showErrorLocation.value) {
-                                showErrorLocation.value = true
+                            // 🟥 1. Validación: ubicación inválida (según el validador Firestore)
+                            if (showErrorLocation.value) {
                                 delay(150)
                                 openUbicacionInvalidaDialog.value = true
                                 return@launch
                             }
+
 
                             // 🟥 2. Validación general de campos vacíos
                             if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
@@ -460,6 +492,55 @@ fun FormEntradaDeInventario(
                                 showErrorQuantity.value = true
                                 return@launch
                             }
+
+                            /*
+
+                            // 🟦 7.5 Validación REMOTA con ids correctos (o elimínala si no la necesitas)
+                            try {
+                                // 0) cliente actual
+                                val clienteIdActual =
+                                    if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId
+                                    else userVM.clienteId.value
+
+                                // 1) id REAL de la localidad (no el nombre)
+                                val localidadIdActual =
+                                    SelectedClientStore.selectedLocalidadId   // <- asegúrate de guardarlo al seleccionar
+
+                                // Si no tienes el id, NO bloquees el grabado (ya validamos contra Firestore)
+                                if (clienteIdActual.isNullOrBlank() || localidadIdActual.isNullOrBlank()) {
+                                    // omite validación remota
+                                } else {
+                                    // Si insistes en la remota: valida por id/código, no por nombre
+                                    val localidadesSrv = catalogRepo.localidades()
+                                    val locExiste = localidadesSrv.any {
+                                        it.id.equals(localidadIdActual, true) ||
+                                                it.codigo.equals(localidadIdActual, true)
+                                    }
+                                    if (!locExiste) {
+                                        openUbicacionInvalidaDialog.value = true
+                                        return@launch
+                                    }
+
+                                    val ubicacionesSrv =
+                                        catalogRepo.ubicaciones(localidadIdActual) // espera id/código de localidad
+                                    val ubiExiste = ubicacionesSrv.any {
+                                        it.codigoUbi.equals(location.value.trim().uppercase(), true)
+                                    }
+                                    if (!ubiExiste) {
+                                        openUbicacionInvalidaDialog.value = true
+                                        return@launch
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    "No se pudo validar ubicación: ${e.message}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@launch
+                            }
+
+                            */
 
                             // ✅ 8. Si todas las validaciones pasaron, mostrar AlertDialog de confirmación
                             delay(150)
@@ -580,9 +661,10 @@ fun FormEntradaDeInventario(
             }
 
             if (showDialog) {
-                AlertDialog(onDismissRequest = {
-                    showDialog = true
-                }, // No se cierra al tocar fuera del cuadro
+                AlertDialog(
+                    onDismissRequest = {
+                        showDialog = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -592,9 +674,10 @@ fun FormEntradaDeInventario(
                     })
             }
             if (showDialog1) {
-                AlertDialog(onDismissRequest = {
-                    showDialog1 = true
-                }, // No se cierra al tocar fuera del cuadro
+                AlertDialog(
+                    onDismissRequest = {
+                        showDialog1 = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -617,9 +700,10 @@ fun FormEntradaDeInventario(
                     })
             }
             if (showDialogValueQuantityCero) {
-                AlertDialog(onDismissRequest = {
-                    showDialogValueQuantityCero = true
-                }, // No se cierra al tocar fuera del cuadro
+                AlertDialog(
+                    onDismissRequest = {
+                        showDialogValueQuantityCero = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -709,7 +793,8 @@ fun FormEntradaDeInventario(
             }
 
             if (openUbicacionInvalidaDialog.value) {
-                AlertDialog(onDismissRequest = { openUbicacionInvalidaDialog.value = false },
+                AlertDialog(
+                    onDismissRequest = { openUbicacionInvalidaDialog.value = false },
                     title = { Text("Ubicación no válida") },
                     text = { Text("La ubicación ingresada no existe en el maestro. Verifícala antes de continuar.") },
                     confirmButton = {

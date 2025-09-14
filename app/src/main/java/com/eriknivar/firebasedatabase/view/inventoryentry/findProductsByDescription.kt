@@ -1,31 +1,64 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
-// 🔥 Función para buscar productos en Firestore
+/**
+ * Obtiene lista y mapa de productos para el cliente actual.
+ * - Si clienteId es null/blank -> consulta colección raíz "productos" (compatibilidad).
+ * - Si clienteId tiene valor   -> consulta "clientes/{clienteId}/productos".
+ * - Aplica filtro activo = true por defecto.
+ *
+ * @return Pair( listaDescripcionesOrdenada, mapaDescripcion -> (codigo, unidad) )
+ */
+suspend fun findProductsByDescription(
+    db: FirebaseFirestore,
+    clienteId: String?,
+    onlyActive: Boolean = true
+): Pair<List<String>, Map<String, Pair<String, String>>> {
 
-fun findProducts(db: FirebaseFirestore, onResult: (List<String>, Map<String, Pair<String, String>>) -> Unit) {
-    db.collection("productos")
-        .get()
-        .addOnSuccessListener { result ->
-            val productos = mutableListOf<String>()
-            val productoCodigoMap = mutableMapOf<String, Pair<String, String>>() // 🔥 Map que almacena Código + UM
+    val colRef = if (!clienteId.isNullOrBlank()) {
+        db.collection("clientes")
+            .document(clienteId.trim().uppercase())
+            .collection("productos")
+    } else {
+        db.collection("productos") // fallback compatibilidad (si aún existiera)
+    }
 
-            for (document in result) {
-                val codigo = document.id // 🔥 Ahora usamos el ID como código
-                val descripcion = document.getString("descripcion") ?: continue
-                val unidadMedida = document.getString("UM") ?: "N/A"
+    // Filtro por activos (si aplica)
+    val query = if (onlyActive) colRef.whereEqualTo("activo", true) else colRef
 
-                productos.add(descripcion) // 🔥 Agrega la descripción a la lista
-                productoCodigoMap[descripcion] = Pair(codigo, unidadMedida) // 🔥 Guarda Código y UM
-            }
+    val snap = query.get().await()
 
-            onResult(productos, productoCodigoMap)
+    val lista = mutableListOf<String>()
+    val mapa  = mutableMapOf<String, Pair<String, String>>()
+
+    for (doc in snap.documents) {
+        val codigo = doc.id
+        val descripcion = (
+                doc.getString("nombreComercial")
+                    ?: doc.getString("nombreNormalizado")
+                    ?: doc.getString("descripcion")
+                    ?: ""
+                ).trim()
+
+        // Intenta varios nombres para la unidad
+        val unidad = (
+                doc.getString("unidad")
+                    ?: doc.getString("unidadMedida")
+                    ?: ""
+                ).trim()
+
+        if (descripcion.isNotEmpty()) {
+            lista.add(descripcion)
+            mapa[descripcion] = codigo to unidad
         }
-        .addOnFailureListener {
-            onResult(emptyList(), emptyMap()) // 🔥 Si hay error, devolver listas vacías
-        }
+    }
+
+    lista.sort()
+    return lista to mapa
 }
+
 
 
 

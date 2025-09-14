@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view.utility
+package com.eriknivar.firebasedatabase.view.utility.clientes
 
 // ClienteUtils.kt
 

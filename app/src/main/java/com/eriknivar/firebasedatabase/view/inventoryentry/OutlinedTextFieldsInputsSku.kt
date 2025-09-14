@@ -4,16 +4,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,18 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -46,6 +28,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.eriknivar.firebasedatabase.network.SelectedClientStore
+import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
@@ -63,58 +49,76 @@ fun OutlinedTextFieldsInputsSku(
     nextFocusRequester: FocusRequester,
     keyboardController: SoftwareKeyboardController?,
     onUserInteraction: () -> Unit = {},
-    shouldRequestFocusAfterClear: MutableState<Boolean> // 👈 Nueva bandera
-
+    shouldRequestFocusAfterClear: MutableState<Boolean>,
+    clienteIdActual: String?
 ) {
     val qrCodeContentSku = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val db = FirebaseFirestore.getInstance()
+    val db = remember { FirebaseFirestore.getInstance() }
     val isLoadingProductos = remember { mutableStateOf(false) }
     val zebraScanned = remember { mutableStateOf(false) }
 
 
-    val qrScanLauncherSku =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val data = result.data
-            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
-            if (intentResult != null) {
-                qrCodeContentSku.value = intentResult.contents ?: "Código No Encontrado"
-                wasScanned.value = true
-            }
-        }
-
-    val qrCodeScannerSku = remember { QRCodeScanner(qrScanLauncherSku) }
-
-    // ✅ Foco automático después de limpiar
+    // ===== foco tras limpiar =====
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
-            delay(100)
+            delay(100L)
             try {
                 focusRequester.requestFocus()
-            } catch (e: Exception) {
-                Log.e("FocusClear", "Error al pasar foco tras limpiar: ${e.message}")
+            } catch (_: Exception) {
             }
             shouldRequestFocusAfterClear.value = false
         }
     }
 
+    // ===== autolookup al TECLAR (mismo comportamiento que antes) =====
+    // ✅ Usa el clienteIdActual que llega por parámetro
+    LaunchedEffect(sku.value, clienteIdActual) {
+        val code = sku.value.trim().uppercase()
+        val cid = clienteIdActual?.trim()?.uppercase()
+        if (code.isEmpty()) {
+            productoDescripcion.value = ""; unidadMedida.value = ""; return@LaunchedEffect
+        }
+        if (cid.isNullOrBlank()) return@LaunchedEffect
+        kotlinx.coroutines.delay(200L)
+        lookupSkuForClient(db, cid, code) { desc, um ->
+            productoDescripcion.value = desc
+            unidadMedida.value = um
+        }
+    }
+
+    // ===== escaneo con cámara (ZXing) =====
+    val qrScanLauncherSku =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val data = result.data
+            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
+            if (intentResult != null) {
+                qrCodeContentSku.value = intentResult.contents ?: "CODIGO NO ENCONTRADO"
+                wasScanned.value = true
+            }
+        }
+    val qrCodeScannerSku = remember { QRCodeScanner(qrScanLauncherSku) }
+
     LaunchedEffect(qrCodeContentSku.value, wasScanned.value) {
         if (wasScanned.value) {
-            val scanned = qrCodeContentSku.value.uppercase()
+            val scanned = qrCodeContentSku.value.trim().uppercase()
+            val cid = clienteIdActual?.trim()?.uppercase()
             sku.value = scanned
 
-            if (scanned.isNotEmpty() && scanned != "CODIGO NO ENCONTRADO") {
-                findProductDescription(db, scanned) { descripcion, unidadMedidaObtenida ->
-                    productoDescripcion.value = descripcion
-                    unidadMedida.value = unidadMedidaObtenida
+            if (scanned.isNotEmpty() && scanned != "CODIGO NO ENCONTRADO" && !cid.isNullOrBlank()) {
+                lookupSkuForClient(
+                    db = db,
+                    clienteId = cid,
+                    code = scanned
+                ) { desc, um ->
+                    productoDescripcion.value = desc
+                    unidadMedida.value = um
                 }
-                delay(200)
+                delay(200L)
                 try {
-                    keyboardController?.hide()
-                    nextFocusRequester.requestFocus()
-                } catch (e: Exception) {
-                    Log.e("FocusError", "Error al mover el foco desde SKU: \${e.message}")
+                    keyboardController?.hide(); nextFocusRequester.requestFocus()
+                } catch (_: Exception) {
                 }
             } else {
                 productoDescripcion.value = ""
@@ -124,25 +128,23 @@ fun OutlinedTextFieldsInputsSku(
         }
     }
 
+    // ===== escaneo Zebra (input masivo) → pasar foco =====
     LaunchedEffect(zebraScanned.value) {
         if (zebraScanned.value) {
-            delay(150)
+            delay(150L)
             if (sku.value.isNotEmpty() && sku.value != "CODIGO NO ENCONTRADO") {
                 try {
-                    keyboardController?.hide()
-                    nextFocusRequester.requestFocus()
-                    Log.d("ZebraFocus", "Foco pasado tras escaneo Zebra")
-                } catch (e: Exception) {
-                    Log.e("ZebraFocus", "Error al pasar foco Zebra: ${e.message}")
+                    keyboardController?.hide(); nextFocusRequester.requestFocus()
+                } catch (_: Exception) {
                 }
             }
             zebraScanned.value = false
         }
     }
 
-
     Row(
-        modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(
             modifier = Modifier
@@ -155,55 +157,34 @@ fun OutlinedTextFieldsInputsSku(
             value = sku.value,
             onValueChange = { newValue ->
                 val cleanSku = newValue.replace("\\s".toRegex(), "").uppercase()
-
                 val isZebra = cleanSku.length >= 5 && (cleanSku.length - sku.value.length > 2)
-
-                if (isZebra) {
-                    zebraScanned.value = true
-                }
+                if (isZebra) zebraScanned.value = true
 
                 sku.value = cleanSku
                 qrCodeContentSku.value = cleanSku
                 showErrorSku.value = false
 
+                val cid = clienteIdActual?.trim()?.uppercase()
                 if (cleanSku.isEmpty()) {
-                    productoDescripcion.value = ""
-                    unidadMedida.value = ""
-                }
-
-                if (cleanSku.isBlank()) {
-                    productoDescripcion.value = ""
-                    unidadMedida.value = ""
-                } else {
-                    findProductDescription(db, cleanSku) { descripcion, unidadMedidaObtenida ->
-                        productoDescripcion.value = descripcion
-                        unidadMedida.value = unidadMedidaObtenida
+                    productoDescripcion.value = ""; unidadMedida.value = ""
+                } else if (!cid.isNullOrBlank()) {
+                    lookupSkuForClient(db, cid, cleanSku) { desc, um ->
+                        productoDescripcion.value = desc
+                        unidadMedida.value = um
                     }
                 }
-
                 onUserInteraction()
-
             },
             isError = showErrorSku.value && (sku.value.isEmpty() || sku.value == "CODIGO NO ENCONTRADO"),
             trailingIcon = {
                 Row {
-                    if (!isLoadingProductos.value) {
-                        IconButton(onClick = {
-                            isLoadingProductos.value = true
-                            findProducts(db) { lista, mapa ->
-                                productList.value = lista
-                                productMap.value = mapa
-                                isLoadingProductos.value = false
-                                showProductDialog.value = true
-                            }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Buscar productos"
-                            )
-                        }
+                    // La lupa solo abre el diálogo (el diálogo ya carga por cliente)
+                    IconButton(onClick = { showProductDialog.value = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar productos"
+                        )
                     }
-
                     IconButton(onClick = {
                         qrCodeScannerSku.startQRCodeScanner(context as android.app.Activity)
                     }) {
@@ -217,15 +198,13 @@ fun OutlinedTextFieldsInputsSku(
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = {
                 try {
-                    keyboardController?.hide()
-                    nextFocusRequester.requestFocus()
-                } catch (e: Exception) {
-                    Log.e("KeyboardFocus", "Error pasando foco desde SKU: \${e.message}")
+                    keyboardController?.hide(); nextFocusRequester.requestFocus()
+                } catch (_: Exception) {
                 }
             })
         )
 
-        // 🔵 Ícono de borrar separado (afuera del campo)
+        // borrar a la derecha
         if (sku.value.isNotEmpty()) {
             IconButton(
                 onClick = {
@@ -237,7 +216,6 @@ fun OutlinedTextFieldsInputsSku(
                 modifier = Modifier
                     .size(48.dp)
                     .padding(start = 4.dp)
-
             ) {
                 Icon(
                     modifier = Modifier.size(48.dp),
@@ -247,20 +225,20 @@ fun OutlinedTextFieldsInputsSku(
                 )
             }
         }
+
+        // overlay opcional (si lo activas en otra parte)
         if (isLoadingProductos.value) {
-            Dialog(onDismissRequest = {},
+            Dialog(
+                onDismissRequest = {},
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     Box(
-                        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f))
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.3f))
                     )
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Card(
                             elevation = CardDefaults.cardElevation(8.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -268,7 +246,9 @@ fun OutlinedTextFieldsInputsSku(
                             modifier = Modifier.padding()
                         ) {
                             Column(
-                                modifier = Modifier.padding(24.dp).width(200.dp),
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .width(200.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 CircularProgressIndicator()
@@ -284,6 +264,56 @@ fun OutlinedTextFieldsInputsSku(
                 }
             }
         }
-
     }
+}
+
+/* ===== Helpers dentro del mismo archivo (para no depender de otros) ===== */
+
+// Extrae la UM robustamente (varios nombres posibles); default "UND"
+private fun DocumentSnapshot.extractUnidad(): String {
+    val keys = listOf(
+        "unidad", "unidadMedida", "UnidadMedida",
+        "um", "UM", "uom", "UOM",
+        "unidad_medida", "presentacion", "presentación"
+    )
+    for (k in keys) {
+        val v = this.get(k)
+        when (v) {
+            is String -> if (v.isNotBlank()) return v.trim()
+            is Number -> return v.toString()
+        }
+    }
+    return "UND"
+}
+
+// Lee clientes/{clienteId}/productos/{code} y devuelve (descripcion, um)
+private fun lookupSkuForClient(
+    db: FirebaseFirestore,
+    clienteId: String,
+    code: String,
+    onResult: (String, String) -> Unit
+) {
+    val skuCode = code.trim().uppercase()
+    if (skuCode.isEmpty()) {
+        onResult("", ""); return
+    }
+
+    db.collection("clientes").document(clienteId)
+        .collection("productos").document(skuCode)
+        .get()
+        .addOnSuccessListener { doc ->
+            if (!doc.exists()) {
+                onResult("Sin descripción", "")
+                return@addOnSuccessListener
+            }
+            val desc = (doc.getString("nombreComercial")
+                ?: doc.getString("nombreNormalizado")
+                ?: doc.getString("descripcion")
+                ?: "Sin descripción").trim()
+            val um = doc.extractUnidad()
+            onResult(desc, um)
+        }
+        .addOnFailureListener {
+            onResult("Error al obtener datos", "N/A")
+        }
 }

@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view.utility
+package com.eriknivar.firebasedatabase.view.utility.clientes
 
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.FieldValue
@@ -6,7 +6,6 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.tasks.await
 import com.eriknivar.firebasedatabase.viewmodel.ClienteFormInput
 
 
@@ -179,7 +178,7 @@ class ClientesRepository {
                 }
             }
 
-            val now = com.google.firebase.firestore.FieldValue.serverTimestamp()
+            val now = FieldValue.serverTimestamp()
 
             // Campos a actualizar (no permitir cambiar clienteId/activo aquí)
             val updates = mutableMapOf<String, Any?>(
@@ -237,7 +236,7 @@ class ClientesRepository {
                 throw ClienteDatosInvalidosException(msg)
             }
 
-            val now = com.google.firebase.firestore.FieldValue.serverTimestamp()
+            val now = FieldValue.serverTimestamp()
             val updates = mapOf(
                 "activo" to input.activar,
                 "motivoCambioEstado" to input.motivo,
@@ -406,7 +405,7 @@ class ClientesRepository {
             }
 
             // Auditoría
-            val now = com.google.firebase.firestore.FieldValue.serverTimestamp()
+            val now = FieldValue.serverTimestamp()
             val audit = hashMapOf(
                 "accion" to "eliminar",
                 "clienteId" to clienteId,

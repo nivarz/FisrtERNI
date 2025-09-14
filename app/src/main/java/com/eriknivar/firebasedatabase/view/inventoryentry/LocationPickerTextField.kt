@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
@@ -34,9 +33,11 @@ import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Firebase
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
+import com.google.firebase.firestore.ktx.firestore
 
 @Composable
 fun OutlinedTextFieldsInputsLocation(
@@ -46,14 +47,15 @@ fun OutlinedTextFieldsInputsLocation(
     nextFocusRequester: FocusRequester,
     onUserInteraction: () -> Unit = {},
     shouldRequestFocusAfterClear: MutableState<Boolean>,
-    tempLocationInput: MutableState<String>
+    tempLocationInput: MutableState<String>,
+    clienteIdActual: String?,            // 👈 NUEVO: quién es el cliente
+    localidadActual: String?             // 👈 NUEVO: (opcional) filtrar por localidad
 ) {
     val qrCodeContentLocation = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
     val isZebraScan = remember { mutableStateOf(false) }
     val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
     val focusRequesterLocation = remember { FocusRequester() }
-
 
     val qrScanLauncherLocation =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -73,39 +75,53 @@ fun OutlinedTextFieldsInputsLocation(
     // ✅ Escaneo desde launcher (cámara)
     LaunchedEffect(qrCodeContentLocation.value, wasScanned.value) {
         if (wasScanned.value) {
-            val scannedValue = qrCodeContentLocation.value.uppercase()
-
+            val scannedValue = qrCodeContentLocation.value.trim().uppercase()
             if (scannedValue.isNotBlank()) {
                 tempLocationInput.value = scannedValue
-
                 validarUbicacionEnMaestro(
-                    scannedValue, location, showErrorLocation, showUbicacionNoExisteDialog, nextFocusRequester, keyboardController
+                    codigo = scannedValue,
+                    clienteIdActual = clienteIdActual,
+                    localidadActual = localidadActual,
+                    location = location,
+                    showErrorLocation = showErrorLocation,
+                    showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
+                    nextFocusRequester = nextFocusRequester,
+                    keyboardController = keyboardController
                 )
             }
-
             wasScanned.value = false
         }
     }
 
-    // ✅ Escaneo directo tipo Zebra (entrada rápida)
+    // 2) Zebra: además de pasar foco, valida ANTES
     LaunchedEffect(isZebraScan.value) {
         if (isZebraScan.value) {
-            delay(100) // Pequeña pausa para asegurar estabilidad
+            val code = tempLocationInput.value
+            if (code.length >= 6) {
+                validarUbicacionEnMaestro(
+                    codigo = code,
+                    clienteIdActual = clienteIdActual,
+                    localidadActual = localidadActual,
+                    location = location,
+                    showErrorLocation = showErrorLocation,
+                    showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
+                    nextFocusRequester = nextFocusRequester,
+                    keyboardController = keyboardController
+                )
+            }
             try {
                 keyboardController?.hide()
                 nextFocusRequester.requestFocus()
-                Log.d("ZebraScan", "Foco pasado tras escaneo Zebra")
-            } catch (e: Exception) {
-                Log.e("ZebraFocus", "Error al pasar foco con Zebra: ${e.message}")
+            } catch (_: Exception) {
             }
             isZebraScan.value = false
         }
     }
 
-    // val focusRequester = remember { FocusRequester() }
+
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
-            delay(100) // ⏳ Esperar a que Compose termine de recomponer
+            delay(100)
             try {
                 focusRequester.requestFocus()
             } catch (e: Exception) {
@@ -116,25 +132,30 @@ fun OutlinedTextFieldsInputsLocation(
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        OutlinedTextField(modifier = Modifier
-            .width(275.dp)
-            .height(64.dp)
-            .padding(4.dp)
-            .focusRequester(focusRequesterLocation)
-            .onFocusChanged { focusState ->
-                if (!focusState.isFocused && tempLocationInput.value.length >= 4) {
-                    validarUbicacionEnMaestro(
-                        tempLocationInput.value,
-                        location,
-                        showErrorLocation,
-                        showUbicacionNoExisteDialog,
-                        nextFocusRequester,
-                        keyboardController
-                    )
-                }
-            },
+        OutlinedTextField(
+            modifier = Modifier
+                .width(275.dp)
+                .height(64.dp)
+                .padding(4.dp)
+                .focusRequester(focusRequesterLocation)
+                // 1) onFocusChanged: baja el umbral
+                .onFocusChanged { focusState ->
+                    if (!focusState.isFocused && tempLocationInput.value.length >= 6) {
+                        validarUbicacionEnMaestro(
+                            codigo = tempLocationInput.value,
+                            clienteIdActual = clienteIdActual,
+                            localidadActual = localidadActual,
+                            location = location,
+                            showErrorLocation = showErrorLocation,
+                            showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
+                            nextFocusRequester = nextFocusRequester,
+                            keyboardController = keyboardController
+                        )
+                    }
+                },
             singleLine = true,
             label = { Text(text = "Ubicación") },
             value = tempLocationInput.value,
@@ -143,10 +164,9 @@ fun OutlinedTextFieldsInputsLocation(
                 tempLocationInput.value = clean
                 onUserInteraction()
 
-                // Detectar entrada rápida tipo Zebra
-                if (clean.length > 4 && clean.length - location.value.length > 2) {
+                // 3) onValueChange: detección Zebra más realista
+                if (clean.length >= 6 && clean.length - location.value.length >= 3) {
                     isZebraScan.value = true
-                    Log.d("ZebraScan", "Entrada tipo Zebra detectada: $clean")
                 }
 
                 wasScanned.value = false
@@ -154,24 +174,23 @@ fun OutlinedTextFieldsInputsLocation(
             },
             isError = showErrorLocation.value && (location.value.isEmpty() || location.value == "UBICACIÓN NO EXISTE"),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+            // 4) KeyboardActions (onNext): baja el umbral
             keyboardActions = KeyboardActions(onNext = {
-                if (tempLocationInput.value.length >= 4) {
+                if (tempLocationInput.value.length >= 6) {
                     validarUbicacionEnMaestro(
-                        tempLocationInput.value,
-                        location,
-                        showErrorLocation,
-                        showUbicacionNoExisteDialog,
-                        nextFocusRequester,
-                        keyboardController,
+                        codigo = tempLocationInput.value,
+                        clienteIdActual = clienteIdActual,
+                        localidadActual = localidadActual,
+                        location = location,
+                        showErrorLocation = showErrorLocation,
+                        showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
+                        nextFocusRequester = nextFocusRequester,
+                        keyboardController = keyboardController,
                         ocultarTeclado = false
                     )
                 }
-
-                if (!showErrorLocation.value) {
-                    nextFocusRequester.requestFocus()
-                } else {
-                    showUbicacionNoExisteDialog.value = true
-                }
+                if (!showErrorLocation.value) nextFocusRequester.requestFocus()
+                else showUbicacionNoExisteDialog.value = true
             }),
             trailingIcon = {
                 IconButton(
@@ -183,7 +202,8 @@ fun OutlinedTextFieldsInputsLocation(
                         contentDescription = "Escanear Código"
                     )
                 }
-            })
+            }
+        )
 
         // 🔵 Ícono de borrar separado (afuera del campo)
         if (tempLocationInput.value.isNotEmpty()) {
@@ -192,11 +212,10 @@ fun OutlinedTextFieldsInputsLocation(
                     location.value = ""
                     qrCodeContentLocation.value = ""
                     tempLocationInput.value = ""
-
-                }, modifier = Modifier
+                },
+                modifier = Modifier
                     .size(48.dp)
                     .padding(start = 4.dp)
-
             ) {
                 Icon(
                     modifier = Modifier.size(48.dp),
@@ -208,26 +227,25 @@ fun OutlinedTextFieldsInputsLocation(
         }
 
         if (showUbicacionNoExisteDialog.value) {
-            AlertDialog(onDismissRequest = { showUbicacionNoExisteDialog.value = false },
+            AlertDialog(
+                onDismissRequest = { showUbicacionNoExisteDialog.value = false },
                 title = { Text("Ubicación inválida") },
                 text = { Text("La ubicación ingresada no existe en el maestro de ubicaciones.") },
                 confirmButton = {
                     TextButton(onClick = {
                         showUbicacionNoExisteDialog.value = false
-                        focusRequesterLocation.requestFocus() // ✅ vuelve al campo ubicación
-
-                    }) {
-                        Text("Aceptar")
-                    }
-                })
+                        focusRequesterLocation.requestFocus()
+                    }) { Text("Aceptar") }
+                }
+            )
         }
-
     }
-
 }
 
 fun validarUbicacionEnMaestro(
     codigo: String,
+    clienteIdActual: String?,
+    localidadActual: String?, // se ignora por ahora
     location: MutableState<String>,
     showErrorLocation: MutableState<Boolean>,
     showUbicacionNoExisteDialog: MutableState<Boolean>,
@@ -235,34 +253,43 @@ fun validarUbicacionEnMaestro(
     keyboardController: SoftwareKeyboardController?,
     ocultarTeclado: Boolean = false
 ) {
-    val codigoLimpio = codigo.trim().replace("\n", "").uppercase()
-    Firebase.firestore.collection("ubicaciones")
-        .whereEqualTo("codigo_ubi", codigoLimpio)
+    val codigoLimpio = codigo.uppercase().replace(Regex("[^A-Z0-9]"), "")
+    val cid = clienteIdActual?.trim()?.uppercase()
+
+    Log.d("UBI_VALID", "-> cid=$cid  code(raw)='$codigo'  code(clean)='$codigoLimpio'")
+
+    if (cid.isNullOrBlank() || codigoLimpio.isBlank()) {
+        location.value = ""
+        showErrorLocation.value = true
+        showUbicacionNoExisteDialog.value = true
+        return
+    }
+
+    val col = Firebase.firestore
+        .collection("clientes").document(cid)
+        .collection("ubicaciones")
+
+    // ÚNICO MATCH por codigo_ubi (ruta ya restringe por cliente)
+    col.whereEqualTo("codigo_ubi", codigoLimpio)
+        .limit(1)
         .get()
-        .addOnSuccessListener { documents ->
-            if (!documents.isEmpty) {
+        .addOnSuccessListener { snap ->
+            Log.d("UBI_VALID", "size=${snap.size()} path=clientes/$cid/ubicaciones")
+            if (!snap.isEmpty) {
                 location.value = codigoLimpio
                 showErrorLocation.value = false
-
-                if (ocultarTeclado) {
-                    keyboardController?.hide()
-                }
-
-                try {
-                    nextFocusRequester.requestFocus()
-                } catch (e: Exception) {
-                    Log.e("FocusError", "Error al solicitar foco: ${e.message}")
-                }
+                if (ocultarTeclado) keyboardController?.hide()
+                try { nextFocusRequester.requestFocus() } catch (_: Exception) {}
             } else {
                 location.value = ""
                 showErrorLocation.value = true
                 showUbicacionNoExisteDialog.value = true
             }
         }
-        .addOnFailureListener {
-            Log.e("Firestore", "Error al validar ubicación", it)
+        .addOnFailureListener { e ->
+            Log.e("UBI_VALID", "error: ${e.message}", e)
+            location.value = ""
+            showErrorLocation.value = true
+            showUbicacionNoExisteDialog.value = true
         }
 }
-
-
-

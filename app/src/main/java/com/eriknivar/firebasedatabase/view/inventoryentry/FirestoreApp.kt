@@ -150,7 +150,8 @@ fun FirestoreApp(
                 allData = allData,
                 usuario = usuario,
                 listState = listState,
-                localidad = storageType
+                localidad = storageType,
+                clienteId = userViewModel.clienteId.value.orEmpty()
             )
         }
     }
@@ -356,6 +357,5 @@ fun FirestoreApp(
                 }
             }
         }
-
     }
 }

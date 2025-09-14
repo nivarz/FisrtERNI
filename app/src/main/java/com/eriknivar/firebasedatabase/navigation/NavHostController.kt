@@ -26,14 +26,15 @@ import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFrag
 import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
-import com.eriknivar.firebasedatabase.view.settings.settingsmenu.AuditoriaRegistrosScreen
+import com.eriknivar.firebasedatabase.view.utility.auditoria.AuditoriaRegistrosScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.ClientesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.LocalidadesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UbicacionesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UsuariosScreen
 import com.eriknivar.firebasedatabase.view.storagetype.SelectStorageFragment
-import com.eriknivar.firebasedatabase.view.utility.ClienteFormRoute
+import com.eriknivar.firebasedatabase.view.utility.clientes.ClienteFormRoute
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
+import com.eriknivar.firebasedatabase.view.utility.UsuarioFormRoute
 import com.eriknivar.firebasedatabase.viewmodel.SplashScreen
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.delay
@@ -170,6 +171,19 @@ fun NetworkAwareNavGraph(
                 ClientesScreen(navController, userViewModel)
             }
 
+            composable(Rutas.USUARIO_FORM) {
+                UsuarioFormRoute(
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
+                        // Marca un flag para refrescar al volver
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("usuarios_needs_refresh", true)
+                        navController.popBackStack()
+                    }
+                )
+            }
+
             composable(
                 route = Rutas.CLIENTE_FORM_ROUTE,
                 arguments = listOf(
@@ -192,6 +206,10 @@ fun NetworkAwareNavGraph(
                     }
                 )
             }
+
+
+
+
         }
     }
 }

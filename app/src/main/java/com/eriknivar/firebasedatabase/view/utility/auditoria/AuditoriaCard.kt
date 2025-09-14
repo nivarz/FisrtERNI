@@ -1,4 +1,4 @@
-package com.eriknivar.firebasedatabase.view.utility
+package com.eriknivar.firebasedatabase.view.utility.auditoria
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable

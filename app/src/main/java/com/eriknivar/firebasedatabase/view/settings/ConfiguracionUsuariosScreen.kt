@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -62,7 +61,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun ConfiguracionUsuariosScreen(
     userViewModel: UserViewModel,
-    navController: NavHostController
+    navController: NavHostController,
+    refreshKey: Int
 ) {
     val firestore = Firebase.firestore
     val usuarios = remember { mutableStateListOf<Usuario>() }
@@ -91,6 +91,10 @@ fun ConfiguracionUsuariosScreen(
         val tiempoActual = System.currentTimeMillis()
         lastInteractionTime.longValue = tiempoActual
         SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
+    }
+
+    LaunchedEffect(refreshKey) {
+        // vuelve a cargar la lista aquí (haz tu fetch / reload)
     }
 
     LaunchedEffect(lastInteractionTime.longValue) {

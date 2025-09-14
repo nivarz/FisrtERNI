@@ -48,6 +48,8 @@ import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import java.util.UUID
+import androidx.compose.runtime.LaunchedEffect
+
 
 @Composable
 fun CambiarPasswordScreen(
@@ -61,12 +63,31 @@ fun CambiarPasswordScreen(
     val confirmarPassword = remember { mutableStateOf("") }
     val error = remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var mostrarNueva by remember { mutableStateOf(false) }
+    var mostrarConfirmar by remember { mutableStateOf(false) } // lo usaremos en el paso 2
+
 
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
 
     // 👇 Evita que el snapshot listener cierre la app mientras actualizamos sesión
     var ignoreSessionCheck by remember { mutableStateOf(false) }
+
+    // 🛡️ PASO 2-C: blindaje al entrar a CambiarPassword
+    LaunchedEffect(currentUserId) {
+        // Evita que cualquier listener cierre sesión mientras estabilizamos el flujo
+        ignoreSessionCheck = true
+
+        // Opcional pero recomendable: neutraliza sesión remota para evitar cierres globales
+        if (currentUserId.isNotBlank()) {
+            try {
+                Firebase.firestore
+                    .collection("usuarios")
+                    .document(currentUserId)
+                    .update("sessionId", "")
+            } catch (_: Exception) { /* no-op */ }
+        }
+    }
 
     // 🔒 Listener de cierre de sesión remoto (respeta ignoreSessionCheck)
     DisposableEffect(currentUserId, currentSessionId, ignoreSessionCheck) {
@@ -102,7 +123,15 @@ fun CambiarPasswordScreen(
             onValueChange = { nuevaPassword.value = it.trim(); error.value = "" },
             label = { Text("Nueva Contraseña") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (mostrarNueva) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { mostrarNueva = !mostrarNueva }) {
+                    Icon(
+                        imageVector = if (mostrarNueva) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (mostrarNueva) "Ocultar contraseña" else "Mostrar contraseña"
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -114,7 +143,15 @@ fun CambiarPasswordScreen(
             onValueChange = { confirmarPassword.value = it.trim(); error.value = "" },
             label = { Text("Confirmar Contraseña") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (mostrarNueva) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { mostrarNueva = !mostrarNueva }) {
+                    Icon(
+                        imageVector = if (mostrarNueva) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (mostrarNueva) "Ocultar contraseña" else "Mostrar contraseña"
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -167,16 +204,21 @@ fun CambiarPasswordScreen(
                                 )
                             )
                             .addOnSuccessListener {
-                                // pequeña ventana para que el listener no dispare
-                                Handler(Looper.getMainLooper()).postDelayed({
-                                    ignoreSessionCheck = false
-                                }, 400)
+                                // 🔄 Refresca el ID Token para que próximos requests usen credenciales frescas
+                                authUser.getIdToken(true)
+                                    .addOnCompleteListener {
+                                        // pequeña ventana para que el listener no dispare
+                                        Handler(Looper.getMainLooper()).postDelayed({
+                                            ignoreSessionCheck = false
+                                        }, 400)
 
-                                Toast.makeText(context, "Contraseña actualizada", Toast.LENGTH_SHORT).show()
-                                navController.navigate("storagetype") {
-                                    popUpTo(0) { inclusive = true }
-                                }
+                                        Toast.makeText(context, "Contraseña actualizada", Toast.LENGTH_SHORT).show()
+                                        navController.navigate("storagetype") {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                    }
                             }
+
                             .addOnFailureListener { e ->
                                 ignoreSessionCheck = false
                                 error.value = "Error al guardar sesión: ${e.message}"

@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.material3.FloatingActionButtonDefaults.elevation
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -30,10 +29,12 @@ import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.navigation.Rutas
 import com.eriknivar.firebasedatabase.viewmodel.ClientesListViewModel
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
-import com.eriknivar.firebasedatabase.view.utility.ClientesRepository
+import com.eriknivar.firebasedatabase.view.utility.clientes.ClientesRepository
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
+import com.eriknivar.firebasedatabase.network.SelectedClientStore
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -210,9 +211,6 @@ private fun ClientesListScreen(
             }
         }
     }
-
-
-
 }
 
 @Composable
@@ -263,6 +261,17 @@ private fun ClienteCard(
                             },
                             onClick = { menuOpen = false; onToggleRequest(item, !item.activo) }
                         )
+
+                        DropdownMenuItem(
+                            text = { Text("Usar este cliente") },
+                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                // 👉 fija el cliente activo para los requests (X-Cliente-Id)
+                                SelectedClientStore.setCliente(item.clienteId)
+                            }
+                        )
+
                         if (showDelete) {
                             DropdownMenuItem(
                                 text = { Text("Eliminar") },

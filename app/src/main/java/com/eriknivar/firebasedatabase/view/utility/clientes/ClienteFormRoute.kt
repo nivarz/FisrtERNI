@@ -1,6 +1,5 @@
-package com.eriknivar.firebasedatabase.view.utility
+package com.eriknivar.firebasedatabase.view.utility.clientes
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.viewmodel.ClienteFormMode
 import com.eriknivar.firebasedatabase.viewmodel.ClienteFormViewModel
 import com.google.firebase.auth.FirebaseAuth
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 @OptIn(ExperimentalMaterial3Api::class)
