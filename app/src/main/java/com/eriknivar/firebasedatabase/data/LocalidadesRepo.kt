@@ -1,40 +1,101 @@
 package com.eriknivar.firebasedatabase.data
 
-
-import android.util.Log
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.tasks.await
 
-data class LocalidadDto(
-    val id: String = "",
-    val nombre: String = ""
-)
+object LocalidadesRepo {
 
-suspend fun loadLocalidadesPorCliente(
-    db: FirebaseFirestore,
-    clienteIdActual: String
-): List<LocalidadDto> {
-    val cid = clienteIdActual.trim().uppercase()
-    val path = "clientes/$cid/localidades"
-    Log.d("LOCALIDADES", "Leyendo por ruta: $path")
+    // 🔒 Un solo listener activo
+    private var reg: ListenerRegistration? = null
 
-    return try {
+    // 🧠 Caché en memoria: cliente -> lista
+    private val cache = mutableMapOf<String, List<String>>()
+
+    /** Carga one-shot (tu función original, con pequeños ajustes de robustez) */
+    suspend fun getSuspend(
+        db: FirebaseFirestore,
+        clienteId: String
+    ): List<String> {
+        val cid = clienteId.trim().uppercase()
+        if (cid.isBlank()) return emptyList()
+
+        cache[cid]?.let { return it } // cache hit
+
         val snap = db.collection("clientes")
             .document(cid)
             .collection("localidades")
+            .orderBy("nombre")      // ajusta si tu campo es otro
             .get()
             .await()
 
-        val res = snap.documents.map { d ->
-            LocalidadDto(
-                id = d.id,
-                nombre = d.getString("nombre") ?: d.getString("descripcion") ?: d.id
-            )
+        val lista = snap.documents
+            .mapNotNull(::mapDoc)
+            .distinct()
+            .sorted()
+
+        cache[cid] = lista
+        return lista
+    }
+
+    /**
+     * 🎧 Escucha en tiempo real la subcolección clientes/{cid}/localidades.
+     * - Devuelve caché inmediatamente si existe.
+     * - Mantiene un único listener (evita duplicados).
+     */
+    fun listen(
+        db: FirebaseFirestore,
+        clienteId: String,
+        onData: (List<String>) -> Unit,
+        onErr: (Exception) -> Unit = {}
+    ) {
+        val cid = clienteId.trim().uppercase()
+        if (cid.isBlank()) {
+            onData(emptyList())
+            return
         }
-        Log.d("LOCALIDADES", "OK (${res.size}) items")
-        res
-    } catch (e: Exception) {
-        Log.e("LOCALIDADES", "PERMISSION / error leyendo $path -> ${e.message}", e)
-        emptyList()
+
+        // 1) Emitir caché al instante si existe
+        cache[cid]?.let { onData(it) }
+
+        // 2) Garantizar un solo listener
+        reg?.remove()
+        reg = db.collection("clientes")
+            .document(cid)
+            .collection("localidades")
+            .orderBy("nombre")
+            .addSnapshotListener { snap, e ->
+                if (e != null) { onErr(e); return@addSnapshotListener }
+
+                val lista = snap?.documents
+                    ?.mapNotNull(::mapDoc)
+                    ?.distinct()
+                    ?.sorted()
+                    ?: emptyList()
+
+                cache[cid] = lista
+                onData(lista)
+            }
+    }
+
+    /** 🧼 Detener escucha */
+    fun stop() {
+        reg?.remove()
+        reg = null
+    }
+
+    /** 🔁 Invalidar caché (todo o uno) */
+    fun invalidate(cid: String? = null) {
+        if (cid == null) cache.clear() else cache.remove(cid.trim().uppercase())
+    }
+
+    /** Mapeo robusto para distintos esquemas posibles */
+    private fun mapDoc(d: DocumentSnapshot): String? {
+        return d.getString("nombre")
+            ?: d.getString("codigo_ubi")
+            ?: d.getString("codigo")
+            ?: d.getString("descripcion")
+            ?: d.id.takeIf { it.isNotBlank() }
     }
 }

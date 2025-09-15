@@ -4,6 +4,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.Timestamp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.data.Refs
 
 fun fetchFilteredInventoryFromFirestore(
     db: FirebaseFirestore,
@@ -14,7 +15,7 @@ fun fetchFilteredInventoryFromFirestore(
     onError: (Exception) -> Unit
 ) {
     val cid = clienteId.trim().uppercase()
-    var q: Query = db.collection("clientes").document(cid).collection("inventario")
+    var q: Query = Refs.inv(db, cid)
 
     filters["localidad"]?.let { if (it.isNotBlank()) q = q.whereEqualTo("localidad", it.trim().uppercase()) }
     filters["usuario"]?.let { if (it.isNotBlank()) q = q.whereEqualTo("usuario", it.trim()) }

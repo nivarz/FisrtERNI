@@ -15,8 +15,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -40,16 +42,36 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.firestore
 import com.eriknivar.firebasedatabase.network.SelectedClientStore
+import com.eriknivar.firebasedatabase.view.common.ClienteItem
+import com.eriknivar.firebasedatabase.view.common.ClientePickerDialog
+import com.eriknivar.firebasedatabase.view.common.cargarClientes
+import androidx.compose.runtime.livedata.observeAsState
+import com.eriknivar.firebasedatabase.data.LocalidadesRepo
+import com.google.firebase.firestore.FirebaseFirestore
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.IconButton
 
 
 @Composable
 fun DropDownUpScreen(
     navController: NavHostController,
     userViewModel: UserViewModel,
-    onUserInteraction: () -> Unit = {}
+    onUserInteraction: () -> Unit = {},
+    localidades: List<String> = emptyList(),
+    isLocalidadesLoading: Boolean = false,
+    localidadSeleccionada: String? = null,
+    onSelectLocalidad: (String) -> Unit = {},
+    hasClienteSeleccionado: Boolean = false,
+    isSuperuser: Boolean = false
+
 ) {
     val firestore = Firebase.firestore
-    val localidades = remember { mutableStateListOf<String>() }
 
     var valueText by remember { mutableStateOf("") }
     var expandedDropdown by remember { mutableStateOf(false) }
@@ -60,51 +82,23 @@ fun DropDownUpScreen(
     val rolRaw by userViewModel.tipo.observeAsState("")
     val cliente by userViewModel.clienteId.observeAsState("")
 
-    // 🔄 Cargar localidades según rol
-    LaunchedEffect(rolRaw, cliente) {
-        val rol = rolRaw.trim().lowercase()
-        if (rol.isBlank()) return@LaunchedEffect
+    // estados y refs
+    val db = Firebase.firestore
+    val cid by userViewModel.clienteId.observeAsState("")     // ya lo usas para el tipo
+    val cidActual = cid.trim().uppercase()
 
-        // Cliente real: superuser lo toma del selector; admin/invitado del VM
-        val clienteIdActual: String? =
-            if (rol == "superuser") SelectedClientStore.selectedClienteId else cliente
+    val canOpenMenu = hasClienteSeleccionado && !isLocalidadesLoading && (localidades.isNotEmpty() || isSuperuser)
 
-        val cid = clienteIdActual?.trim()?.uppercase()
-        if (cid.isNullOrBlank()) {
-            localidades.clear()
-            Log.e("Localidades", "Cliente no resuelto (rol=$rol, cliente='$cliente')")
-            return@LaunchedEffect
-        }
-
-        val col = firestore
-            .collection("clientes")
-            .document(cid)
-            .collection("localidades")
-
-        col.get()
-            .addOnSuccessListener { result ->
-                val nombres = result.documents.mapNotNull { it.getString("nombre") }
-                Log.d("Localidades", "ruta=clientes/$cid/localidades count=${nombres.size}")
-                localidades.clear()
-                localidades.addAll(nombres.sorted())
-            }
-            .addOnFailureListener { e ->
-                val code = (e as? FirebaseFirestoreException)?.code?.name ?: "?"
-                Log.e(
-                    "Localidades",
-                    "Error $code leyendo clientes/$cid/localidades: ${e.message}",
-                    e
-                )
-                localidades.clear()
-                Toast.makeText(
-                    navController.context,
-                    if (code == "PERMISSION_DENIED") "Sin permisos para leer localidades (reglas)"
-                    else "Error cargando localidades",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+    LaunchedEffect(hasClienteSeleccionado, isLocalidadesLoading, localidades.size, isSuperuser) {
+        Log.d("DDM",
+            "hasCliente=${hasClienteSeleccionado}, loading=${isLocalidadesLoading}, size=${localidades.size}, super=${isSuperuser}"
+        )
     }
 
+    // estados del picker (arriba del DropdownMenu, en el mismo composable)
+    val tipo by userViewModel.tipo.observeAsState("")
+    val showClientePicker = remember { mutableStateOf(false) }
+    val clientes = remember { mutableStateListOf<ClienteItem>() }
 
     Column(
         modifier = Modifier
@@ -122,24 +116,37 @@ fun DropDownUpScreen(
                 .border(2.dp, navyBlue, RoundedCornerShape(12.dp))
         ) {
             OutlinedTextField(
-                value = valueText,
+                value = localidadSeleccionada ?: "",
                 onValueChange = { /* readOnly */ },
                 placeholder = { Text("Selecciona una localidad", color = Color.Gray) },
                 readOnly = true,
                 singleLine = true,
+                enabled = hasClienteSeleccionado,
                 shape = RoundedCornerShape(12.dp),
+                supportingText = {
+                    when {
+                        !hasClienteSeleccionado -> Text("Selecciona un cliente para ver sus localidades")
+                        isLocalidadesLoading -> Text("Cargando…")
+                        localidades.isEmpty() -> Text("Sin localidades disponibles para este cliente")
+                    }
+                },
                 trailingIcon = {
-                    IconButton(onClick = {
-                        onUserInteraction()
-                        expandedDropdown = !expandedDropdown
-                    }) {
+                    IconButton(
+                        onClick = {
+                            if (canOpenMenu) {
+                                expandedDropdown = !expandedDropdown
+                                onUserInteraction()
+                            }
+                        },
+                        enabled = canOpenMenu
+                    ) {
                         Icon(
-                            imageVector = if (expandedDropdown) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                            contentDescription = "Icono desplegable",
-                            tint = navyBlue
+                            imageVector = if (expandedDropdown) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                            contentDescription = if (expandedDropdown) "Cerrar lista" else "Abrir lista"
                         )
                     }
                 },
+
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent,
@@ -151,15 +158,16 @@ fun DropDownUpScreen(
                     unfocusedContainerColor = Color.Transparent
                 ),
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null
+                    .fillMaxWidth(),
+                    /*.clickable(
+                        enabled = canOpenMenu,
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
                     ) {
-                        onUserInteraction()
                         expandedDropdown = !expandedDropdown
+                        onUserInteraction()
                     },
-                interactionSource = interactionSource
+                interactionSource = interactionSource*/
             )
         }
 
@@ -170,20 +178,98 @@ fun DropDownUpScreen(
                 .width(200.dp)
                 .background(Color.White)
         ) {
-            localidades.forEach { localidad ->
+            when {
+                !hasClienteSeleccionado -> {
+                    DropdownMenuItem(
+                        text = { Text("Selecciona un cliente") },
+                        onClick = {},
+                        enabled = false
+                    )
+                }
+
+                isLocalidadesLoading -> {
+                    DropdownMenuItem(
+                        text = { Text("Cargando localidades…") },
+                        onClick = {},
+                        enabled = false
+                    )
+                }
+
+                localidades.isEmpty() -> {
+                    DropdownMenuItem(
+                        text = { Text("Sin localidades para este cliente") },
+                        onClick = {},
+                        enabled = false
+                    )
+                }
+
+                else -> {
+                    localidades.forEach { loc ->
+                        DropdownMenuItem(
+                            text = { Text(loc) },
+                            onClick = {
+                                expandedDropdown = false
+                                onUserInteraction()
+                                onSelectLocalidad(loc)        // navega desde el padre
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Botón extra solo para superuser (con separador)
+            if (isSuperuser) {
+                androidx.compose.material3.HorizontalDivider()
                 DropdownMenuItem(
-                    text = { Text(localidad) },
+                    text = { Text("Cambiar cliente") },
                     onClick = {
-                        onUserInteraction()
-                        valueText = localidad
+                        cargarClientes(
+                            db = Firebase.firestore,
+                            onOk = { lista ->
+                                clientes.clear(); clientes.addAll(lista)
+                                showClientePicker.value = true
+                            },
+                            onErr = { /* opcional */ }
+                        )
                         expandedDropdown = false
-                        navController.navigate("inventoryentry/${valueText}")
                     }
                 )
             }
+
+            if (isSuperuser && localidades.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("Todas las Localidades") },
+                    onClick = {
+                        expandedDropdown = false
+                        onUserInteraction()
+                        onSelectLocalidad("__TODAS__")   // 👈 enviamos sentinela
+                    }
+                )
+                Divider()
+            }
         }
+
+
+        ClientePickerDialog(
+            open = showClientePicker,
+            clientes = clientes
+        ) { elegido ->
+            LocalidadesRepo.invalidate(elegido.id)
+            userViewModel.setClienteId(elegido.id)
+
+            val docId = userViewModel.documentId.value ?: ""
+            if (docId.isNotBlank()) {
+                Firebase.firestore.collection("usuarios")
+                    .document(docId)
+                    .update("clienteId", elegido.id)
+            }
+
+            showClientePicker.value = false
+        }
+
     }
 }
+
 
 
 

@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,21 +36,56 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
+import com.eriknivar.firebasedatabase.view.common.ClienteItem
+import com.eriknivar.firebasedatabase.view.common.ClientePickerDialog
+import com.eriknivar.firebasedatabase.view.common.cargarClientes
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.eriknivar.firebasedatabase.data.LocalidadesRepo
+import com.eriknivar.firebasedatabase.data.Refs
+import com.google.firebase.firestore.ktx.firestore
+import androidx.compose.material3.*
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+
 
 @Composable
 fun SelectStorageFragment(
     navController: NavHostController,
     userViewModel: UserViewModel
 ) {
-    val nombreUsuario = userViewModel.nombre.value ?: ""
     val context = LocalContext.current
-    val currentUserId = userViewModel.documentId.value ?: ""
-    val currentSessionId = userViewModel.sessionId.value
+
+    val nombreUsuario by userViewModel.nombre.observeAsState("")
+    val currentUserId by userViewModel.documentId.observeAsState("")
+    val currentSessionId by userViewModel.sessionId
+
+    val tipoRaw by userViewModel.tipo.observeAsState("")
+    val cidRaw by userViewModel.clienteId.observeAsState("")
+    val tipo = tipoRaw.lowercase()
+    val db = Firebase.firestore
+    val cidActual = cidRaw.trim().uppercase()
+
+    //val localidadesOptions = remember { mutableStateListOf<String>() }   // <- NUEVO
+    var valueText by remember { mutableStateOf("") }                      // si ya existe, no lo declares de nuevo
+
+    val localidades = remember { mutableStateListOf<String>() }
+    var isLocalidadesLoading by rememberSaveable { mutableStateOf(false) }
+    var localidadSeleccionada by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedLocalidad by remember { mutableStateOf(false) }
+
+
+    // === estados para el picker ===
+    val showClientePicker = remember { mutableStateOf(false) }
+    val clientes = remember { mutableStateListOf<ClienteItem>() }
+
 
     DisposableEffect(currentUserId, currentSessionId) {
         val firestore = Firebase.firestore
@@ -90,7 +126,8 @@ fun SelectStorageFragment(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
+    val lastInteractionTime =
+        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
     fun actualizarActividad(context: Context) {
         val tiempoActual = System.currentTimeMillis()
@@ -109,7 +146,8 @@ fun SelectStorageFragment(
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
                     .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
 
                 userViewModel.clearUser()
 
@@ -122,8 +160,88 @@ fun SelectStorageFragment(
         }
     }
 
+    LaunchedEffect(tipo, cidActual) {
+        if (tipo == "superuser" && cidActual.isBlank()) {
+            cargarClientes(
+                db = Firebase.firestore,
+                onOk = { lista ->
+                    clientes.clear()
+                    clientes.addAll(
+                        lista
+                            .distinctBy { it.id }                 // 🔒 evita repetidos por ID
+                            .sortedBy { it.nombre.uppercase() }   // 👁️ mejor orden visual
+                    )
+                    if (lista.size == 1) {
+                        val sel = lista.first()
+                        LocalidadesRepo.invalidate(sel.id)
+                        userViewModel.setClienteId(sel.id)
+                        val docId = userViewModel.documentId.value ?: ""
+                        if (docId.isNotBlank()) {
+                            Firebase.firestore.collection("usuarios")
+                                .document(docId)
+                                .update("clienteId", sel.id)
+                        }
+                    } else {
+                        showClientePicker.value = true
+                    }
+                },
+                onErr = { /* opcional: snackbar/log */ }
+            )
+        }
+    }
 
-    NavigationDrawer(navController, "Seleccionar Almacén", userViewModel, dummyLocation, dummySku, dummyQuantity, dummyLot, dummyDateText) {
+    /*
+    LaunchedEffect(cidActual) {
+        if (cidActual.isNotBlank()) {
+            // Vuelve a cargar localidades desde clientes/{cidActual}/localidades
+            // y actualiza tu lista local o en el ViewModel
+        }
+    }
+    */
+
+    DisposableEffect(cidActual) {
+        // Al cambiar de cliente:
+        localidades.clear()
+        localidadSeleccionada = null
+        isLocalidadesLoading = cidActual.isNotBlank()
+
+        if (cidActual.isNotBlank()) {
+            // Escucha en tiempo real solo si hay cliente
+            LocalidadesRepo.listen(
+                db = Firebase.firestore,
+                clienteId = cidActual,
+                onData = { lista ->
+                    localidades.clear()
+                    localidades.addAll(lista)
+                    isLocalidadesLoading = false
+                },
+                onErr = {
+                    localidades.clear()
+                    isLocalidadesLoading = false
+                    // TODO: snackbar/log si quieres
+                }
+            )
+        } else {
+            // Si no hay cliente, asegúrate de detener cualquier listener previo
+            LocalidadesRepo.stop()
+        }
+
+        // IMPORTANTÍSIMO: siempre retornar un DisposableEffectResult
+        onDispose {
+            LocalidadesRepo.stop()
+        }
+    }
+
+    NavigationDrawer(
+        navController,
+        "Seleccionar Almacén",
+        userViewModel,
+        dummyLocation,
+        dummySku,
+        dummyQuantity,
+        dummyLot,
+        dummyDateText
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -179,13 +297,49 @@ fun SelectStorageFragment(
                     DropDownUpScreen(
                         navController,
                         onUserInteraction = { actualizarActividad(context) },
-                        userViewModel = userViewModel
-
+                        userViewModel = userViewModel,
+                        localidades = localidades,
+                        isLocalidadesLoading = isLocalidadesLoading,
+                        localidadSeleccionada = localidadSeleccionada,
+                        onSelectLocalidad = { loc ->
+                            if (loc == "__TODAS__") {
+                                localidadSeleccionada = null
+                                Toast.makeText(
+                                    context,
+                                    "En esta pantalla debes elegir una localidad específica.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@DropDownUpScreen
+                            }
+                            localidadSeleccionada = loc
+                            navController.navigate("inventoryentry/$loc")
+                        },
+                        hasClienteSeleccionado = cidActual.isNotBlank(),
+                        isSuperuser = (tipo == "superuser")
                     )
                 }
             }
         }
     }
+
+    // === diálogo ===
+    ClientePickerDialog(
+        open = showClientePicker,
+        clientes = clientes
+    ) { elegido ->
+        // 👇 invalida cache ANTES de cambiar el cliente
+        LocalidadesRepo.invalidate(elegido.id)
+        userViewModel.setClienteId(elegido.id)
+
+        val docId = userViewModel.documentId.value ?: ""
+        if (docId.isNotBlank()) {
+            Firebase.firestore.collection("usuarios").document(docId)
+                .update("clienteId", elegido.id)
+        }
+        showClientePicker.value = false
+    }
+
+
 
     BackHandler(true) {
         Log.i("LOG_TAG", "Clicked back") // Desactiva el botón atrás

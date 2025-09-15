@@ -70,6 +70,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import androidx.compose.runtime.livedata.observeAsState
+import com.google.firebase.firestore.FirebaseFirestore
+import com.eriknivar.firebasedatabase.data.Refs
+
 
 @Composable
 fun InventoryReportFiltersScreen(
@@ -100,7 +104,9 @@ fun InventoryReportFiltersScreen(
 
     // --- Carga para Reportes ---
     val firestore = Firebase.firestore
-    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+    val cid = userViewModel.clienteId.observeAsState("").value.trim().uppercase()
+    val db = Firebase.firestore
+    val cidRaw by userViewModel.clienteId.observeAsState("")
 
     // La lista que la UI pinta
     val filteredData = remember { mutableStateListOf<DataFields>() }
@@ -108,6 +114,7 @@ fun InventoryReportFiltersScreen(
     // Cambia estos nombres si tus estados se llaman distinto
     val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
     val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
+
 
 
     LaunchedEffect(cid) {
@@ -174,6 +181,52 @@ fun InventoryReportFiltersScreen(
             }
         )
     }
+
+    fun recargarFiltrosDelCliente(cid: String) {
+        if (cid.isBlank()) return
+
+        // Localidades
+        Refs.ubic(db, cid)
+            .orderBy("codigo_ubi")
+            .get()
+            .addOnSuccessListener { snap ->
+                val data = snap.documents.mapNotNull { it.getString("codigo_ubi") }
+                // TODO: sustituye por tu estado real de localidades:
+                // localidadesOptions.clear(); localidadesOptions.addAll(data)
+            }
+
+        // Productos/SKUs
+        Refs.prod(db, cid)
+            .orderBy("codigo")      // o el campo que uses para listar
+            .get()
+            .addOnSuccessListener { snap ->
+                val data = snap.documents.mapNotNull { it.getString("codigo") }
+                // TODO: sustituye por tu estado real de SKUs:
+                // skuOptions.clear(); skuOptions.addAll(data)
+            }
+
+        // (Opcional) Usuarios del cliente para filtros por usuario
+        db.collection("usuarios")
+            .whereEqualTo("clienteId", cid)
+            .get()
+            .addOnSuccessListener { snap ->
+                val data = snap.documents.mapNotNull { it.getString("nombre") }
+                // TODO: sustituye por tu estado real de usuarios:
+                // usuariosOptions.clear(); usuariosOptions.addAll(data)
+            }
+    }
+
+    LaunchedEffect(cid) {
+        if (cid.isNotBlank()) {
+            recargarFiltrosDelCliente(cid)
+        } else {
+            // Si quieres, limpia listas cuando no hay cliente
+            // localidadesOptions.clear()
+            // skuOptions.clear()
+            // usuariosOptions.clear()
+        }
+    }
+
 
     // Carga inicial (y cuando cambie el cliente)
     LaunchedEffect(cid) { cargarReportes() }
@@ -315,7 +368,10 @@ fun InventoryReportFiltersScreen(
 
                             val filtros = buildMap<String, String> {
                                 if (usuarioFiltro.value.isNotBlank())
-                                    put("usuario", usuarioFiltro.value.trim())          // 👈 SIN uppercase
+                                    put(
+                                        "usuario",
+                                        usuarioFiltro.value.trim()
+                                    )          // 👈 SIN uppercase
                                 if (localidadSeleccionada.value.isNotBlank())
                                     put("localidad", localidadSeleccionada.value.trim().uppercase())
                             }
