@@ -48,6 +48,7 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
+import com.google.firebase.firestore.ListenerRegistration
 
 @Composable
 fun FirestoreApp(
@@ -71,12 +72,11 @@ fun FirestoreApp(
     val listState = rememberLazyListState() // ✅ ahora aquí
     val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
     val expandedForm = remember { mutableStateOf(true) }
+    var invReg: ListenerRegistration? by remember { mutableStateOf<ListenerRegistration?>(null) }
 
     val context = LocalContext.current
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
-
-
 
     DisposableEffect(currentUserId, currentSessionId) {
         val firestore = Firebase.firestore
@@ -132,28 +132,88 @@ fun FirestoreApp(
     }
 
     val usuario by userViewModel.nombre.observeAsState("")
+    /*
+        LaunchedEffect(usuario, storageType) {
+            Log.d(
+                "FirestoreApp",
+                "🔄 LaunchedEffect lanzado para localidad: $storageType y usuario: $usuario"
+            )
 
-    LaunchedEffect(usuario, storageType) {
-        Log.d(
-            "FirestoreApp",
-            "🔄 LaunchedEffect lanzado para localidad: $storageType y usuario: $usuario"
-        )
+            if (usuario.isNotEmpty()) {
+                Log.d("FotoDebug", "🔄 Llamando a fetchFilteredInventoryFromFirestore...")
+                // 🔵 Limpiamos la lista antes de cargar nuevos datos
+                allData.clear()
 
-        if (usuario.isNotEmpty()) {
-            Log.d("FotoDebug", "🔄 Llamando a fetchFilteredInventoryFromFirestore...")
-            // 🔵 Limpiamos la lista antes de cargar nuevos datos
+
+                fetchDataFromFirestore(
+                    db = Firebase.firestore,
+                    allData = allData,
+                    usuario = usuario,
+                    listState = listState,
+                    localidad = storageType,
+                    clienteId = userViewModel.clienteId.value.orEmpty()
+                )
+            }
+        }
+    */
+
+    DisposableEffect(userViewModel.clienteId.observeAsState("").value, storageType) {
+        val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+        if (cid.isBlank()) return@DisposableEffect onDispose { }
+
+
+        // 👇 Ajusta el nombre del campo según tu colección:
+        // si en Firestore usas "location" en vez de "ubicacion", cambia la línea de whereEqualTo.
+        val query = Firebase.firestore
+            .collection("clientes").document(cid)
+            .collection("inventario")
+            .whereEqualTo("localidad", storageType.trim())   // sin uppercase: respeta el nombre tal como está guardado
+
+        val reg = query.addSnapshotListener { snap, e ->
+            if (e != null) {
+                Log.e("InvRealtime", "Listener error", e)
+                return@addSnapshotListener
+            }
+            val docs = snap ?: return@addSnapshotListener
+
+            val nuevos = docs.documents.mapNotNull { d ->
+                // Data class base
+                val base = d.toObject(DataFields::class.java) ?: return@mapNotNull null
+
+                // Preferir ESPAÑOL; si no existe, usar INGLÉS; si tampoco, dejar lo que ya trajo la data class
+                val cantidad = (d.getDouble("cantidad")
+                    ?: d.getLong("cantidad")?.toDouble()
+                    ?: d.getDouble("quantity")
+                    ?: d.getLong("quantity")?.toDouble()
+                    ?: base.quantity)
+
+                val ubicacion = (d.getString("ubicacion")
+                    ?: d.getString("location")
+                    ?: base.location)
+
+                val fechaVto = (d.getString("fechaVencimiento")
+                    ?: d.getString("expirationDate")
+                    ?: base.expirationDate)
+
+                base.copy(
+                    documentId     = d.id,
+                    quantity       = cantidad,
+                    location       = ubicacion,
+                    expirationDate = fechaVto
+                )
+            }
+
             allData.clear()
+            allData.addAll(nuevos)
 
 
-            fetchDataFromFirestore(
-                db = Firebase.firestore,
-                allData = allData,
-                usuario = usuario,
-                listState = listState,
-                localidad = storageType,
-                clienteId = userViewModel.clienteId.value.orEmpty()
+            Log.d(
+                "InvRealtime",
+                "UI actualizada: ${nuevos.size} registros (fromCache=${docs.metadata.isFromCache})"
             )
         }
+
+        onDispose { reg.remove() }
     }
 
     val lastInteractionTime =
@@ -164,7 +224,6 @@ fun FirestoreApp(
         lastInteractionTime.longValue = tiempoActual
         SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
     }
-
 
     LaunchedEffect(lastInteractionTime.longValue) {
         while (true) {
@@ -347,7 +406,19 @@ fun FirestoreApp(
                             item = item,
                             firestore = Firebase.firestore,
                             allData = allData,
-                            onSuccess = { showSuccessDialog = true },
+                            onSuccess = {
+                                showSuccessDialog = true
+                                // 🔄 Recarga inmediata con los filtros actuales
+                                allData.clear()
+                                fetchDataFromFirestore(
+                                    db = Firebase.firestore,
+                                    allData = allData,
+                                    usuario = userViewModel.nombre.value.orEmpty(),
+                                    listState = listState,
+                                    localidad = storageType,
+                                    clienteId = userViewModel.clienteId.value.orEmpty()
+                                )
+                            },
                             listState = listState,
                             index = index,
                             expandedStates = expandedStates,

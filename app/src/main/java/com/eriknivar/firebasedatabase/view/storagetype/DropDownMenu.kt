@@ -159,7 +159,7 @@ fun DropDownUpScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth(),
-                    /*.clickable(
+                  /*.clickable(
                         enabled = canOpenMenu,
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }
@@ -167,7 +167,7 @@ fun DropDownUpScreen(
                         expandedDropdown = !expandedDropdown
                         onUserInteraction()
                     },
-                interactionSource = interactionSource*/
+                interactionSource = interactionSource */
             )
         }
 

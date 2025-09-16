@@ -344,7 +344,9 @@ fun ClientesScreen(
     val tipo = userViewModel.tipo.value.orEmpty()
     if (tipo.lowercase() != "superuser") {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
             contentAlignment = Alignment.TopCenter
         ) {
             Text(

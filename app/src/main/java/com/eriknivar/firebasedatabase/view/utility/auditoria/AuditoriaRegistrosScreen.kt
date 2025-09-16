@@ -20,6 +20,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -94,14 +95,17 @@ fun AuditoriaRegistrosScreen(
     val tipo = userViewModel.tipo.value ?: ""
     if (tipo.lowercase() !in listOf("admin", "superuser")) {
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.White),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
             contentAlignment = Alignment.TopCenter
         ) {
             Text(
-                "⛔ Acceso restringido",
+                text = "⛔ Acceso restringido",
                 color = Color.Red,
+                fontSize = MaterialTheme.typography.titleMedium.fontSize,
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                modifier = Modifier.padding(32.dp)
             )
         }
         return
