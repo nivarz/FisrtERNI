@@ -263,12 +263,14 @@ fun FormEntradaDeInventario(
             // LiveData<String> -> State<String?> en Compose
             val clienteIdFromUser by userViewModel.clienteId.observeAsState()
 
-            // Regla: si es superuser usamos el seleccionado; si no, usamos el del usuario
+            // ✅ si es superuser y no ha elegido cliente, usamos el del usuario (si existe)
             val clienteIdActual: String? =
                 if (SelectedClientStore.isSuperuser)
-                    SelectedClientStore.selectedClienteId
+                    SelectedClientStore.selectedClienteId?.takeIf { it.isNullOrBlank().not() }
+                        ?: clienteIdFromUser
                 else
                     clienteIdFromUser
+
 
             ProductSelectionDialog(
                 productList = productList,
@@ -453,7 +455,6 @@ fun FormEntradaDeInventario(
                                 openUbicacionInvalidaDialog.value = true
                                 return@launch
                             }
-
 
 
                             // 🟥 2. Validación general de campos vacíos

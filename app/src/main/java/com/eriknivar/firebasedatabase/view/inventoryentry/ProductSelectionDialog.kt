@@ -55,8 +55,10 @@ fun ProductSelectionDialog(
         val cid = cidUi
         if (cid.isNullOrBlank()) {
             isLoading = false
+            errorMsg = "Selecciona un cliente para ver productos."
             return@LaunchedEffect
         }
+
 
         suspend fun cargar(query: com.google.firebase.firestore.Query) {
             val snap = query.get().await()
