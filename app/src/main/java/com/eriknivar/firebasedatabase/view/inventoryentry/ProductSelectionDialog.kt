@@ -154,8 +154,9 @@ fun ProductSelectionDialog(
                                     Column(Modifier.fillMaxWidth()) {
                                         Text(
                                             text = descripcion,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
+                                            maxLines = 4,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = Color.Black,
                                         )
                                         // Si quieres mostrar la UM dentro del diálogo, descomenta:
                                         // productMap.value[descripcion]?.second?.takeIf { it.isNotBlank() }?.let { um ->

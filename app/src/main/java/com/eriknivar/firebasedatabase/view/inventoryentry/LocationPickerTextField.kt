@@ -97,7 +97,7 @@ fun OutlinedTextFieldsInputsLocation(
     LaunchedEffect(isZebraScan.value) {
         if (isZebraScan.value) {
             val code = tempLocationInput.value
-            if (code.length >= 6) {
+            if (code.length >= 5) {
                 validarUbicacionEnMaestro(
                     codigo = code,
                     clienteIdActual = clienteIdActual,
@@ -143,7 +143,7 @@ fun OutlinedTextFieldsInputsLocation(
                 .focusRequester(focusRequesterLocation)
                 // 1) onFocusChanged: baja el umbral
                 .onFocusChanged { focusState ->
-                    if (!focusState.isFocused && tempLocationInput.value.length >= 6) {
+                    if (!focusState.isFocused && tempLocationInput.value.length >= 5) {
                         validarUbicacionEnMaestro(
                             codigo = tempLocationInput.value,
                             clienteIdActual = clienteIdActual,
@@ -165,7 +165,7 @@ fun OutlinedTextFieldsInputsLocation(
                 onUserInteraction()
 
                 // 3) onValueChange: detección Zebra más realista
-                if (clean.length >= 6 && clean.length - location.value.length >= 3) {
+                if (clean.length >= 5 && clean.length - location.value.length >= 3) {
                     isZebraScan.value = true
                 }
 
@@ -176,7 +176,7 @@ fun OutlinedTextFieldsInputsLocation(
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             // 4) KeyboardActions (onNext): baja el umbral
             keyboardActions = KeyboardActions(onNext = {
-                if (tempLocationInput.value.length >= 6) {
+                if (tempLocationInput.value.length >= 5) {
                     validarUbicacionEnMaestro(
                         codigo = tempLocationInput.value,
                         clienteIdActual = clienteIdActual,

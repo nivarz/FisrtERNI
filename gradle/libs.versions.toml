@@ -18,6 +18,7 @@ crashlytics = "3.0.6"
 zxingAndroidEmbedded = "4.3.0"
 runtimeLivedata = "1.9.0"
 ui = "1.9.1"
+composeMaterial3 = "1.5.1"
 
 
 [libraries]
@@ -48,6 +49,7 @@ poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poiVersion" }
 
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
 ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
+androidx-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

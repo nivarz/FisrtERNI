@@ -74,6 +74,8 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.eriknivar.firebasedatabase.data.UbicacionesRepo
+
 
 @Composable
 fun FormEntradaDeInventario(
@@ -437,12 +439,21 @@ fun FormEntradaDeInventario(
                                 Log.e("FocusError", "Error al solicitar foco en SKU: ${e.message}")
                             }
 
-                            // 🟥 1. Validación: ubicación inválida (según el validador Firestore)
-                            if (showErrorLocation.value) {
+                            // 🟥 1. Validación: ubicación contra maestro por cliente/localidad
+                            val cid = (clienteIdActual ?: userViewModel.clienteId.value).orEmpty()
+                            val okUbic = UbicacionesRepo.existeUbicacion(
+                                clienteId = cid,
+                                codigoIngresado = location.value,
+                                localidad = localidad
+                            )
+
+                            if (!okUbic) {
+                                showErrorLocation.value = true
                                 delay(150)
                                 openUbicacionInvalidaDialog.value = true
                                 return@launch
                             }
+
 
 
                             // 🟥 2. Validación general de campos vacíos

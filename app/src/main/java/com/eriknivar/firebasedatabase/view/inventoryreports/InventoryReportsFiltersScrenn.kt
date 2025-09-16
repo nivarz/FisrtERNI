@@ -159,25 +159,36 @@ fun InventoryReportFiltersScreen(
         )
     }
 
+
     fun cargarReportes() {
         val filtros = buildMap<String, String> {
-            val loc = selectedLocalidadState.value.trim()
-            val usr = selectedUsuarioState.value.trim()
-            if (loc.isNotBlank()) put("localidad", loc.uppercase())
-            if (usr.isNotBlank()) put("usuario", usr)              // nombres no van en upper
+            localidadSeleccionada.value.trim().takeIf { it.isNotBlank() }?.let {
+                put("localidad", it.uppercase())
+            }
+
+            val tipo = tipoUsuario.lowercase().trim()
+            val usr = if (tipo == "invitado") {
+                userViewModel.nombre.value.orEmpty()   // 🔒 fuerza su propio nombre
+            } else {
+                usuarioFiltro.value.trim()
+            }
+            if (usr.isNotBlank()) put("usuario", usr) // 👈 importante: sin uppercase
         }
 
         fetchFilteredInventoryFromFirestore(
             db = firestore,
             clienteId = cid,
             filters = filtros,
+            tipoUsuario = tipoUsuario,
             onResult = { nuevos ->
                 filteredData.clear()
-                filteredData.addAll(nuevos)
-                Log.d("Reportes", "Cargados: ${filteredData.size}")
+                filteredData.addAll(nuevos.sortedByDescending { it.fechaRegistro?.toDate() })
+                filtrosExpandido.value = false
+                isLoading.value = false
             },
-            onError = { e ->
-                Log.e("Reportes", "❌ Error al cargar", e)
+            onError = {
+                isLoading.value = false
+                Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -366,12 +377,15 @@ fun InventoryReportFiltersScreen(
                             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                             isLoading.value = true
 
+                            // === SÓLO sustituye el bloque buildMap actual por este ===
                             val filtros = buildMap<String, String> {
-                                if (usuarioFiltro.value.isNotBlank())
-                                    put(
-                                        "usuario",
-                                        usuarioFiltro.value.trim()
-                                    )          // 👈 SIN uppercase
+                                val tipo = tipoUsuario.lowercase().trim()
+                                val usr = if (tipo == "invitado") {
+                                    userViewModel.nombre.value.orEmpty()      // 🔒 fuerza su propio nombre
+                                } else {
+                                    usuarioFiltro.value.trim()
+                                }
+                                if (usr.isNotBlank()) put("usuario", usr)
                                 if (localidadSeleccionada.value.isNotBlank())
                                     put("localidad", localidadSeleccionada.value.trim().uppercase())
                             }
