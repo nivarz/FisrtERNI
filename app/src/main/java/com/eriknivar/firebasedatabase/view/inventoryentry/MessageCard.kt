@@ -460,6 +460,9 @@ fun MessageCard(
                 }
             }
 
+            val rol = (userViewModel.tipo.value ?: "").lowercase()
+            val isInvitado = (rol == "invitado")
+
             // ⬇️ Resto del contenido dividido en dos columnas
             Row(modifier = Modifier.fillMaxWidth()) {
 
@@ -481,6 +484,7 @@ fun MessageCard(
                                     value = editedLocation,
                                     onValueChange = { editedLocation = it.uppercase().trim() },
                                     label = { Text("Editar Ubicación") },
+                                    readOnly = false,
                                     enabled = true,
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
@@ -492,7 +496,8 @@ fun MessageCard(
                                     value = editedLote,
                                     onValueChange = { editedLote = it.uppercase().trim() },
                                     label = { Text("Editar Lote") },
-                                    singleLine = true,
+                                    readOnly = false,
+                                    singleLine = isInvitado,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -501,7 +506,7 @@ fun MessageCard(
                                     value = editedExpirationDate,
                                     onValueChange = { editedExpirationDate = it },
                                     label = { Text("Editar Fecha Vencimiento") },
-                                    readOnly = true,
+                                    readOnly = isInvitado,
                                     modifier = Modifier.fillMaxWidth(),
                                     trailingIcon = {
                                         IconButton(onClick = { datePickerDialog.show() }) {
@@ -527,6 +532,7 @@ fun MessageCard(
                                 onClick = {
                                     // === 0) Datos base ===
                                     val rol = (userViewModel.tipo.value ?: "").lowercase()
+                                    val isInvitado = (rol == "invitado")
                                     val cid =
                                         (userViewModel.clienteId.value ?: "").trim().uppercase()
 
@@ -539,19 +545,28 @@ fun MessageCard(
                                         return@Button
                                     }
 
+                                    // Normalizaciones y detección de cambios
+                                    val nuevaUbi = editedLocation.trim().uppercase()
+                                    val qtyParsed = editedQuantity.toDoubleOrNull()
+                                    val qty = qtyParsed ?: item.quantity
+
+                                    val locationChanged = (nuevaUbi != item.location)
+                                    val quantityChanged = (qty != item.quantity)
+
                                     // === 1) Validaciones ===
-                                    if (rol == "invitado") {
-                                        // Invitado: solo cantidad
-                                        if (editedQuantity.isBlank()) {
+                                    if (isInvitado) {
+                                        // Invitado: puede cambiar cantidad y/o ubicación. Si no hay cambios, nada que guardar.
+                                        if (!locationChanged && !quantityChanged) {
                                             Toast.makeText(
                                                 context,
-                                                "Debes digitar la cantidad.",
+                                                "No hay cambios para guardar.",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                             return@Button
                                         }
+                                        // Invitado: no exigir ubicación si no la cambió; si la cambió, la validamos más abajo.
                                     } else {
-                                        // Admin/Superuser: todos los campos
+                                        // Admin/Superuser: todos los campos requeridos
                                         if (
                                             editedLocation.isBlank() ||
                                             editedLote.isBlank() ||
@@ -567,111 +582,121 @@ fun MessageCard(
                                         }
                                     }
 
-                                    // === 2) Validar ubicación existe en /clientes/{cid}/ubicaciones ===
-                                    Firebase.firestore
-                                        .collection("clientes").document(cid)
-                                        .collection("ubicaciones")
-                                        .whereEqualTo(
-                                            "codigo_ubi",
-                                            editedLocation.trim().uppercase()
-                                        )
-                                        .limit(1)
-                                        .get()
-                                        .addOnSuccessListener { documents ->
-                                            val ubicacionExiste = documents.any()
-                                            if (!ubicacionExiste && rol != "invitado") {
-                                                // (si es invitado y solo toca cantidad, no bloqueamos por ubicación)
-                                                coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar("La ubicación no existe en la base de datos")
-                                                }
-                                                return@addOnSuccessListener
-                                            }
+                                    // === 2) Auditoría (para registro)
+                                    val valoresAntes = mapOf(
+                                        "ubicacion" to item.location,
+                                        "lote" to item.lote,
+                                        "fechaVencimiento" to item.expirationDate,
+                                        "cantidad" to item.quantity.toString()
+                                    )
+                                    val valoresDespues = mapOf(
+                                        "ubicacion" to nuevaUbi,
+                                        "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
+                                        "fechaVencimiento" to editedExpirationDate.trim(),
+                                        "cantidad" to qty.toString()
+                                    )
+                                    val huboCambios = valoresAntes != valoresDespues
 
-                                            // === 3) Auditoría (solo para registro, tus claves en español) ===
-                                            val valoresAntes = mapOf(
-                                                "ubicacion" to item.location,
-                                                "lote" to item.lote,
-                                                "fechaVencimiento" to item.expirationDate,
-                                                "cantidad" to item.quantity.toString()
-                                            )
-                                            val valoresDespues = mapOf(
-                                                "ubicacion" to editedLocation.trim().uppercase(),
-                                                "lote" to editedLote.trim().ifBlank { "-" }
-                                                    .uppercase(),
-                                                "fechaVencimiento" to editedExpirationDate.trim(),
-                                                "cantidad" to editedQuantity.trim()
-                                            )
-                                            val huboCambios = valoresAntes != valoresDespues
+                                    // === 3) Función que realiza el update (según rol)
+                                    fun continuarConUpdate() {
+                                        // Subcolección: /clientes/{cid}/inventario/{id}
+                                        val docRef = Firebase.firestore
+                                            .collection("clientes").document(cid)
+                                            .collection("inventario").document(item.documentId)
 
-                                            // 4) Construir updates EXACTOS para tu doc (ESQUEMA EN ESPAÑOL)
-                                            val qty =
-                                                editedQuantity.toDoubleOrNull() ?: item.quantity
-                                            val rol = (userViewModel.tipo.value ?: "").lowercase()
-
-                                            // Invitado: SOLO 'cantidad' y 'ubicacion' (sin metadatos, para pasar reglas estrictas)
-                                            val updatesInvitado = mapOf(
-                                                "cantidad" to qty
-
-                                            )
-
-                                            // Admin/Superuser: campos completos (ESPAÑOL) + metadatos
-                                            val updatesFull = mapOf(
-                                                "cantidad" to qty,
-                                                "ubicacion" to editedLocation.trim().uppercase(),
-                                                "lote" to editedLote.trim().ifBlank { "-" }
-                                                    .uppercase(),
-                                                "fechaVencimiento" to editedExpirationDate.trim(),
-                                                "updatedAt" to FieldValue.serverTimestamp(),
-                                                "updatedBy" to (userViewModel.documentId.value
-                                                    ?: ""),
-                                                "clienteId" to (userViewModel.clienteId.value
-                                                    ?: "").trim().uppercase()
-                                            )
-
-                                            // 5) Update en SUBCOLECCIÓN: /clientes/{cid}/inventario/{id}
-                                            val cid = (userViewModel.clienteId.value ?: "").trim()
-                                                .uppercase()
-                                            val docRef = Firebase.firestore
-                                                .collection("clientes").document(cid)
-                                                .collection("inventario").document(item.documentId)
-
-                                            val task =
-                                                if (rol == "invitado") docRef.update(updatesInvitado) else docRef.update(
-                                                    updatesFull
-                                                )
-
-                                            task
-                                                .addOnSuccessListener {
-                                                    // 👇 Refresca la tarjeta al instante (optimistic UI)
-                                                    val idx =
-                                                        allData.indexOfFirst { it.documentId == item.documentId }
-                                                    if (idx >= 0) {
-                                                        val updatedItem = item.copy(
-                                                            quantity = qty, // tu DataFields usa 'quantity' en el modelo
-                                                            location = if (rol == "invitado") item.location else editedLocation.trim()
-                                                                .uppercase(),
-                                                            lote = if (rol == "invitado") item.lote else editedLote.trim()
-                                                                .ifBlank { "-" }.uppercase(),
-                                                            expirationDate = if (rol == "invitado") item.expirationDate else editedExpirationDate.trim()
-                                                        )
-                                                        allData[idx] = updatedItem
-                                                    }
-
-                                                    // (tu auditoría permanece igual)
-                                                    onSuccess()
-                                                    isEditing = false
-                                                }
-                                                .addOnFailureListener { e ->
-                                                    Log.e("UpdateInv", "❌ Error al actualizar", e)
-                                                    val msg = if (rol == "invitado")
-                                                        "Como invitado solo puedes editar CANTIDAD y solo el mismo día."
-                                                    else e.message ?: "No se pudo actualizar"
-                                                    Toast.makeText(context, msg, Toast.LENGTH_LONG)
-                                                        .show()
-                                                }
-
-
+                                        // Construir updates EXACTOS (ESPAÑOL)
+                                        val updatesInvitado = buildMap<String, Any> {
+                                            // Invitado: sólo los campos permitidos por reglas
+                                            if (quantityChanged) put("cantidad", qty)
+                                            if (locationChanged) put("ubicacion", nuevaUbi)
+                                            // (no mandar metadatos aquí para no chocar con reglas estrictas)
                                         }
+
+                                        val updatesFull = mapOf(
+                                            "cantidad" to qty,
+                                            "ubicacion" to nuevaUbi,
+                                            "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
+                                            "fechaVencimiento" to editedExpirationDate.trim(),
+                                            "updatedAt" to FieldValue.serverTimestamp(),
+                                            "updatedBy" to (userViewModel.documentId.value ?: ""),
+                                            "clienteId" to cid
+                                        )
+
+                                        val task = if (isInvitado) {
+                                            if (updatesInvitado.isEmpty()) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "No hay cambios válidos para guardar.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return
+                                            }
+                                            docRef.update(updatesInvitado)
+                                        } else {
+                                            docRef.update(updatesFull)
+                                        }
+
+                                        task
+                                            .addOnSuccessListener {
+                                                // === 4) Optimistic UI: refrescar card localmente
+                                                val idx =
+                                                    allData.indexOfFirst { it.documentId == item.documentId }
+                                                if (idx >= 0) {
+                                                    val updatedItem = item.copy(
+                                                        quantity = qty,                                       // DataFields usa 'quantity'
+                                                        location = if (locationChanged) nuevaUbi else item.location,
+                                                        lote = if (isInvitado) item.lote else editedLote.trim()
+                                                            .ifBlank { "-" }.uppercase(),
+                                                        expirationDate = if (isInvitado) item.expirationDate else editedExpirationDate.trim()
+                                                    )
+                                                    allData[idx] = updatedItem
+                                                }
+
+                                                // (Si ya tienes auditoría, déjala igual aquí)
+                                                onSuccess()
+                                                isEditing = false
+                                            }
+                                            .addOnFailureListener { e ->
+                                                Log.e("UpdateInv", "❌ Error al actualizar", e)
+                                                val msg = if (isInvitado)
+                                                    "Como invitado solo puedes editar CANTIDAD y UBICACIÓN el mismo día."
+                                                else e.message ?: "No se pudo actualizar"
+                                                Toast.makeText(context, msg, Toast.LENGTH_LONG)
+                                                    .show()
+                                            }
+                                    }
+
+                                    // === 4) Validar ubicación SÓLO si cambió (aplica para invitado y admin/superuser)
+                                    if (locationChanged) {
+                                        Firebase.firestore
+                                            .collection("clientes").document(cid)
+                                            .collection("ubicaciones")
+                                            .whereEqualTo("codigo_ubi", nuevaUbi)
+                                            .limit(1)
+                                            .get()
+                                            .addOnSuccessListener { documents ->
+                                                val ubicacionExiste = documents.any()
+                                                if (!ubicacionExiste) {
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar(
+                                                            "La ubicación no existe en la base de datos"
+                                                        )
+                                                    }
+                                                    return@addOnSuccessListener
+                                                }
+                                                continuarConUpdate()
+                                            }
+                                            .addOnFailureListener {
+                                                Toast.makeText(
+                                                    context,
+                                                    "No se pudo validar la ubicación.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                    } else {
+                                        // Ubicación no cambió → no validar, seguimos
+                                        continuarConUpdate()
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF003366),
