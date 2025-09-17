@@ -417,7 +417,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
                             if (!showErrorLocalidad) {
                                 Text(
-                                    text = if (selectedLocalidad.value.isNotEmpty()) selectedLocalidad.value else "Seleccionar una localidad",
+                                    text = selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" },
                                     color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
                                 )
                             }

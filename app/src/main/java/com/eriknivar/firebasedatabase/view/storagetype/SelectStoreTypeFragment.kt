@@ -190,15 +190,6 @@ fun SelectStorageFragment(
         }
     }
 
-    /*
-    LaunchedEffect(cidActual) {
-        if (cidActual.isNotBlank()) {
-            // Vuelve a cargar localidades desde clientes/{cidActual}/localidades
-            // y actualiza tu lista local o en el ViewModel
-        }
-    }
-    */
-
     DisposableEffect(cidActual) {
         // Al cambiar de cliente:
         localidades.clear()
@@ -208,14 +199,14 @@ fun SelectStorageFragment(
         if (cidActual.isNotBlank()) {
             // Escucha en tiempo real solo si hay cliente
             LocalidadesRepo.listen(
-                db = Firebase.firestore,
                 clienteId = cidActual,
                 onData = { lista ->
                     localidades.clear()
                     localidades.addAll(lista)
                     isLocalidadesLoading = false
                 },
-                onErr = {
+                onErr = { e ->
+                    Log.e("LOCALIDADES", "listen error", e)
                     localidades.clear()
                     isLocalidadesLoading = false
                     // TODO: snackbar/log si quieres

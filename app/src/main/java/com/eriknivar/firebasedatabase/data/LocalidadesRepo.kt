@@ -1,101 +1,224 @@
 package com.eriknivar.firebasedatabase.data
 
-import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
-import kotlinx.coroutines.tasks.await
+import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import java.util.Locale
 
 object LocalidadesRepo {
 
-    // 🔒 Un solo listener activo
-    private var reg: ListenerRegistration? = null
+    private val db = Firebase.firestore
 
-    // 🧠 Caché en memoria: cliente -> lista
-    private val cache = mutableMapOf<String, List<String>>()
+    // --- listener de localidades (para SelectStoreTypeFragment / LocalidadesScreen) ---
+    private var locReg: ListenerRegistration? = null
 
-    /** Carga one-shot (tu función original, con pequeños ajustes de robustez) */
-    suspend fun getSuspend(
-        db: FirebaseFirestore,
-        clienteId: String
-    ): List<String> {
-        val cid = clienteId.trim().uppercase()
-        if (cid.isBlank()) return emptyList()
-
-        cache[cid]?.let { return it } // cache hit
-
-        val snap = db.collection("clientes")
-            .document(cid)
-            .collection("localidades")
-            .orderBy("nombre")      // ajusta si tu campo es otro
-            .get()
-            .await()
-
-        val lista = snap.documents
-            .mapNotNull(::mapDoc)
-            .distinct()
-            .sorted()
-
-        cache[cid] = lista
-        return lista
-    }
-
-    /**
-     * 🎧 Escucha en tiempo real la subcolección clientes/{cid}/localidades.
-     * - Devuelve caché inmediatamente si existe.
-     * - Mantiene un único listener (evita duplicados).
-     */
     fun listen(
-        db: FirebaseFirestore,
         clienteId: String,
         onData: (List<String>) -> Unit,
         onErr: (Exception) -> Unit = {}
     ) {
-        val cid = clienteId.trim().uppercase()
+        stop()
+
+        val cid = clienteId.trim().uppercase(Locale.ROOT)
         if (cid.isBlank()) {
             onData(emptyList())
             return
         }
 
-        // 1) Emitir caché al instante si existe
-        cache[cid]?.let { onData(it) }
-
-        // 2) Garantizar un solo listener
-        reg?.remove()
-        reg = db.collection("clientes")
+        locReg = db.collection("clientes")
             .document(cid)
             .collection("localidades")
-            .orderBy("nombre")
-            .addSnapshotListener { snap, e ->
-                if (e != null) { onErr(e); return@addSnapshotListener }
+            .addSnapshotListener { qs: QuerySnapshot?, e ->
+                if (e != null) {
+                    Log.e("LOCALIDADES", "listen() error", e)
+                    onErr(e)
+                    return@addSnapshotListener
+                }
 
-                val lista = snap?.documents
-                    ?.mapNotNull(::mapDoc)
-                    ?.distinct()
-                    ?.sorted()
-                    ?: emptyList()
-
-                cache[cid] = lista
+                val lista = qs?.documents?.map { it.getString("codigo") ?: it.id } ?: emptyList()
                 onData(lista)
             }
     }
 
-    /** 🧼 Detener escucha */
     fun stop() {
-        reg?.remove()
-        reg = null
+        locReg?.remove()
+        locReg = null
     }
 
-    /** 🔁 Invalidar caché (todo o uno) */
-    fun invalidate(cid: String? = null) {
-        if (cid == null) cache.clear() else cache.remove(cid.trim().uppercase())
+    fun invalidate(nuevoClienteId: String?) {
+        Log.d("LOCALIDADES", "invalidate() cliente=${(nuevoClienteId ?: "").trim()}")
+        stop()
     }
 
-    /** Mapeo robusto para distintos esquemas posibles */
-    private fun mapDoc(d: DocumentSnapshot): String? {
-        return d.getString("nombre")
-            ?: d.getString("codigo_ubi")
-            ?: d.getString("codigo")
-            ?: d.getString("descripcion")
-            ?: d.id.takeIf { it.isNotBlank() }
+    /**
+     * Crea o actualiza una Localidad cumpliendo las reglas:
+     * - DocID == codigo (MAYÚSCULAS, sin espacios)
+     * - Keys mínimas: ["codigo","nombre","clienteId","activo"]
+     * - clienteId del doc == {id} del path (/clientes/{id}/localidades/{codigo})
+     *
+     * superuser: puede escribir en [clienteIdDestino] si se pasa.
+     * admin: ignorará [clienteIdDestino] y escribe en su propio cliente.
+     * invitado: solo lectura.
+     */
+    fun crearLocalidad(
+        codigoRaw: String,
+        nombreRaw: String,
+        clienteIdDestino: String? = null,
+        onResult: (ok: Boolean, msg: String) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onResult(false, "No hay sesión activa.")
+            return
+        }
+
+        val uid = user.uid
+
+        db.collection("usuarios").document(uid).get()
+            .addOnSuccessListener { d ->
+                val clienteId = (d.getString("clienteId") ?: "")
+                    .trim().uppercase(Locale.ROOT)
+                val tipo = (d.getString("tipo") ?: "")
+                    .trim().lowercase(Locale.ROOT)
+
+                Log.d("AUTH", "uid=$uid tipo=$tipo clienteId=$clienteId")
+
+                if (clienteId.isBlank()) {
+                    onResult(false, "clienteId vacío en /usuarios/$uid.")
+                    return@addOnSuccessListener
+                }
+
+                // superuser puede elegir destino; admin solo su cliente
+                val selected = (clienteIdDestino ?: "")
+                    .trim().uppercase(Locale.ROOT)
+                val targetCid =
+                    if (tipo == "superuser" && selected.isNotBlank()) selected else clienteId
+
+                // Guard: no permitir "__TODAS__"
+                if (targetCid == "__TODAS__") {
+                    onResult(false, "Selecciona un cliente específico (no '__TODAS__').")
+                    return@addOnSuccessListener
+                }
+
+                if (tipo !in listOf("admin", "superuser")) {
+                    onResult(false, "Tu rol ($tipo) solo permite leer localidades.")
+                    return@addOnSuccessListener
+                }
+                if (tipo == "admin" && targetCid != clienteId) {
+                    onResult(false, "Admin solo puede escribir en su cliente ($clienteId).")
+                    return@addOnSuccessListener
+                }
+
+                // Normalizar entradas
+                val codigo = codigoRaw.trim().uppercase(Locale.ROOT)
+                if (codigo.isBlank()) {
+                    onResult(false, "Código vacío.")
+                    return@addOnSuccessListener
+                }
+                val nombre = nombreRaw.trim().ifEmpty { codigo }
+
+                // Path y payload mínimos exigidos por tus reglas
+                val ref = db.collection("clientes")
+                    .document(targetCid)
+                    .collection("localidades")
+                    .document(codigo) // docId == codigo
+
+                val data = mapOf(
+                    "codigo" to codigo,
+                    "nombre" to nombre,
+                    "clienteId" to targetCid, // debe igualar {id} del path
+                    "activo" to true
+                )
+
+                // --- DIAGNÓSTICO PREVIO A CREATE ---
+                Log.d(
+                    "LOCALIDADES",
+                    "preflight -> tipo=$tipo targetCid=$targetCid codigo=$codigo nombre='$nombre'"
+                )
+                val condKeys =
+                    setOf("codigo", "nombre", "clienteId", "activo").all { data.containsKey(it) }
+                val condCid = (data["clienteId"] == targetCid)
+                Log.d(
+                    "LOCALIDADES",
+                    "preflight -> condKeys=$condKeys condCid=$condCid data=$data path=/clientes/$targetCid/localidades/$codigo"
+                )
+
+                // Upsert: si existe -> update; si no -> create
+                ref.get()
+                    .addOnSuccessListener { snap ->
+                        if (snap.exists()) {
+                            ref.set(data, SetOptions.merge())
+                                .addOnSuccessListener {
+                                    onResult(true, "Localidad $codigo actualizada.")
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("LOCALIDADES", "Update $codigo falló", e)
+                                    onResult(false, e.message ?: "Error actualizando $codigo")
+                                }
+                        } else {
+                            ref.set(data)
+                                .addOnSuccessListener {
+                                    onResult(true, "Localidad $codigo creada.")
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("LOCALIDADES", "Create $codigo falló", e)
+                                    val msg =
+                                        if (e.message?.contains("PERMISSION_DENIED", true) == true)
+                                            "PERMISSION_DENIED: revisa rol, clienteId y que docId==código."
+                                        else e.message ?: "Error creando $codigo"
+                                    onResult(false, msg)
+                                }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        onResult(false, "No pude verificar existencia de $codigo: ${e.message}")
+                    }
+            }
+            .addOnFailureListener { e ->
+                onResult(false, "No pude leer /usuarios/$uid: ${e.message}")
+            }
     }
+
+    // LocalidadesRepo.kt (dentro del object)
+    fun borrarLocalidad(
+        codigo: String,
+        clienteIdDestino: String? = null,
+        onResult: (ok: Boolean, msg: String) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onResult(false, "No hay sesión activa."); return
+        }
+
+        val uid = user.uid
+        db.collection("usuarios").document(uid).get()
+            .addOnSuccessListener { d ->
+                val clienteId = (d.getString("clienteId") ?: "").trim().uppercase(Locale.ROOT)
+                val tipo = (d.getString("tipo") ?: "").trim().lowercase(Locale.ROOT)
+
+                val selected = (clienteIdDestino ?: "").trim().uppercase(Locale.ROOT)
+                val targetCid =
+                    if (tipo == "superuser" && selected.isNotBlank()) selected else clienteId
+                if (targetCid == "__TODAS__") {
+                    onResult(false, "Elige un cliente específico."); return@addOnSuccessListener
+                }
+
+                val cod = codigo.trim().uppercase(Locale.ROOT)
+                val ref = db.collection("clientes").document(targetCid)
+                    .collection("localidades").document(cod)
+
+                ref.delete()
+                    .addOnSuccessListener { onResult(true, "Localidad $cod eliminada.") }
+                    .addOnFailureListener { e ->
+                        onResult(false, e.message ?: "No se pudo eliminar $cod")
+                    }
+            }
+            .addOnFailureListener { e -> onResult(false, "No pude leer tu usuario: ${e.message}") }
+    }
+
+
 }
