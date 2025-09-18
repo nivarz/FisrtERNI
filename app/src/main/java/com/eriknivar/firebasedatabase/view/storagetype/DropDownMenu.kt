@@ -54,8 +54,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.style.TextAlign
 
 
 @Composable
@@ -118,16 +121,17 @@ fun DropDownUpScreen(
             OutlinedTextField(
                 value = localidadSeleccionada ?: "",
                 onValueChange = { /* readOnly */ },
-                placeholder = { Text("Selecciona una localidad", color = Color.Gray) },
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                placeholder = { Text("Selecciona un Almacen", color = Color(0xFF001F5B), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
                 readOnly = true,
                 singleLine = true,
                 enabled = hasClienteSeleccionado,
                 shape = RoundedCornerShape(12.dp),
                 supportingText = {
                     when {
-                        !hasClienteSeleccionado -> Text("Selecciona un cliente para ver sus localidades")
+                        !hasClienteSeleccionado -> Text("Selecciona un cliente para ver sus almacenes")
                         isLocalidadesLoading -> Text("Cargando…")
-                        localidades.isEmpty() -> Text("Sin localidades disponibles para este cliente")
+                        localidades.isEmpty() -> Text("Sin almacenes disponibles para este cliente", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                     }
                 },
                 trailingIcon = {
@@ -181,7 +185,7 @@ fun DropDownUpScreen(
 
                 isLocalidadesLoading -> {
                     DropdownMenuItem(
-                        text = { Text("Cargando localidades…") },
+                        text = { Text("Cargando almacenes…") },
                         onClick = {},
                         enabled = false
                     )
@@ -189,7 +193,7 @@ fun DropDownUpScreen(
 
                 localidades.isEmpty() -> {
                     DropdownMenuItem(
-                        text = { Text("Sin localidades para este cliente") },
+                        text = { Text("Sin almacenes para este cliente") },
                         onClick = {},
                         enabled = false
                     )
@@ -230,14 +234,14 @@ fun DropDownUpScreen(
 
             if (isSuperuser && localidades.isNotEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("Todas las Localidades") },
+                    text = { Text("Todos los Almacenes") },
                     onClick = {
                         expandedDropdown = false
                         onUserInteraction()
                         onSelectLocalidad("__TODAS__")   // 👈 enviamos sentinela
                     }
                 )
-                Divider()
+                HorizontalDivider()
             }
         }
 

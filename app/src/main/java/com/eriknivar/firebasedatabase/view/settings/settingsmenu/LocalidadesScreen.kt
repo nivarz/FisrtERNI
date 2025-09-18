@@ -417,7 +417,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                     fontSize = 30.sp,
                     color = Color.Green
                 )
-                Text("Crear Localidad")
+                Text("Crear Almacen")
             }
 
             LazyColumn(

@@ -62,6 +62,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -194,7 +195,7 @@ fun NavigationDrawer(
 
                     DrawerMenuItem(
                         icon = Icons.Default.Inventory, // Puedes usar otro si prefieres
-                        label = "Entrada de Inventario",
+                        label = "Captura de Datos Inv.",
                         isSubItem = false,
                         trailingIcon = if (isConteoExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         onClick = { isConteoExpanded = !isConteoExpanded }
@@ -292,8 +293,8 @@ fun NavigationDrawer(
                             }
                         )
                         DrawerMenuItem(
-                            icon = Icons.Default.Map,
-                            label = "Localidades",
+                            icon = Icons.Default.Warehouse,
+                            label = "Almacenes",
                             isSubItem = true,
                             onClick = {
                                 navController.navigate("localidades")

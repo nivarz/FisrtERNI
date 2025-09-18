@@ -32,7 +32,7 @@ fun ConfiguracionMenuScreen(navController: NavHostController) {
     val opciones = listOf(
         MenuItem("Usuarios", Icons.Default.Person, "usuarios"),
         MenuItem("Ubicaciones", Icons.Default.Place, "ubicaciones"),
-        MenuItem("Localidades", Icons.Default.LocationCity, "localidades"),
+        MenuItem("Almacenes", Icons.Default.LocationCity, "localidades"),
         MenuItem("Auditoría de Registros", Icons.AutoMirrored.Filled.ListAlt, "auditoria")
     )
 
