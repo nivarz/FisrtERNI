@@ -54,6 +54,13 @@ import com.google.firebase.firestore.ktx.firestore
 import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GetTokenResult
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.FirebaseFirestore
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 
 
 @Composable
@@ -71,6 +78,7 @@ fun SelectStorageFragment(
     val cidRaw by userViewModel.clienteId.observeAsState("")
     val tipo = tipoRaw.lowercase()
     val db = Firebase.firestore
+
     val cidActual = cidRaw.trim().uppercase()
 
     //val localidadesOptions = remember { mutableStateListOf<String>() }   // <- NUEVO
@@ -222,6 +230,20 @@ fun SelectStorageFragment(
             LocalidadesRepo.stop()
         }
     }
+
+    LaunchedEffect(currentUserId) {
+        com.eriknivar.firebasedatabase.data.UserRepo.cargarPerfil { ok, perfil, msg ->
+            if (ok) {
+                userViewModel.setTipo((perfil["tipo"] as? String).orEmpty())
+                userViewModel.setClienteId((perfil["clienteId"] as? String).orEmpty())
+                userViewModel.setNombre((perfil["nombre"] as? String).orEmpty())
+                // 👉 Desde aquí la UI usa SIEMPRE el doc (no los claims).
+            } else {
+                android.util.Log.e("PERFIL", "Error: $msg")
+            }
+        }
+    }
+
 
     NavigationDrawer(
         navController,

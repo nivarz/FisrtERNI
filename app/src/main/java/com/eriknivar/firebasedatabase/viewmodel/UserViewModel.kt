@@ -1,4 +1,3 @@
-
 package com.eriknivar.firebasedatabase.viewmodel
 
 import android.util.Log
@@ -15,9 +14,12 @@ class UserViewModel : ViewModel() {
 
     private val _nombre = MutableLiveData("")
     val nombre: LiveData<String> = _nombre
+    fun setNombre(v: String) { _nombre.postValue(v) }
 
     private val _tipo = MutableLiveData("")
     val tipo: LiveData<String> = _tipo
+    fun setTipo(v: String) { _tipo.postValue(v) }
+
 
     private val _isInitialized = MutableLiveData(false)
     val isInitialized: LiveData<Boolean> = _isInitialized
@@ -27,8 +29,10 @@ class UserViewModel : ViewModel() {
 
     private val _fotoUrl = MutableLiveData<String?>()
 
-    private val _clienteId = MutableLiveData("")      // ← NUEVO
+    private val _clienteId = MutableLiveData("")
     val clienteId: LiveData<String> = _clienteId
+    fun setClienteId(v: String) { _clienteId.postValue(v) }
+
 
     fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
@@ -37,9 +41,7 @@ class UserViewModel : ViewModel() {
         _isInitialized.value = true
     }
 
-    fun setClienteId(id: String) {                    // ← NUEVO
-        _clienteId.value = id
-    }
+
 
     fun cargarFotoUrl(documentId: String) {
         Firebase.firestore.collection("usuarios")
@@ -104,7 +106,10 @@ class UserViewModel : ViewModel() {
         tempUbicacion = ubicacion
         tempFecha = fecha
 
-        Log.d("TEMPORAL", "Guardado -> SKU: $sku, Lote: $lote, Cant: $cantidad, Ub: $ubicacion, Fecha: $fecha")
+        Log.d(
+            "TEMPORAL",
+            "Guardado -> SKU: $sku, Lote: $lote, Cant: $cantidad, Ub: $ubicacion, Fecha: $fecha"
+        )
 
     }
 

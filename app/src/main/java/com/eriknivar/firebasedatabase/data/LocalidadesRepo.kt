@@ -183,6 +183,50 @@ object LocalidadesRepo {
             }
     }
 
+    fun updateLocalidad(
+        codigo: String,
+        nuevoNombre: String? = null,
+        nuevoActivo: Boolean? = null,
+        clienteIdDestino: String? = null,
+        onResult: (ok: Boolean, msg: String) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onResult(false, "No hay sesión activa."); return
+        }
+
+        val uid = user.uid
+        db.collection("usuarios").document(uid).get()
+            .addOnSuccessListener { d ->
+                val clienteId = (d.getString("clienteId") ?: "").trim().uppercase()
+                val tipo = (d.getString("tipo") ?: "").trim().lowercase()
+                val targetCid = if (tipo == "superuser" && !clienteIdDestino.isNullOrBlank())
+                    clienteIdDestino.trim().uppercase() else clienteId
+
+                val cod = codigo.trim().uppercase()
+                val ref = db.collection("clientes").document(targetCid)
+                    .collection("localidades").document(cod)
+
+                // Solo mandamos los campos permitidos por reglas
+                val updates = mutableMapOf<String, Any>()
+                if (!nuevoNombre.isNullOrBlank()) updates["nombre"] = nuevoNombre.trim()
+                if (nuevoActivo != null) updates["activo"] = nuevoActivo
+                if (updates.isEmpty()) {
+                    onResult(false, "Nada para actualizar."); return@addOnSuccessListener
+                }
+
+                ref.update(updates as Map<String, Any>)
+                    .addOnSuccessListener { onResult(true, "Localidad $cod actualizada.") }
+                    .addOnFailureListener { e ->
+                        onResult(
+                            false,
+                            e.message ?: "Error actualizando $cod"
+                        )
+                    }
+            }
+            .addOnFailureListener { e -> onResult(false, "No pude leer tu usuario: ${e.message}") }
+    }
+
     // LocalidadesRepo.kt (dentro del object)
     fun borrarLocalidad(
         codigo: String,

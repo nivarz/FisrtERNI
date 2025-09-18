@@ -1,76 +1,184 @@
 package com.eriknivar.firebasedatabase.data
 
+import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
+import java.util.Locale
 
 object UbicacionesRepo {
+
     private val db = Firebase.firestore
 
-    // cache simple: nombre->codigo y codigo->codigo por cliente
-    private val cacheLocalidades: MutableMap<String, Map<String, String>> = mutableMapOf()
+    // --- Listener por cliente+localidad (para listar en UI) ---
+    private var reg: ListenerRegistration? = null
+    fun listen(
+        clienteId: String,
+        localidadCodigo: String,
+        onData: (List<Pair<String,String>>) -> Unit,
+        onErr: (Exception) -> Unit = {}
+    ) {
+        stop()
+        val cid = clienteId.trim().uppercase(Locale.ROOT)
+        val loc = localidadCodigo.trim().uppercase(Locale.ROOT)
+        if (cid.isBlank() || loc.isBlank()) { onData(emptyList()); return }
 
-    private suspend fun localidadCodigo(cid: String, input: String): String {
-        val inRaw = (input).trim()
-        if (inRaw.isEmpty()) return ""
-        val inUp = inRaw.uppercase()
-
-        // si parece código (tiene _ o es corto sin espacios), úsalo directo
-        if ('_' in inUp || ' ' !in inUp) return inUp
-
-        // buscar en cache
-        cacheLocalidades[cid]?.let { map ->
-            return map[inUp] ?: inUp
-        }
-
-        // cargar localidades del cliente y mapear nombre/código
-        val snap = db.collection("clientes").document(cid)
-            .collection("localidades").get().await()
-
-        val map = mutableMapOf<String, String>()
-        for (doc in snap.documents) {
-            val codigo = (doc.getString("codigo") ?: doc.id).trim().uppercase()
-            val nombre = (doc.getString("nombre") ?: doc.getString("descripcion") ?: "").trim().uppercase()
-            if (codigo.isNotEmpty()) {
-                map[codigo] = codigo          // código → código
+        reg = db.collection("clientes").document(cid)
+            .collection("localidades").document(loc)
+            .collection("ubicaciones")
+            .addSnapshotListener { qs: QuerySnapshot?, e ->
+                if (e != null) { Log.e("UBICACIONES", "listen error", e); onErr(e); return@addSnapshotListener }
+                val items = qs?.documents?.map { d ->
+                    val codigo = d.getString("codigo") ?: d.id
+                    val nombre = d.getString("nombre") ?: d.id
+                    codigo to nombre
+                } ?: emptyList()
+                onData(items)
             }
-            if (nombre.isNotEmpty()) {
-                map[nombre] = codigo          // nombre → código
-            }
-        }
-        cacheLocalidades[cid] = map
+    }
+    fun stop() { reg?.remove(); reg = null }
 
-        return map[inUp] ?: inUp
+    // --- Crear / actualizar (UPSERT) ---
+    fun crearUbicacion(
+        codigoRaw: String,
+        nombreRaw: String,
+        clienteIdDestino: String,
+        localidadCodigoDestino: String,
+        onResult: (ok: Boolean, msg: String) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) { onResult(false, "No hay sesión activa."); return }
+
+        // 1) Normalizar entradas
+        val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
+        val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
+        val codigo = codigoRaw.trim().uppercase(Locale.ROOT)
+        val nombre = nombreRaw.trim().ifEmpty { codigo }
+
+        if (cid.isBlank())   { onResult(false, "clienteId vacío."); return }
+        if (loc.isBlank())   { onResult(false, "localidad no seleccionada."); return }
+        if (codigo.isBlank()){ onResult(false, "Código vacío."); return }
+
+        // 2) Path y payload mínimo (reglas exigen estas 5 keys)
+        val ref = db.collection("clientes").document(cid)
+            .collection("localidades").document(loc)
+            .collection("ubicaciones").document(codigo)
+
+        val data = mapOf(
+            "codigo"           to codigo,
+            "nombre"           to nombre,
+            "clienteId"        to cid,  // == {id}
+            "localidadCodigo"  to loc,  // == {locId}
+            "activo"           to true
+        )
+
+        // 3) Diagnóstico previo (útil si las reglas niegan)
+        Log.d("UBICACIONES", "preflight -> cid=$cid loc=$loc codigo=$codigo nombre='$nombre'")
+        Log.d("UBICACIONES", "path=/clientes/$cid/localidades/$loc/ubicaciones/$codigo data=$data")
+
+        // 4) Upsert
+        ref.get()
+            .addOnSuccessListener { snap ->
+                if (snap.exists()) {
+                    ref.set(data, SetOptions.merge())
+                        .addOnSuccessListener { onResult(true, "Ubicación $codigo actualizada.") }
+                        .addOnFailureListener { e -> onResult(false, e.message ?: "Error actualizando $codigo") }
+                } else {
+                    ref.set(data)
+                        .addOnSuccessListener { onResult(true, "Ubicación $codigo creada.") }
+                        .addOnFailureListener { e ->
+                            val msg = if ((e.message ?: "").contains("PERMISSION_DENIED", true))
+                                "PERMISSION_DENIED: revisa rol, clienteId, localidad y que docId==código."
+                            else e.message ?: "Error creando $codigo"
+                            onResult(false, msg)
+                        }
+                }
+            }
+            .addOnFailureListener { e -> onResult(false, "No pude verificar existencia: ${e.message}") }
     }
 
+    // --- Update (solo nombre/activo; acorde a reglas) ---
+    fun updateUbicacion(
+        codigo: String,
+        nuevoNombre: String? = null,
+        nuevoActivo: Boolean? = null,
+        clienteIdDestino: String,
+        localidadCodigoDestino: String,
+        onResult: (ok: Boolean, msg: String) -> Unit
+    ) {
+        val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
+        val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
+        val cod = codigo.trim().uppercase(Locale.ROOT)
+        if (cid.isBlank() || loc.isBlank() || cod.isBlank()) {
+            onResult(false, "Parámetros incompletos."); return
+        }
+
+        val updates = mutableMapOf<String, Any>()
+        if (!nuevoNombre.isNullOrBlank()) updates["nombre"] = nuevoNombre.trim()
+        if (nuevoActivo != null)          updates["activo"] = nuevoActivo
+        if (updates.isEmpty()) { onResult(false, "Nada para actualizar."); return }
+
+        val ref = db.collection("clientes").document(cid)
+            .collection("localidades").document(loc)
+            .collection("ubicaciones").document(cod)
+
+        ref.update(updates as Map<String, Any>)
+            .addOnSuccessListener { onResult(true, "Ubicación $cod actualizada.") }
+            .addOnFailureListener { e -> onResult(false, e.message ?: "Error actualizando $cod") }
+    }
+
+    // --- Delete duro (solo superuser por reglas) ---
+    fun borrarUbicacion(
+        codigo: String,
+        clienteIdDestino: String,
+        localidadCodigoDestino: String,
+        onResult: (ok: Boolean, msg: String) -> Unit
+    ) {
+        val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
+        val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
+        val cod = codigo.trim().uppercase(Locale.ROOT)
+        if (cid.isBlank() || loc.isBlank() || cod.isBlank()) {
+            onResult(false, "Parámetros incompletos."); return
+        }
+
+        val ref = db.collection("clientes").document(cid)
+            .collection("localidades").document(loc)
+            .collection("ubicaciones").document(cod)
+
+        ref.delete()
+            .addOnSuccessListener { onResult(true, "Ubicación $cod eliminada.") }
+            .addOnFailureListener { e -> onResult(false, e.message ?: "No se pudo eliminar $cod") }
+    }
+
+    // --- Verificar si una ubicación existe (cliente + localidad + código) ---
     suspend fun existeUbicacion(
         clienteId: String,
-        codigoIngresado: String,
-        localidad: String
+        localidad: String,
+        codigoIngresado: String
     ): Boolean {
-        val cid = clienteId.trim().uppercase()
-        val cod = codigoIngresado.trim().uppercase()
-        val locCode = localidadCodigo(cid, localidad) // 👈 normaliza nombre→código
+        val cid  = clienteId.trim().uppercase()
+        val loc  = localidad.trim().uppercase()
+        val code = codigoIngresado.trim().uppercase()
+        if (cid.isBlank() || loc.isBlank() || code.isBlank()) return false
 
-        if (cid.isBlank() || cod.isBlank() || locCode.isBlank()) return false
-
-        // 1) Por docId compuesto: LOCALIDAD_CODIGO
-        val docId = "${locCode}_${cod}"
-        val byId = db.collection("clientes").document(cid)
-            .collection("ubicaciones").document(docId).get().await()
-        if (byId.exists()) return true
-
-        // 2) Por campos (acepta "codigo_ubi" o "codigo")
-        val col = db.collection("clientes").document(cid).collection("ubicaciones")
-
-        val q1 = col.whereEqualTo("localidad", locCode)
-            .whereEqualTo("codigo_ubi", cod).limit(1).get().await()
-        if (!q1.isEmpty) return true
-
-        val q2 = col.whereEqualTo("localidad", locCode)
-            .whereEqualTo("codigo", cod).limit(1).get().await()
-        if (!q2.isEmpty) return true
-
-        return false
+        return try {
+            val snap = db.collection("clientes").document(cid)
+                .collection("localidades").document(loc)
+                .collection("ubicaciones").document(code)
+                .get()
+                .await()                         // 👈 requiere coroutines-play-services
+            // Extra (sanity check): que coincidan los campos clave
+            val okCliente   = (snap.getString("clienteId") ?: "")          .equals(cid, true)
+            val okLocalidad = (snap.getString("localidadCodigo") ?: "")    .equals(loc, true)
+            snap.exists() && okCliente && okLocalidad
+        } catch (e: Exception) {
+            Log.e("UBICACIONES", "existeUbicacion error", e)
+            false
+        }
     }
+
 }
