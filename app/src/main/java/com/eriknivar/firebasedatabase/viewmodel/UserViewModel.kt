@@ -33,8 +33,7 @@ class UserViewModel : ViewModel() {
     val clienteId: LiveData<String> = _clienteId
     fun setClienteId(v: String) { _clienteId.postValue(v) }
 
-
-    fun setUser(nombre: String, tipo: String, documentId: String) {
+     fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
         _tipo.value = tipo
         _documentId.value = documentId

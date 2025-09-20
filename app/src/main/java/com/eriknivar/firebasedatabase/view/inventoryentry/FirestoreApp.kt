@@ -157,17 +157,19 @@ fun FirestoreApp(
         }
     */
 
-    DisposableEffect(userViewModel.clienteId.observeAsState("").value, storageType) {
+    DisposableEffect(
+        // keys: cambia cuando cambie el cliente o la localidad (storageType)
+        userViewModel.clienteId.observeAsState("").value,
+        storageType
+    ) {
         val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
         if (cid.isBlank()) return@DisposableEffect onDispose { }
 
-
-        // 👇 Ajusta el nombre del campo según tu colección:
-        // si en Firestore usas "location" en vez de "ubicacion", cambia la línea de whereEqualTo.
+        // Realtime sobre /clientes/{cid}/inventario filtrado por localidad
         val query = Firebase.firestore
             .collection("clientes").document(cid)
             .collection("inventario")
-            .whereEqualTo("localidad", storageType.trim())   // sin uppercase: respeta el nombre tal como está guardado
+            .whereEqualTo("localidad", storageType.trim())
 
         val reg = query.addSnapshotListener { snap, e ->
             if (e != null) {
@@ -176,11 +178,10 @@ fun FirestoreApp(
             }
             val docs = snap ?: return@addSnapshotListener
 
-            val nuevos = docs.documents.mapNotNull { d ->
-                // Data class base
-                val base = d.toObject(DataFields::class.java) ?: return@mapNotNull null
+            val nuevos: List<DataFields> = docs.documents.map { d ->
+                val base = d.toObject(DataFields::class.java) ?: DataFields()
 
-                // Preferir ESPAÑOL; si no existe, usar INGLÉS; si tampoco, dejar lo que ya trajo la data class
+                // Preferir ES → si no están, usar EN → si no, lo que ya trae 'base'
                 val cantidad = (d.getDouble("cantidad")
                     ?: d.getLong("cantidad")?.toDouble()
                     ?: d.getDouble("quantity")
@@ -195,26 +196,30 @@ fun FirestoreApp(
                     ?: d.getString("expirationDate")
                     ?: base.expirationDate)
 
+                // Normalizamos aliases que usa la UI
                 base.copy(
                     documentId     = d.id,
                     quantity       = cantidad,
                     location       = ubicacion,
-                    expirationDate = fechaVto
+                    expirationDate = fechaVto,
+                    sku            = if (base.sku.isNotBlank()) base.sku else base.codigoProducto,
+                    description    = if (base.description.isNotBlank()) base.description else base.descripcion
                 )
             }
 
             allData.clear()
             allData.addAll(nuevos)
 
-
             Log.d(
                 "InvRealtime",
-                "UI actualizada: ${nuevos.size} registros (fromCache=${docs.metadata.isFromCache})"
+                "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})"
             )
+
         }
 
         onDispose { reg.remove() }
     }
+
 
     val lastInteractionTime =
         remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }

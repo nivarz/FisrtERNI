@@ -62,6 +62,23 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
 
     val ctx = LocalContext.current
 
+    // ⬇️ Log/Toast de claims actuales del token (para validar reglas token-only)
+    LaunchedEffect(Unit) {
+        Firebase.auth.currentUser
+            ?.getIdToken(false)
+            ?.addOnSuccessListener { res ->
+                val claims = res.claims
+                val tipo = claims["tipo"]
+                val clienteId = claims["clienteId"]
+                android.util.Log.d("AUTH/CLAIMS", "tipo=$tipo  clienteId=$clienteId")
+                Toast.makeText(ctx, "tipo=$tipo  clienteId=$clienteId", Toast.LENGTH_LONG).show()
+            }
+            ?.addOnFailureListener { e ->
+                android.util.Log.e("AUTH/CLAIMS", "No pude leer claims", e)
+            }
+    }
+
+
     var isSaving by remember { mutableStateOf(false) }
 
     if (!tipo.equals("admin", true) && !isSuper) {
@@ -512,7 +529,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                             OutlinedTextField(
                                 value = nombreInput,
                                 onValueChange = { nombreInput = it.trimStart() },
-                                label = { Text("Nombre de la Localidad*") },
+                                label = { Text("Nombre del Almacen*") },
                                 singleLine = true
                             )
                         }
@@ -524,41 +541,42 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                 if (codigoInput.isBlank() || nombreInput.isBlank()) return@Button
 
                                 if (isEditing) {
-                                    // EDITAR
                                     val cid = selectedCid.trim().uppercase()
-                                    val data = mapOf(
-                                        "codigo" to codigoInput.trim().uppercase(),
-                                        "nombre" to nombreInput.trim(),
-                                        "activo" to true,
-                                        "clienteId" to cid
-                                    )
-                                    android.util.Log.d(
-                                        "Localidades",
-                                        "SET (EDIT) -> /clientes/$cid/localidades/${
-                                            codigoInput.trim().uppercase()
-                                        } payload=$data"
-                                    )
+                                    val codigo = codigoInput.trim().uppercase()
+                                    val nuevoNombre = nombreInput.trim()
 
-                                    firestore.collection("clientes").document(cid)
-                                        .collection("localidades")
-                                        .document(codigoInput.trim().uppercase())
-                                        .set(data)
-                                        .addOnSuccessListener {
+                                    if (cid.isBlank() || codigo.isBlank() || nuevoNombre.isBlank()) return@Button
+
+                                    isSaving = true
+
+                                    LocalidadesRepo.updateLocalidad(
+                                        codigo = codigo,                 // docId (== código)
+                                        nuevoNombre = nuevoNombre,       // cambia nombre
+                                        nuevoActivo = null,              // o true/false si quieres tocar "activo"
+                                        clienteIdDestino = cid           // {cid} del path
+                                    ) { ok, msg ->
+                                        isSaving = false
+                                        if (ok) {
                                             showDialog = false
-                                            successMessage = "Localidad actualizada"
+                                            successMessage = "Localidad $codigo actualizada"
                                             showSuccessDialog = true
                                             cargarLocalidades(cid, ctx)
+
                                             com.eriknivar.firebasedatabase.data.Audit.log(
                                                 clienteId = cid,
                                                 entidad = "localidad",
-                                                entidadId = codigoInput.trim().uppercase(),
+                                                entidadId = codigo,
                                                 accion = "UPDATE",
                                                 byUid = Firebase.auth.currentUser?.uid
                                                     ?: (userViewModel.documentId.value ?: ""),
                                                 byNombre = userViewModel.nombre.value ?: "",
                                                 rol = userViewModel.tipo.value ?: ""
                                             )
+                                        } else {
+                                            Toast.makeText(ctx, "Error: $msg", Toast.LENGTH_LONG).show()
+                                            Log.e("Localidades", "UPDATE FAILED: $msg")
                                         }
+                                    }
                                 } else {
                                     val cid = selectedCid.trim().uppercase()
                                     val codigo = codigoInput.trim().uppercase()
@@ -569,11 +587,10 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                     isSaving = true
 
                                     LocalidadesRepo.crearLocalidad(
-                                        codigoRaw = codigo,
+                                        codigoRaw = codigo,          // 👈 docId debe ser IGUAL a este código
                                         nombreRaw = nombre,
-                                        clienteIdDestino = cid
+                                        clienteIdDestino = cid       // 👈 {cid} que tienes en pantalla
                                     ) { ok, msg ->
-                                        Log.d("TEST", "ok=$ok msg=$msg")
                                         isSaving = false
                                         if (ok) {
                                             showDialog = false
@@ -581,6 +598,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                             showSuccessDialog = true
                                             cargarLocalidades(cid, ctx)
 
+                                            // (opcional) tu auditoría si ya la tenías
                                             com.eriknivar.firebasedatabase.data.Audit.log(
                                                 clienteId = cid,
                                                 entidad = "localidad",
@@ -593,13 +611,10 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                             )
                                         } else {
                                             Log.e("Localidades", "CREATE FAILED: $msg")
-                                            Toast.makeText(ctx, "Error: $msg", Toast.LENGTH_LONG)
-                                                .show()
+                                            Toast.makeText(ctx, "Error: $msg", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 }
-
-
                             }
                         ) { Text(if (isEditing) "Guardar" else "Crear") }
                     },

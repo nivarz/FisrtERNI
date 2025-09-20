@@ -19,19 +19,23 @@ object UbicacionesRepo {
     fun listen(
         clienteId: String,
         localidadCodigo: String,
-        onData: (List<Pair<String,String>>) -> Unit,
+        onData: (List<Pair<String, String>>) -> Unit,
         onErr: (Exception) -> Unit = {}
     ) {
         stop()
         val cid = clienteId.trim().uppercase(Locale.ROOT)
         val loc = localidadCodigo.trim().uppercase(Locale.ROOT)
-        if (cid.isBlank() || loc.isBlank()) { onData(emptyList()); return }
+        if (cid.isBlank() || loc.isBlank()) {
+            onData(emptyList()); return
+        }
 
         reg = db.collection("clientes").document(cid)
             .collection("localidades").document(loc)
             .collection("ubicaciones")
             .addSnapshotListener { qs: QuerySnapshot?, e ->
-                if (e != null) { Log.e("UBICACIONES", "listen error", e); onErr(e); return@addSnapshotListener }
+                if (e != null) {
+                    Log.e("UBICACIONES", "listen error", e); onErr(e); return@addSnapshotListener
+                }
                 val items = qs?.documents?.map { d ->
                     val codigo = d.getString("codigo") ?: d.id
                     val nombre = d.getString("nombre") ?: d.id
@@ -40,7 +44,10 @@ object UbicacionesRepo {
                 onData(items)
             }
     }
-    fun stop() { reg?.remove(); reg = null }
+
+    fun stop() {
+        reg?.remove(); reg = null
+    }
 
     // --- Crear / actualizar (UPSERT) ---
     fun crearUbicacion(
@@ -48,10 +55,12 @@ object UbicacionesRepo {
         nombreRaw: String,
         clienteIdDestino: String,
         localidadCodigoDestino: String,
-        onResult: (ok: Boolean, msg: String) -> Unit
+        onResult: (Boolean, String) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser
-        if (user == null) { onResult(false, "No hay sesión activa."); return }
+        if (user == null) {
+            onResult(false, "No hay sesión activa."); return
+        }
 
         // 1) Normalizar entradas
         val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
@@ -59,9 +68,15 @@ object UbicacionesRepo {
         val codigo = codigoRaw.trim().uppercase(Locale.ROOT)
         val nombre = nombreRaw.trim().ifEmpty { codigo }
 
-        if (cid.isBlank())   { onResult(false, "clienteId vacío."); return }
-        if (loc.isBlank())   { onResult(false, "localidad no seleccionada."); return }
-        if (codigo.isBlank()){ onResult(false, "Código vacío."); return }
+        if (cid.isBlank()) {
+            onResult(false, "clienteId vacío."); return
+        }
+        if (loc.isBlank()) {
+            onResult(false, "localidad no seleccionada."); return
+        }
+        if (codigo.isBlank()) {
+            onResult(false, "Código vacío."); return
+        }
 
         // 2) Path y payload mínimo (reglas exigen estas 5 keys)
         val ref = db.collection("clientes").document(cid)
@@ -69,11 +84,11 @@ object UbicacionesRepo {
             .collection("ubicaciones").document(codigo)
 
         val data = mapOf(
-            "codigo"           to codigo,
-            "nombre"           to nombre,
-            "clienteId"        to cid,  // == {id}
-            "localidadCodigo"  to loc,  // == {locId}
-            "activo"           to true
+            "codigo" to codigo,
+            "nombre" to nombre,
+            "clienteId" to cid,  // == {id}
+            "localidadCodigo" to loc,  // == {locId}
+            "activo" to true
         )
 
         // 3) Diagnóstico previo (útil si las reglas niegan)
@@ -86,7 +101,12 @@ object UbicacionesRepo {
                 if (snap.exists()) {
                     ref.set(data, SetOptions.merge())
                         .addOnSuccessListener { onResult(true, "Ubicación $codigo actualizada.") }
-                        .addOnFailureListener { e -> onResult(false, e.message ?: "Error actualizando $codigo") }
+                        .addOnFailureListener { e ->
+                            onResult(
+                                false,
+                                e.message ?: "Error actualizando $codigo"
+                            )
+                        }
                 } else {
                     ref.set(data)
                         .addOnSuccessListener { onResult(true, "Ubicación $codigo creada.") }
@@ -98,7 +118,12 @@ object UbicacionesRepo {
                         }
                 }
             }
-            .addOnFailureListener { e -> onResult(false, "No pude verificar existencia: ${e.message}") }
+            .addOnFailureListener { e ->
+                onResult(
+                    false,
+                    "No pude verificar existencia: ${e.message}"
+                )
+            }
     }
 
     // --- Update (solo nombre/activo; acorde a reglas) ---
@@ -108,7 +133,7 @@ object UbicacionesRepo {
         nuevoActivo: Boolean? = null,
         clienteIdDestino: String,
         localidadCodigoDestino: String,
-        onResult: (ok: Boolean, msg: String) -> Unit
+        onResult: (Boolean, String) -> Unit
     ) {
         val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
         val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
@@ -119,8 +144,10 @@ object UbicacionesRepo {
 
         val updates = mutableMapOf<String, Any>()
         if (!nuevoNombre.isNullOrBlank()) updates["nombre"] = nuevoNombre.trim()
-        if (nuevoActivo != null)          updates["activo"] = nuevoActivo
-        if (updates.isEmpty()) { onResult(false, "Nada para actualizar."); return }
+        if (nuevoActivo != null) updates["activo"] = nuevoActivo
+        if (updates.isEmpty()) {
+            onResult(false, "Nada para actualizar."); return
+        }
 
         val ref = db.collection("clientes").document(cid)
             .collection("localidades").document(loc)
@@ -136,7 +163,7 @@ object UbicacionesRepo {
         codigo: String,
         clienteIdDestino: String,
         localidadCodigoDestino: String,
-        onResult: (ok: Boolean, msg: String) -> Unit
+        onResult: (Boolean, String) -> Unit
     ) {
         val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
         val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
@@ -160,25 +187,43 @@ object UbicacionesRepo {
         localidad: String,
         codigoIngresado: String
     ): Boolean {
-        val cid  = clienteId.trim().uppercase()
-        val loc  = localidad.trim().uppercase()
+        val cid = clienteId.trim().uppercase()
+        val loc = localidad.trim().uppercase()
         val code = codigoIngresado.trim().uppercase()
         if (cid.isBlank() || loc.isBlank() || code.isBlank()) return false
 
         return try {
-            val snap = db.collection("clientes").document(cid)
+            // 1) NUEVO esquema: /clientes/{cid}/localidades/{loc}/ubicaciones/{code}
+            val snapNew = db.collection("clientes").document(cid)
                 .collection("localidades").document(loc)
                 .collection("ubicaciones").document(code)
                 .get()
-                .await()                         // 👈 requiere coroutines-play-services
-            // Extra (sanity check): que coincidan los campos clave
-            val okCliente   = (snap.getString("clienteId") ?: "")          .equals(cid, true)
-            val okLocalidad = (snap.getString("localidadCodigo") ?: "")    .equals(loc, true)
-            snap.exists() && okCliente && okLocalidad
+                .await()
+
+            if (snapNew.exists()) {
+                val okCliente = (snapNew.getString("clienteId") ?: "").equals(cid, true)
+                val okLocalidad = (snapNew.getString("localidadCodigo") ?: "").equals(loc, true)
+                return okCliente && okLocalidad
+            }
+
+            // 2) VIEJO esquema: /clientes/{cid}/ubicaciones  (campo 'codigo_ubi')
+            val oldQry = db.collection("clientes").document(cid)
+                .collection("ubicaciones")
+                .whereEqualTo("codigo_ubi", code)
+                .limit(1)
+                .get()
+                .await()
+
+            oldQry.documents.firstOrNull()?.let { doc ->
+                // si quieres además validar que la fila sea de esa localidad:
+                val okLoc = (doc.getString("localidad") ?: "").equals(loc, true)
+                return okLoc // o simplemente 'true' si no quieres exigir localidad
+            }
+
+            false
         } catch (e: Exception) {
             Log.e("UBICACIONES", "existeUbicacion error", e)
             false
         }
     }
-
 }

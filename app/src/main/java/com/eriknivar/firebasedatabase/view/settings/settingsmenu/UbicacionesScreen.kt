@@ -41,6 +41,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -75,6 +76,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.eriknivar.firebasedatabase.data.ClientesRepo
 
 @Composable
 fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewModel) {
@@ -86,7 +89,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         // 🔴 No muestres nada, Compose lo ignora y se cerrará la app correctamente
         return
     }
-
 
     val tipo = userViewModel.tipo.value ?: ""
 
@@ -111,9 +113,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val ctx = LocalContext.current
 
     val firestore = Firebase.firestore
-    // antes: Pair<String, String?>
     val ubicaciones = remember { mutableStateListOf<Pair<String, String>>() }
-
+    val clienteId by userViewModel.clienteId.observeAsState("")
 
     val showDialog = remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
@@ -135,13 +136,18 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val selectedLocalidad = remember { mutableStateOf("") }
     val expandedLocalidad = remember { mutableStateOf(false) }
 
-    val clienteIdAct = userViewModel.clienteId.observeAsState("").value.trim().uppercase()
-
     val context = LocalContext.current
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var showErrorLocalidad by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+
+    val selectedCid by userViewModel.clienteId.observeAsState("")
+    //val clienteNombre by userViewModel.nombre.observeAsState("") // usa el nombre que guardes en tu VM
+    var showClientePicker by remember { mutableStateOf(false) }
+    val clientesActivos =
+        remember { mutableStateListOf<Pair<String, String>>() } // (clienteId, nombre)
 
 
     val lastInteractionTime =
@@ -177,39 +183,66 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         }
     }
 
-    LaunchedEffect(clienteIdAct) {
+    val clienteIdAct by userViewModel.clienteId.observeAsState("")
+    var clienteNombre by rememberSaveable { mutableStateOf("") }
+
+    // 1) Cargar nombre del cliente + localidades del cliente activo
+    DisposableEffect(clienteIdAct) {
+        // Nombre del cliente
+        clienteNombre = ""
+        if (clienteIdAct.isBlank()) {
+            // No hay cliente: no registres listeners y devuelve un onDispose vacío
+            return@DisposableEffect onDispose { }
+        }
+
+        // Nombre del cliente
+        ClientesRepo.getNombreCliente(clienteIdAct) { nombre -> clienteNombre = nombre }
+
+        // Localidades del cliente
         localidadesList.clear()
-        if (clienteIdAct.isNotBlank()) {
-            LocalidadesRepo.listen(clienteId = clienteIdAct, onData = { lista ->
+        val removeLoc = LocalidadesRepo.listen(
+            clienteId = clienteIdAct,
+            onData = { lista ->
                 localidadesList.clear()
-                localidadesList.addAll(lista) // ← lista de CÓDIGOS (ALM_REP, ALM_SUM, etc.)
-                // Si no hay selección, toma la primera
+                localidadesList.addAll(lista)
                 if (selectedLocalidad.value.isBlank() && lista.isNotEmpty()) {
                     selectedLocalidad.value = lista.first()
                 }
-            }, onErr = { e ->
-                localidadesList.clear()
-            })
+            },
+            onErr = { localidadesList.clear() }
+        )
+
+        // <- El último statement debe ser un onDispose { … }
+        onDispose {
+            // si tu repo devuelve algo removible, úsalo
+            LocalidadesRepo.stop()
         }
     }
 
-    // items = Pair<CODIGO, NOMBRE>
-    LaunchedEffect(clienteIdAct, selectedLocalidad.value) {
-        ubicaciones.clear()
-        if (clienteIdAct.isBlank() || selectedLocalidad.value.isBlank()) return@LaunchedEffect
 
-        UbicacionesRepo.listen(
+    // 2) Escuchar ubicaciones de la localidad seleccionada
+    DisposableEffect(clienteIdAct, selectedLocalidad.value) {
+        ubicaciones.clear()
+
+        if (clienteIdAct.isBlank() || selectedLocalidad.value.isBlank()) {
+            // Sin cliente o sin localidad -> nada que escuchar
+            return@DisposableEffect onDispose { }
+        }
+
+        val removeUbi = UbicacionesRepo.listen(
             clienteId = clienteIdAct,
             localidadCodigo = selectedLocalidad.value,
             onData = { lista ->
                 ubicaciones.clear()
-                ubicaciones.addAll(lista) // pares (codigo, nombre)
+                ubicaciones.addAll(lista)
             },
-            onErr = { _ ->
-                ubicaciones.clear()
-            })
-    }
+            onErr = { ubicaciones.clear() }
+        )
 
+        onDispose {
+            UbicacionesRepo.stop()
+        }
+    }
 
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
@@ -219,6 +252,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     val qrCodeContent = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
+
+    val codigoAEliminar = remember { mutableStateOf<String?>(null) }
+    val isDeleting = remember { mutableStateOf(false) }
 
     val qrScanLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -252,23 +288,54 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     ) {
 
         Column(modifier = Modifier.fillMaxSize()) {
-            ElevatedButton(
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = navyBlue, contentColor = Color.White
-                ), onClick = {
-                    actualizarActividad(context)
-                    codigoInput = ""
-                    zonaInput = ""
-                    docIdToEdit = ""
-                    isEditing = false
-                    showDialog.value = true
-                }, modifier = Modifier
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("+ ", fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.Green)
+                // Chip que muestra el cliente activo
+                Box(
+                    modifier = Modifier
+                        .border(1.dp, Color.Gray, RoundedCornerShape(12.dp))
+                        .clickable {
+                            // Solo superuser puede cambiarlo
+                            if (tipo.equals("superuser", true)) {
+                                showClientePicker = true
+                            } else {
+                                Toast.makeText(ctx, "Cliente fijo para admin", Toast.LENGTH_SHORT)
+                                    .show()
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    val label = when {
+                        clienteId.isBlank() -> "Selecciona un cliente"
+                        clienteNombre.isNotBlank() -> "$clienteNombre ($clienteId)"
+                        else -> clienteId
+                    }
+                    Text(label, fontSize = 14.sp)
+                }
 
-                Text("Crear Ubicación")
+                // Botón crear (lo deshabilitamos si no hay cliente activo)
+                ElevatedButton(
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = navyBlue, contentColor = Color.White
+                    ), enabled = selectedCid.isNotBlank(), onClick = {
+                        actualizarActividad(context)
+                        if (selectedCid.isBlank()) {
+                            showClientePicker = true
+                            return@ElevatedButton
+                        }
+                        codigoInput = ""
+                        zonaInput = ""
+                        docIdToEdit = ""
+                        isEditing = false
+                        showDialog.value = true
+                    }) {
+                    Text("+ ", fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.Green)
+                    Text("Crear Ubicación")
+                }
             }
 
             LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -291,31 +358,33 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     Text("Localidad: ${selectedLocalidad.value}")
                                 }
                                 Row {
-                                    IconButton(onClick = {
-                                        isEditing = true
-                                        docIdToEdit = codigo
-                                        codigoInput = codigo
-                                        zonaInput =
-                                            nombre                     // usamos 'zona' como 'nombre'
-                                        showDialog.value =
-                                            true                // 👈 era showDialog = true
-                                    }) { Icon(Icons.Filled.Edit, contentDescription = "Editar") }
+                                    IconButton(
+                                        onClick = {
+                                            isEditing = true
+                                            docIdToEdit = codigo
+                                            codigoInput = codigo
+                                            zonaInput =
+                                                nombre                     // usamos 'zona' como 'nombre'
+                                            showDialog.value =
+                                                true                // 👈 era showDialog = true
+                                        }) {
+                                        Icon(
+                                            Icons.Filled.Edit, contentDescription = "Editar"
+                                        )
+                                    }
 
                                     IconButton(onClick = {
-                                        UbicacionesRepo.borrarUbicacion(
-                                            codigo = codigo,
-                                            clienteIdDestino = clienteIdAct,
-                                            localidadCodigoDestino = selectedLocalidad.value
-                                        ) { ok, msg ->
-                                            if (!ok) Toast.makeText(
-                                                ctx, "Error: $msg", Toast.LENGTH_LONG
+                                        val cid = selectedCid.trim()
+                                        if (cid.isBlank()) {
+                                            Toast.makeText(
+                                                ctx, "Selecciona un cliente", Toast.LENGTH_SHORT
                                             ).show()
-                                            // el listener refresca solo
+                                            return@IconButton
                                         }
+                                        // 'codigo' es el de la ubicación; 'locCodigo' es la localidad del item
+                                        pendingDelete = Triple(codigo, selectedLocalidad.value, cid)
                                     }) {
-                                        Icon(
-                                            Icons.Default.Delete, contentDescription = "Eliminar"
-                                        )
+                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar")
                                     }
                                 }
                             }
@@ -323,7 +392,80 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     }
                 }
             }
+
+            if (showClientePicker && tipo.equals("superuser", true)) {
+                // Carga de clientes activos (solo la 1ra vez que se abre)
+                LaunchedEffect(Unit) {
+                    clientesActivos.clear()
+                    com.eriknivar.firebasedatabase.data.ClientesRepo.listarActivos { ok, items, msg ->
+                        if (ok) clientesActivos.addAll(items) else Toast.makeText(
+                            ctx, msg, Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+
+                AlertDialog(
+                    onDismissRequest = { showClientePicker = false },
+                    title = { Text("Selecciona un cliente") },
+                    text = {
+                        LazyColumn(modifier = Modifier.height(300.dp)) {
+                            items(clientesActivos) { (cid, nombre) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            // Cambiar cliente activo en el VM
+                                            userViewModel.setClienteId(cid)
+                                            // Resetear localidad para forzar recarga
+                                            selectedLocalidad.value = ""
+                                            showClientePicker = false
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(nombre.ifBlank { cid })
+                                    Text(cid, color = Color.Gray)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showClientePicker = false
+                        }) { Text("Cerrar") }
+                    })
+            }
+
+            pendingDelete?.let { (codigoUbi, locCodigo, cid) ->
+                AlertDialog(
+                    onDismissRequest = { pendingDelete = null },
+                    title = { Text("¿Eliminar $codigoUbi?") },
+                    text = { Text("Esta acción no se puede deshacer.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            UbicacionesRepo.borrarUbicacion(
+                                codigo = codigoUbi,
+                                clienteIdDestino = cid,
+                                localidadCodigoDestino = locCodigo
+                            ) { ok, msg ->
+                                pendingDelete = null
+                                if (ok) {
+                                    Toast.makeText(ctx, "Eliminada $codigoUbi", Toast.LENGTH_SHORT)
+                                        .show()
+                                    // si no usas realtime, aquí recarga la lista
+                                } else {
+                                    Toast.makeText(ctx, "Error: $msg", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }) { Text("Eliminar") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingDelete = null }) { Text("Cancelar") }
+                    })
+            }
+
+
         }
+
 
         var showUbicacionExistenteDialog by remember { mutableStateOf(false) }
 
@@ -337,9 +479,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             onValueChange = { codigoInput = it.uppercase().trim() },
                             label = { Text("Código de Ubicación*") },
                             singleLine = true,
+                            enabled = !isEditing,
                             trailingIcon = {
                                 IconButton(
                                     onClick = { qrCodeScanner.startQRCodeScanner(context as Activity) },
+                                    enabled = !isEditing,
                                     modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
@@ -366,32 +510,26 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     shape = RoundedCornerShape(4.dp)
                                 )
 
-                                .clickable(onClick = { expandedLocalidad.value = true })
+                                .clickable(
+                                    enabled = !isEditing,
+                                    onClick = { expandedLocalidad.value = true })
                                 .padding(12.dp)
                         ) {
 
-                            if (!showErrorLocalidad) {
-                                Text(
-                                    text = selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" },
-                                    color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
-                                )
-                            }
+                            // Dentro del Box del selector de localidad
+                            val labelLocalidad =
+                                selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" }
 
-                            if (showErrorLocalidad) {
-                                Text(
-                                    text = "Debes seleccionar una localidad",
-                                    color = Color.Red,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                                )
-                                selectedLocalidad.value = ""
-                            }
-
-                            // texto mostrado
                             Text(
-                                text = selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" },
-                                color = if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray
+                                text = if (showErrorLocalidad) "Debes seleccionar una localidad" else labelLocalidad,
+                                color = if (showErrorLocalidad) Color.Red else if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray,
+                                fontSize = if (showErrorLocalidad) 12.sp else 16.sp,
+                                modifier = if (showErrorLocalidad) Modifier.padding(
+                                    start = 4.dp,
+                                    top = 4.dp
+                                ) else Modifier
                             )
+
 
                             // menú
                             DropdownMenu(
@@ -420,12 +558,16 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         val loc = selectedLocalidad.value
 
                         if (isEditing) {
+                            val nuevoNombre: String? = zonaInput
+                                .takeIf { it.isNotBlank() }     // -> String? (null si está en blanco)
+                                ?.uppercase()
+
                             UbicacionesRepo.updateUbicacion(
-                                codigo = docIdToEdit.ifBlank { codigoInput },
-                                nuevoNombre = zonaInput.ifBlank { null },   // 'zona' → 'nombre'
-                                nuevoActivo = null,
-                                clienteIdDestino = cid,
-                                localidadCodigoDestino = loc
+                                codigo = docIdToEdit,                    // usa SIEMPRE el doc original
+                                nuevoNombre = nuevoNombre,               // String?
+                                nuevoActivo = null,                      // o true/false si quieres
+                                clienteIdDestino = clienteIdAct,
+                                localidadCodigoDestino = selectedLocalidad.value
                             ) { ok, msg ->
                                 if (ok) {
                                     successMessage.value = "Ubicación actualizada exitosamente"
@@ -438,9 +580,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         } else {
                             UbicacionesRepo.crearUbicacion(
                                 codigoRaw = codigoInput,
-                                nombreRaw = zonaInput,                      // 'zona' → 'nombre'
-                                clienteIdDestino = cid,
-                                localidadCodigoDestino = loc
+                                nombreRaw = zonaInput,
+                                clienteIdDestino = clienteIdAct,
+                                localidadCodigoDestino = selectedLocalidad.value
                             ) { ok, msg ->
                                 if (ok) {
                                     successMessage.value = "Ubicación agregada exitosamente"

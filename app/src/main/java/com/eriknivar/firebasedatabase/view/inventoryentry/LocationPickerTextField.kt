@@ -245,7 +245,7 @@ fun OutlinedTextFieldsInputsLocation(
 fun validarUbicacionEnMaestro(
     codigo: String,
     clienteIdActual: String?,
-    localidadActual: String?, // se ignora por ahora
+    localidadActual: String?,                 // 👈 ahora SÍ se usa
     location: MutableState<String>,
     showErrorLocation: MutableState<Boolean>,
     showUbicacionNoExisteDialog: MutableState<Boolean>,
@@ -253,37 +253,86 @@ fun validarUbicacionEnMaestro(
     keyboardController: SoftwareKeyboardController?,
     ocultarTeclado: Boolean = false
 ) {
-    val codigoLimpio = codigo.uppercase().replace(Regex("[^A-Z0-9]"), "")
+    val code = codigo.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
     val cid = clienteIdActual?.trim()?.uppercase()
+    val loc = localidadActual?.trim()?.uppercase()
 
-    Log.d("UBI_VALID", "-> cid=$cid  code(raw)='$codigo'  code(clean)='$codigoLimpio'")
+    Log.d("UBI_VALID", "-> cid=$cid  loc=$loc  code='$code'")
 
-    if (cid.isNullOrBlank() || codigoLimpio.isBlank()) {
+    // Validaciones rápidas
+    if (cid.isNullOrBlank() || code.isBlank()) {
         location.value = ""
         showErrorLocation.value = true
         showUbicacionNoExisteDialog.value = true
         return
     }
+    if (loc.isNullOrBlank()) {
+        // Debe seleccionar la localidad antes de validar
+        location.value = ""
+        showErrorLocation.value = true
+        showUbicacionNoExisteDialog.value = true
+        Log.w("UBI_VALID", "Localidad no seleccionada")
+        return
+    }
 
-    val col = Firebase.firestore
+    // Maestro NUEVO: clientes/{cid}/localidades/{loc}/ubicaciones/{code}
+    val docRef = Firebase.firestore
         .collection("clientes").document(cid)
-        .collection("ubicaciones")
+        .collection("localidades").document(loc)
+        .collection("ubicaciones").document(code)
 
-    // ÚNICO MATCH por codigo_ubi (ruta ya restringe por cliente)
-    col.whereEqualTo("codigo_ubi", codigoLimpio)
-        .limit(1)
-        .get()
+    docRef.get()
         .addOnSuccessListener { snap ->
-            Log.d("UBI_VALID", "size=${snap.size()} path=clientes/$cid/ubicaciones")
-            if (!snap.isEmpty) {
-                location.value = codigoLimpio
-                showErrorLocation.value = false
-                if (ocultarTeclado) keyboardController?.hide()
-                try { nextFocusRequester.requestFocus() } catch (_: Exception) {}
+            Log.d(
+                "UBI_VALID",
+                "exists=${snap.exists()} path=clientes/$cid/localidades/$loc/ubicaciones/$code"
+            )
+            if (snap.exists()) {
+                // Sanity check opcional (coincidencias de claves)
+                val okCliente = (snap.getString("clienteId") ?: "").equals(cid, true)
+                val okLocalidad = (snap.getString("localidadCodigo") ?: "").equals(loc, true)
+                if (okCliente && okLocalidad) {
+                    location.value = code
+                    showErrorLocation.value = false
+                    if (ocultarTeclado) keyboardController?.hide()
+                    try {
+                        nextFocusRequester.requestFocus()
+                    } catch (_: Exception) {
+                    }
+                } else {
+                    location.value = ""
+                    showErrorLocation.value = true
+                    showUbicacionNoExisteDialog.value = true
+                }
             } else {
-                location.value = ""
-                showErrorLocation.value = true
-                showUbicacionNoExisteDialog.value = true
+                // (opcional) Fallback al esquema VIEJO mientras migras datos:
+                Firebase.firestore
+                    .collection("clientes").document(cid)
+                    .collection("ubicaciones")
+                    .whereEqualTo("codigo_ubi", code)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { old ->
+                        if (!old.isEmpty) {
+                            // ACEPTA mientras migras
+                            location.value = code
+                            showErrorLocation.value = false
+                            if (ocultarTeclado) keyboardController?.hide()
+                            try {
+                                nextFocusRequester.requestFocus()
+                            } catch (_: Exception) {
+                            }
+                        } else {
+                            location.value = ""
+                            showErrorLocation.value = true
+                            showUbicacionNoExisteDialog.value = true
+                        }
+                    }
+                    .addOnFailureListener {
+                        location.value = ""
+                        showErrorLocation.value = true
+                        showUbicacionNoExisteDialog.value = true
+                    }
             }
         }
         .addOnFailureListener { e ->
@@ -293,3 +342,4 @@ fun validarUbicacionEnMaestro(
             showUbicacionNoExisteDialog.value = true
         }
 }
+

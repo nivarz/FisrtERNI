@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import registrarAuditoriaConteo
 import coil.request.ImageRequest
 import coil.compose.AsyncImage
+import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 
@@ -667,36 +668,25 @@ fun MessageCard(
                                     }
 
                                     // === 4) Validar ubicación SÓLO si cambió (aplica para invitado y admin/superuser)
+                                    // dentro del onClick del botón Guardar, donde haces la validación:
                                     if (locationChanged) {
-                                        Firebase.firestore
-                                            .collection("clientes").document(cid)
-                                            .collection("ubicaciones")
-                                            .whereEqualTo("codigo_ubi", nuevaUbi)
-                                            .limit(1)
-                                            .get()
-                                            .addOnSuccessListener { documents ->
-                                                val ubicacionExiste = documents.any()
-                                                if (!ubicacionExiste) {
-                                                    coroutineScope.launch {
-                                                        snackbarHostState.showSnackbar(
-                                                            "La ubicación no existe en la base de datos"
-                                                        )
-                                                    }
-                                                    return@addOnSuccessListener
-                                                }
-                                                continuarConUpdate()
+                                        coroutineScope.launch {
+                                            val ok = UbicacionesRepo.existeUbicacion(
+                                                clienteId = cid,
+                                                localidad = item.localidad.ifBlank { /* o pide la localidad seleccionada */ "ALM_REP" },
+                                                codigoIngresado = nuevaUbi
+                                            )
+                                            if (!ok) {
+                                                snackbarHostState.showSnackbar("La ubicación no existe en la base de datos")
+                                                return@launch
                                             }
-                                            .addOnFailureListener {
-                                                Toast.makeText(
-                                                    context,
-                                                    "No se pudo validar la ubicación.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }
+                                            continuarConUpdate()
+                                        }
                                     } else {
-                                        // Ubicación no cambió → no validar, seguimos
                                         continuarConUpdate()
                                     }
+
+
                                 },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF003366),

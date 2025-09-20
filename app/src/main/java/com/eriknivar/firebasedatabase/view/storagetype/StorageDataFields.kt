@@ -1,22 +1,40 @@
 package com.eriknivar.firebasedatabase.view.storagetype
+
+import androidx.annotation.Keep
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.IgnoreExtraProperties
+import com.google.firebase.firestore.ServerTimestamp
 
-@com.google.firebase.firestore.IgnoreExtraProperties
-data class DataFields (
-    val documentId: String,
-    val location: String,
-    val sku: String,
-    val lote: String,
-    val expirationDate: String,
-    val quantity: Double,
-    val description: String,
-    val unidadMedida: String, // 🆕 Unidad de medida
-    val fechaRegistro: Timestamp?, // 🔥 Agrega el campo con valor por defecto `null`
-    val usuario: String,
-    val localidad: String,
-    val tipoUsuarioCreador: String,
-    @com.google.firebase.firestore.PropertyName("fotoUrl")
-    val fotoUrl: String = ""
-) {
+@Keep
+@IgnoreExtraProperties
+// …resto de imports/annotations
+data class DataFields(
+    // ===== ES (lo que guardas en Firestore)
+    val clienteId: String = "",
+    val localidad: String = "",
+    val ubicacion: String = "",
+    val codigoProducto: String = "",
+    val descripcion: String = "",
+    val unidadMedida: String = "",
+    val lote: String = "-",
+    val usuario: String = "",
+    val tipoUsuarioCreador: String = "",
+    val fotoUrl: String = "",
+    val cantidad: Double = 0.0,
+    val fechaVencimiento: String = "-",
+    val creadoPorUid: String = "",
+    @ServerTimestamp val fecha: Timestamp? = null,
+    @ServerTimestamp val fechaRegistro: Timestamp? = null,
+    @ServerTimestamp val creadoEn: Timestamp? = null,
 
-}
+    // ===== EN (aliases que usa la UI)
+    val documentId: String = "",
+    val quantity: Double = 0.0,
+    val location: String = "",
+    val expirationDate: String = "",
+    val sku: String = "",            // 👈 alias de codigoProducto
+    val description: String = ""     // 👈 alias de descripcion
+)
+
+
+

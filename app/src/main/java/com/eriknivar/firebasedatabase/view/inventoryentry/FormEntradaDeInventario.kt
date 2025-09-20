@@ -235,7 +235,7 @@ fun FormEntradaDeInventario(
                 onUserInteraction = onUserInteraction,
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
                 tempLocationInput = tempLocationInput,
-                clienteIdActual = clienteIdActual,
+                clienteIdActual = userViewModel.clienteId.value,
                 localidadActual = localidad
 
             )
