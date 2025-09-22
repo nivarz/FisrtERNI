@@ -60,12 +60,16 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.eriknivar.firebasedatabase.data.MaestroRepo  // ⬅️ usar repo
+import com.eriknivar.firebasedatabase.security.RoleRules
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+
 
 @Composable
 fun MasterDataFragment(
     navController: NavHostController,
     userViewModel: UserViewModel,
-
 ) {
     val context = LocalContext.current
     val firestore = Firebase.firestore
@@ -83,6 +87,17 @@ fun MasterDataFragment(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    // --- Selector de Cliente (solo superuser) ---
+    data class Cliente(val id: String, val nombre: String)
+
+    val esSuper = (userViewModel.tipo.value ?: "").equals("superuser", ignoreCase = true)
+    val clientes = remember { mutableStateListOf<Cliente>() }
+    var clienteSel by remember { mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty()) }
+    var menuClientesAbierto by remember { mutableStateOf(false) }
+    // estados (arriba con tus remember)
+    var isSaving by remember { mutableStateOf(false) }
+
+
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
     val dummyQuantity = remember { mutableStateOf("") }
@@ -91,7 +106,8 @@ fun MasterDataFragment(
 
     val navyBlue = Color(0xFF001F5B)
 
-    val lastInteractionTime = remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
+    val lastInteractionTime =
+        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
     fun actualizarActividad(context: Context) {
         val tiempoActual = System.currentTimeMillis()
@@ -107,10 +123,10 @@ fun MasterDataFragment(
 
             if (tiempoInactivo >= 30 * 60_000) {
                 val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios")
-                    .document(documentId)
+                Firebase.firestore.collection("usuarios").document(documentId)
                     .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
+                    .show()
 
                 userViewModel.clearUser()
 
@@ -128,8 +144,7 @@ fun MasterDataFragment(
 
     DisposableEffect(currentUserId, currentSessionId) {
 
-        val listenerRegistration = firestore.collection("usuarios")
-            .document(currentUserId)
+        val listenerRegistration = firestore.collection("usuarios").document(currentUserId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("FirestoreListener", "Error en snapshotListener", error)
@@ -140,9 +155,7 @@ fun MasterDataFragment(
 
                 if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
                     Toast.makeText(
-                        context,
-                        "Tu sesión fue cerrada por el administrador",
-                        Toast.LENGTH_LONG
+                        context, "Tu sesión fue cerrada por el administrador", Toast.LENGTH_LONG
                     ).show()
 
                     userViewModel.clearUser()
@@ -159,11 +172,13 @@ fun MasterDataFragment(
     }
 
     // Solo permitir acceso a admin o superuser
-    val tipo = userViewModel.tipo.value ?: ""
-
-    if (tipo.isNotBlank() && tipo.lowercase() != "admin" && tipo.lowercase() != "superuser") {
+    val tipo = userViewModel.tipo.value
+    if (!RoleRules.canAccessMasterData(tipo)) {
+        // mismo contenido visual de "Acceso restringido" que ya tienes
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.White),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
             contentAlignment = Alignment.TopCenter
         ) {
             Text(
@@ -177,33 +192,55 @@ fun MasterDataFragment(
         return
     }
 
+    // =========================
+    // CARGA usando MaestroRepo
+    // =========================
     fun cargarProductos() {
+        val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
+        if (clienteId.isBlank()) {
+            Toast.makeText(context, "Selecciona un cliente primero", Toast.LENGTH_SHORT).show()
+            return
+        }
         isLoading = true
-        firestore.collection("productos")
-            .get()
-            .addOnSuccessListener { result ->
-                productos.clear()
-                for (document in result) {
-                    val codigo = document.id
-                    val descripcion = document.getString("descripcion") ?: ""
-                    val unidad = document.getString("UM") ?: ""
-                    productos.add(Producto(codigo, codigo, descripcion, unidad))
-                }
-                productos.sortBy { it.descripcion }
-                isLoading = false
-            }
-            .addOnFailureListener {
-                Toast.makeText(context, "Error al cargar productos", Toast.LENGTH_SHORT).show()
-                isLoading = false
+        MaestroRepo.listarProductos(clienteId = clienteId, onResult = { lista ->
+            productos.clear()
+            productos.addAll(lista.sortedBy { it.descripcion })
+            isLoading = false
+        }, onErr = { e ->
+            Log.e("MD", "Error listando", e)
+            Toast.makeText(
+                context, "Error al cargar productos: ${e.message}", Toast.LENGTH_SHORT
+            ).show()
+            isLoading = false
+        })
+    }
+
+    fun cargarClientes() {
+        if (!esSuper) return
+        Firebase.firestore.collection("clientes").get().addOnSuccessListener { snap ->
+                clientes.clear()
+                clientes.addAll(snap.documents.map { d ->
+                    Cliente(
+                        id = d.id, nombre = d.getString("nombre") ?: d.id
+                    )
+                }.sortedBy { it.nombre })
+            }.addOnFailureListener { e ->
+                Log.e("MD", "Error cargando clientes", e)
+                Toast.makeText(context, "Error cargando clientes: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
             }
     }
+
+    LaunchedEffect(esSuper) {
+        if (esSuper) cargarClientes()
+    }
+
 
     ScreenWithNetworkBanner(
         showDisconnectedBanner = false,
         showRestoredBanner = false,
         onCloseDisconnected = {},
-        onCloseRestored = {}
-    ) {
+        onCloseRestored = {}) {
         NavigationDrawer(
             navController,
             "Datos Maestro",
@@ -219,22 +256,71 @@ fun MasterDataFragment(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                ElevatedButton(
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = navyBlue, contentColor = Color.White
-                    ),
-                    onClick = {
-                        actualizarActividad(context)
-                        selectedProduct = null
-                        codigoInput = ""
-                        descripcionInput = ""
-                        unidadInput = ""
-                        showDialog = true
-                    }, modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Agregar Producto")
+                // === SECCIÓN SELECTOR DE CLIENTE (solo si es superuser) ===
+                if (esSuper) {
+                    Text(
+                        text = "Cliente",
+                        color = navyBlue,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (clienteSel.isBlank()) "Selecciona un cliente" else clienteSel,
+                            fontSize = 14.sp
+                        )
+                        TextButton(onClick = { menuClientesAbierto = true }) {
+                            Text("Cambiar")
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = menuClientesAbierto,
+                        onDismissRequest = { menuClientesAbierto = false }) {
+                        if (clientes.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No hay clientes disponibles") },
+                                onClick = { menuClientesAbierto = false })
+                        } else {
+                            clientes.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text("${c.nombre} (${c.id})") },
+                                    onClick = {
+                                        clienteSel = c.id
+                                        userViewModel.setClienteId(c.id) // <-- actualiza el cliente en ViewModel
+                                        menuClientesAbierto = false
+                                        productos.clear()                // limpia la lista actual
+                                    })
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
                 }
 
+                // [MD:BTN-CREAR] — Botón para abrir el diálogo de creación
+                if (RoleRules.canMutateMasterData(userViewModel.tipo.value)) {
+                    ElevatedButton(
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = navyBlue, contentColor = Color.White
+                        ), onClick = {
+                            actualizarActividad(context)
+                            selectedProduct = null          // ← modo creación
+                            codigoInput = ""
+                            descripcionInput = ""
+                            unidadInput = ""
+                            showDialog = true               // ← abre el diálogo
+                        }, modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Agregar Producto")
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
@@ -250,19 +336,22 @@ fun MasterDataFragment(
                 ElevatedButton(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = navyBlue, contentColor = Color.White
-                    ),
-                    onClick = {
+                    ), onClick = {
                         actualizarActividad(context)
+                        // [ROLE:LOAD]
+                        val tipoUser = userViewModel.tipo.value
+                        val userCid = userViewModel.clienteId.value
+                        val targetCid = userViewModel.clienteId.value
+                        if (!RoleRules.canActOnCliente(tipoUser, userCid, targetCid)) {
+                            Toast.makeText(
+                                context, "No puedes ver datos de otro cliente", Toast.LENGTH_SHORT
+                            ).show()
+                            return@ElevatedButton
+                        }
                         cargarProductos()
-                    },
-                    enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth()
+                    }, enabled = !isLoading, modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (isLoading) {
-                        Text("Cargando...")
-                    } else {
-                        Text("Cargar Datos Maestro")
-                    }
+                    if (isLoading) Text("Cargando...") else Text("Cargar Datos Maestro")
                 }
 
                 if (isLoading) {
@@ -291,25 +380,19 @@ fun MasterDataFragment(
                                 Text(buildAnnotatedString {
                                     withStyle(style = SpanStyle(color = Color.Blue)) { append("Código: ") }
                                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(
-                                            producto.codigo
-                                        )
+                                        append(producto.codigo)
                                     }
                                 })
                                 Text(buildAnnotatedString {
                                     withStyle(style = SpanStyle(color = Color.Blue)) { append("Descripción: ") }
                                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(
-                                            producto.descripcion
-                                        )
+                                        append(producto.descripcion)
                                     }
                                 })
                                 Text(buildAnnotatedString {
                                     withStyle(style = SpanStyle(color = Color.Blue)) { append("Unidad: ") }
                                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(
-                                            producto.unidad
-                                        )
+                                        append(producto.unidad)
                                     }
                                 })
 
@@ -333,7 +416,6 @@ fun MasterDataFragment(
                                     IconButton(onClick = {
                                         productoAEliminar = producto
                                         showDeleteDialog = true
-
                                     }) {
                                         Icon(
                                             Icons.Default.Delete,
@@ -382,107 +464,176 @@ fun MasterDataFragment(
                             }
                         },
                         confirmButton = {
-                            TextButton(onClick = {
-                                if (codigoInput.isBlank() || descripcionInput.isBlank() || unidadInput.isBlank()) {
-                                    Toast.makeText(
-                                        context,
-                                        "Completa todos los campos",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@TextButton
-                                }
+                            TextButton(
+                                enabled = !isSaving, onClick = {
+                                    if (isSaving) return@TextButton
+                                   // isSaving = true
 
-                                if (selectedProduct == null) {
-                                    val existe = productos.any {
-                                        it.codigo.equals(codigoInput, ignoreCase = true) ||
-                                                it.descripcion.equals(
-                                                    descripcionInput,
-                                                    ignoreCase = true
-                                                )
-                                    }
-                                    if (existe) {
+                                    // [ROLE:SAVE]
+                                    val tipoUser = userViewModel.tipo.value
+                                    val userCid = userViewModel.clienteId.value
+                                    val targetCid =
+                                        userViewModel.clienteId.value   // en este módulo, el target es el cliente seleccionado
+                                    if (!RoleRules.canMutateMasterData(tipoUser) || !RoleRules.canActOnCliente(
+                                            tipoUser,
+                                            userCid,
+                                            targetCid
+                                        )
+                                    ) {
                                         Toast.makeText(
                                             context,
-                                            "Este producto ya existe",
+                                            "No tienes permisos para esta acción",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                         return@TextButton
                                     }
-                                    firestore.collection("productos")
-                                        .document(codigoInput)
-                                        .set(
-                                            mapOf(
-                                                "descripcion" to descripcionInput.uppercase(),
-                                                "UM" to unidadInput.uppercase()
-                                            )
-                                        )
-                                        .addOnSuccessListener {
-                                            productos.add(
-                                                Producto(
-                                                    codigoInput,
-                                                    codigoInput,
-                                                    descripcionInput.uppercase(),
-                                                    unidadInput.uppercase()
-                                                )
-                                            )
-                                            showDialog = false
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Producto agregado")
-                                            }
-                                        }
-                                } else {
-                                    val duplicado = productos.any {
-                                        it.codigo != selectedProduct!!.codigo &&
-                                                it.descripcion.equals(
-                                                    descripcionInput,
-                                                    ignoreCase = true
-                                                ) &&
-                                                it.unidad.equals(unidadInput, ignoreCase = true)
-                                    }
-                                    if (duplicado) {
+
+                                    val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
+                                    if (clienteId.isBlank()) {
                                         Toast.makeText(
                                             context,
-                                            "Ya existe otro producto con esta descripción y unidad",
+                                            "Selecciona un cliente primero",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                         return@TextButton
                                     }
-                                    firestore.collection("productos")
-                                        .document(selectedProduct!!.codigo)
-                                        .update(
-                                            mapOf(
-                                                "descripcion" to descripcionInput.uppercase(),
-                                                "UM" to unidadInput.uppercase()
+
+                                    if (codigoInput.isBlank() || descripcionInput.isBlank() || unidadInput.isBlank()) {
+                                        Toast.makeText(
+                                            context, "Completa todos los campos", Toast.LENGTH_SHORT
+                                        ).show()
+                                        return@TextButton
+                                    }
+
+                                    if (selectedProduct == null) {
+                                        // crear
+                                        val existe = productos.any {
+                                            it.codigo.equals(
+                                                codigoInput,
+                                                ignoreCase = true
+                                            ) || it.descripcion.equals(
+                                                descripcionInput, ignoreCase = true
                                             )
-                                        )
-                                        .addOnSuccessListener {
-                                            val index =
-                                                productos.indexOfFirst { it.codigo == selectedProduct!!.codigo }
-                                            if (index != -1) {
-                                                productos[index] = Producto(
-                                                    selectedProduct!!.codigo,
-                                                    selectedProduct!!.codigo,
-                                                    descripcionInput,
-                                                    unidadInput
-                                                )
-                                            }
-                                            showDialog = false
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Producto actualizado")
-                                            }
                                         }
-                                }
-                            }) {
-                                Text("Guardar")
-                            }
+                                        if (existe) {
+                                            Toast.makeText(
+                                                context,
+                                                "Este producto ya existe",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        // Normaliza entradas
+                                        val cod = codigoInput.trim().uppercase()
+                                        val desc = descripcionInput.trim().uppercase()
+                                        val uni = unidadInput.trim().uppercase()
+
+                                        // Validaciones rápidas
+                                        if (cod.isBlank() || desc.isBlank() || uni.isBlank()) {
+                                            Toast.makeText(
+                                                context,
+                                                "Completa todos los campos",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        // Evita duplicados en UI (por código o descripción)
+                                        val yaExiste = productos.any {
+                                            it.codigo.equals(
+                                                cod,
+                                                ignoreCase = true
+                                            ) || it.descripcion.equals(desc, ignoreCase = true)
+                                        }
+                                        if (yaExiste) {
+                                            Toast.makeText(
+                                                context,
+                                                "Este producto ya existe",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        // Construye el nuevo
+                                        val nuevo = Producto(
+                                            id = null,
+                                            codigo = cod,
+                                            descripcion = desc,
+                                            unidad = uni
+                                        )
+
+                                        isSaving = true
+
+                                        MaestroRepo.crearProducto(
+                                            clienteId = clienteId,
+                                            producto = nuevo,
+                                            onResult = { nuevoId ->
+                                                isSaving = false
+                                                productos.add(
+                                                    Producto(id = nuevoId, codigo = nuevoId, descripcion = nuevo.descripcion, unidad = nuevo.unidad)
+                                                )
+                                                productos.sortBy { it.descripcion } // opcional: ordena al vuelo
+                                                showDialog = false
+                                                coroutineScope.launch { snackbarHostState.showSnackbar("Producto agregado") }
+                                            },
+                                            onErr = { e ->
+                                                isSaving = false
+                                                Log.e("MD", "Error creando", e)
+                                                Toast.makeText(context, "No se pudo crear: ${e.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        )
+                                    } else {
+                                        // actualizar
+                                        val duplicado = productos.any {
+                                            it.codigo != selectedProduct!!.codigo && it.descripcion.equals(
+                                                descripcionInput, ignoreCase = true
+                                            ) && it.unidad.equals(unidadInput, ignoreCase = true)
+                                        }
+                                        if (duplicado) {
+                                            Toast.makeText(
+                                                context,
+                                                "Ya existe otro producto con esta descripción y unidad",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        val cambios = mapOf(
+                                            "descripcion" to descripcionInput.uppercase(),
+                                            "unidad" to unidadInput.uppercase()
+                                        )
+                                        MaestroRepo.actualizarProducto(
+                                            clienteId = clienteId,
+                                            productoId = selectedProduct!!.codigo,
+                                            cambios = cambios,
+                                            onResult = {
+                                                isSaving = false
+                                                val idx = productos.indexOfFirst { it.codigo == selectedProduct!!.codigo }
+                                                if (idx != -1) {
+                                                    productos[idx] = productos[idx].copy(
+                                                        descripcion = descripcionInput.uppercase(),
+                                                        unidad = unidadInput.uppercase()
+                                                    )
+                                                }
+                                                showDialog = false
+                                                coroutineScope.launch { snackbarHostState.showSnackbar("Producto actualizado") }
+                                            },
+                                            onErr = { e ->
+                                                isSaving = false
+                                                Log.e("MD", "Error actualizando", e)
+                                                Toast.makeText(context, "No se pudo actualizar: ${e.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        )
+                                    }
+                                }) { Text("Guardar") }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDialog = false }) {
-                                Text("Cancelar")
-                            }
-                        }
-                    )
+                            TextButton(
+                                onClick = { showDialog = false }) { Text("Cancelar") }
+                        })
                 }
+
                 if (showDeleteDialog && productoAEliminar != null) {
                     AlertDialog(
                         onDismissRequest = { showDeleteDialog = false },
@@ -495,26 +646,55 @@ fun MasterDataFragment(
                                         append(productoAEliminar?.descripcion ?: "")
                                     }
                                     append("\"?")
-                                }
-                            )
+                                })
                         },
                         confirmButton = {
                             TextButton(onClick = {
-                                firestore.collection("productos")
-                                    .document(productoAEliminar!!.codigo).delete()
-                                productos.remove(productoAEliminar)
-                                showDeleteDialog = false
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("Producto eliminado")
+                                // [ROLE:DELETE]
+                                val tipoUser = userViewModel.tipo.value
+                                val userCid = userViewModel.clienteId.value
+                                val targetCid = userViewModel.clienteId.value
+                                if (!RoleRules.canMutateMasterData(tipoUser) || !RoleRules.canActOnCliente(
+                                        tipoUser,
+                                        userCid,
+                                        targetCid
+                                    )
+                                ) {
+                                    Toast.makeText(
+                                        context,
+                                        "No tienes permisos para esta acción",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@TextButton
                                 }
-                            }) {
-                                Text("Sí")
-                            }
+
+                                val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
+                                if (clienteId.isBlank()) {
+                                    Toast.makeText(
+                                        context, "Selecciona un cliente primero", Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@TextButton
+                                }
+                                MaestroRepo.borrarProducto(
+                                    clienteId = clienteId,
+                                    productoId = productoAEliminar!!.codigo,
+                                    onResult = {
+                                        productos.remove(productoAEliminar)
+                                        showDeleteDialog = false
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Producto eliminado") }
+                                    },
+                                    onErr = { e ->
+                                        Log.e("MD", "Error borrando", e)
+                                        Toast.makeText(
+                                            context,
+                                            "No se pudo eliminar: ${e.message}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    })
+                            }) { Text("Sí") }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDeleteDialog = false }) {
-                                Text("Cancelar")
-                            }
+                            TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") }
                         }
                     )
                 }
@@ -522,11 +702,3 @@ fun MasterDataFragment(
         }
     }
 }
-
-
-
-
-
-
-
-

@@ -182,44 +182,81 @@ object UbicacionesRepo {
     }
 
     // --- Verificar si una ubicación existe (cliente + localidad + código) ---
+    // imports necesarios arriba del archivo:
+// import android.util.Log
+// import java.util.Locale
+// import kotlinx.coroutines.tasks.await
+
+    // --- Verificar si una ubicación existe (cliente + localidad + código) ---
     suspend fun existeUbicacion(
         clienteId: String,
         localidad: String,
         codigoIngresado: String
     ): Boolean {
-        val cid = clienteId.trim().uppercase()
-        val loc = localidad.trim().uppercase()
-        val code = codigoIngresado.trim().uppercase()
-        if (cid.isBlank() || loc.isBlank() || code.isBlank()) return false
+        val cid    = clienteId.trim().uppercase(Locale.ROOT)
+        val loc    = localidad.trim().uppercase(Locale.ROOT)
+        val codeUp = codigoIngresado.trim().uppercase(Locale.ROOT)
+        val codeLo = codeUp.lowercase(Locale.ROOT)
+
+        if (cid.isBlank() || loc.isBlank() || codeUp.isBlank()) return false
 
         return try {
-            // 1) NUEVO esquema: /clientes/{cid}/localidades/{loc}/ubicaciones/{code}
-            val snapNew = db.collection("clientes").document(cid)
+            val ubicCol = db.collection("clientes").document(cid)
                 .collection("localidades").document(loc)
-                .collection("ubicaciones").document(code)
-                .get()
-                .await()
+                .collection("ubicaciones")
 
-            if (snapNew.exists()) {
-                val okCliente = (snapNew.getString("clienteId") ?: "").equals(cid, true)
-                val okLocalidad = (snapNew.getString("localidadCodigo") ?: "").equals(loc, true)
-                return okCliente && okLocalidad
+            // 1) NUEVO — docId UPPER
+            ubicCol.document(codeUp).get().await().let { d ->
+                if (d.exists()) {
+                    val okCliente = (d.getString("clienteId") ?: cid).equals(cid, true)
+                    val okLoc = (d.getString("localidadCodigo") ?: loc).equals(loc, true)
+                    Log.d("UBICACIONES", "HIT A: docId UPPER $cid/$loc/$codeUp okC=$okCliente okL=$okLoc")
+                    if (okCliente && okLoc) return true
+                }
             }
 
-            // 2) VIEJO esquema: /clientes/{cid}/ubicaciones  (campo 'codigo_ubi')
-            val oldQry = db.collection("clientes").document(cid)
+            // 2) NUEVO — docId lower
+            ubicCol.document(codeLo).get().await().let { d ->
+                if (d.exists()) {
+                    val okCliente = (d.getString("clienteId") ?: cid).equals(cid, true)
+                    val okLoc = (d.getString("localidadCodigo") ?: loc).equals(loc, true)
+                    Log.d("UBICACIONES", "HIT B: docId lower $cid/$loc/$codeLo okC=$okCliente okL=$okLoc")
+                    if (okCliente && okLoc) return true
+                }
+            }
+
+            // 3) NUEVO — campo 'codigo' == UPPER, luego lower
+            var dByCodigo = ubicCol.whereEqualTo("codigo", codeUp).limit(1).get().await().documents.firstOrNull()
+            if (dByCodigo == null) {
+                dByCodigo = ubicCol.whereEqualTo("codigo", codeLo).limit(1).get().await().documents.firstOrNull()
+            }
+            dByCodigo?.let { d ->
+                val okCliente = (d.getString("clienteId") ?: cid).equals(cid, true)
+                val okLoc = (d.getString("localidadCodigo") ?: loc).equals(loc, true)
+                Log.d("UBICACIONES", "HIT C: campo 'codigo' docId=${d.id} okC=$okCliente okL=$okLoc")
+                if (okCliente && okLoc) return true
+            }
+
+            // 4) VIEJO — /clientes/{cid}/ubicaciones  (campo 'codigo_ubi')
+            db.collection("clientes").document(cid)
                 .collection("ubicaciones")
-                .whereEqualTo("codigo_ubi", code)
+                .whereEqualTo("codigo_ubi", codeUp)
                 .limit(1)
                 .get()
                 .await()
+                .documents
+                .firstOrNull()
+                ?.let { doc ->
+                    // En legacy la localidad puede estar en 'localidad' o 'localidadCodigo'
+                    val okLoc = listOf(
+                        doc.getString("localidad"),
+                        doc.getString("localidadCodigo")
+                    ).filterNotNull().any { it.equals(loc, true) }
+                    Log.d("UBICACIONES", "HIT D: legacy 'codigo_ubi'=$codeUp docId=${doc.id} okL=$okLoc")
+                    if (okLoc) return true
+                }
 
-            oldQry.documents.firstOrNull()?.let { doc ->
-                // si quieres además validar que la fila sea de esa localidad:
-                val okLoc = (doc.getString("localidad") ?: "").equals(loc, true)
-                return okLoc // o simplemente 'true' si no quieres exigir localidad
-            }
-
+            Log.d("UBICACIONES", "MISS: $cid/$loc/$codeUp")
             false
         } catch (e: Exception) {
             Log.e("UBICACIONES", "existeUbicacion error", e)

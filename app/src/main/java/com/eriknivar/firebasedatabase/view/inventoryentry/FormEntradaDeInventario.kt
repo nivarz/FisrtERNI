@@ -71,8 +71,6 @@ import com.eriknivar.firebasedatabase.network.CatalogoRepository
 import com.eriknivar.firebasedatabase.network.SelectedClientStore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 
@@ -148,7 +146,12 @@ fun FormEntradaDeInventario(
 
     val clienteIdFromUser by userViewModel.clienteId.observeAsState()
     val clienteIdActual: String? =
-        if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId else clienteIdFromUser
+        if (SelectedClientStore.isSuperuser)
+            SelectedClientStore.selectedClienteId?.takeIf { it.isNullOrBlank().not() }
+                ?: clienteIdFromUser
+        else
+            clienteIdFromUser
+
 
     val imagenBitmap = remember { mutableStateOf<Bitmap?>(null) }
     val tomarFotoLauncher =
@@ -205,7 +208,7 @@ fun FormEntradaDeInventario(
                 usuario = usuario,
                 listState = listState,
                 localidad = localidad,
-                clienteId = userViewModel.clienteId.value.orEmpty()
+                clienteId = clienteIdActual.orEmpty()
             )
         }
     }
@@ -226,22 +229,20 @@ fun FormEntradaDeInventario(
             val userVM: UserViewModel = viewModel()
 
 
-            // 📌 FUNCION PARA LA UBICACION
+            // Location
             OutlinedTextFieldsInputsLocation(
                 location,
                 showErrorLocation,
-                focusRequester = focusRequesterLocation, // 🔥 Este es el inicial
+                focusRequester = focusRequesterLocation,
                 nextFocusRequester = focusRequesterSku,
                 onUserInteraction = onUserInteraction,
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
                 tempLocationInput = tempLocationInput,
-                clienteIdActual = userViewModel.clienteId.value,
+                clienteIdActual = clienteIdActual,        // ← antes: userViewModel.clienteId.value
                 localidadActual = localidad
-
             )
 
-            // 📌 CAMPO DE TEXTO PARA EL SKU
-
+            // SKU
             OutlinedTextFieldsInputsSku(
                 sku,
                 showErrorSku,
@@ -254,23 +255,10 @@ fun FormEntradaDeInventario(
                 nextFocusRequester = focusRequesterLot,
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
                 keyboardController = keyboardController,
-                clienteIdActual = clienteIdActual
-
+                clienteIdActual = clienteIdActual         // ← antes: userViewModel.clienteId.value
             )
 
             // 📌 FUNCION PARA EL DIALOGO DE PRODUCTOS, DIGASE EL LISTADO DE PRODUCTOS(DESCRIPCIONES)
-
-            // LiveData<String> -> State<String?> en Compose
-            val clienteIdFromUser by userViewModel.clienteId.observeAsState()
-
-            // ✅ si es superuser y no ha elegido cliente, usamos el del usuario (si existe)
-            val clienteIdActual: String? =
-                if (SelectedClientStore.isSuperuser)
-                    SelectedClientStore.selectedClienteId?.takeIf { it.isNullOrBlank().not() }
-                        ?: clienteIdFromUser
-                else
-                    clienteIdFromUser
-
 
             ProductSelectionDialog(
                 productList = productList,
@@ -323,7 +311,7 @@ fun FormEntradaDeInventario(
                     lote = lot.value,
                     cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
                     localidad = localidad,
-                    clienteId = userViewModel.clienteId.value ?: "",   // 👈 NUEVO
+                    clienteId = clienteIdActual.orEmpty(),
                     onResult = { existeDuplicado, usuarioEncontrado ->
                         if (existeDuplicado) {
                             usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
@@ -356,7 +344,7 @@ fun FormEntradaDeInventario(
                                 usuario = usuario,
                                 listState = listState,
                                 localidad = localidad,
-                                clienteId = userViewModel.clienteId.value.orEmpty()
+                                clienteId = clienteIdActual.orEmpty()
                             )
 
                             // limpiar campos
@@ -442,7 +430,7 @@ fun FormEntradaDeInventario(
                             }
 
                             // 🟥 1. Validación: ubicación contra maestro por cliente/localidad
-                            val cid = (clienteIdActual ?: userViewModel.clienteId.value).orEmpty()
+                            val cid = clienteIdActual.orEmpty()
                             val okUbic = UbicacionesRepo.existeUbicacion(
                                 clienteId = cid,
                                 codigoIngresado = location.value,
@@ -817,6 +805,5 @@ fun FormEntradaDeInventario(
             }
         }
     }
-
-
 }
+

@@ -77,16 +77,29 @@ fun OutlinedTextFieldsInputsSku(
     LaunchedEffect(sku.value, clienteIdActual) {
         val code = sku.value.trim().uppercase()
         val cid = clienteIdActual?.trim()?.uppercase()
+
         if (code.isEmpty()) {
-            productoDescripcion.value = ""; unidadMedida.value = ""; return@LaunchedEffect
+            productoDescripcion.value = ""
+            unidadMedida.value = ""
+            return@LaunchedEffect
         }
         if (cid.isNullOrBlank()) return@LaunchedEffect
+
+        // pequeño debounce para no disparar en cada tecla
         kotlinx.coroutines.delay(200L)
-        lookupSkuForClient(db, cid, code) { desc, um ->
+        lookupSkuForClient(
+            db = db,
+            clienteId = cid,
+            code = code
+        ) { desc, um ->
             productoDescripcion.value = desc
             unidadMedida.value = um
+            showErrorSku.value =
+                desc.equals("Sin descripción", ignoreCase = true) ||
+                        desc.startsWith("Error", ignoreCase = true)
         }
     }
+
 
     // ===== escaneo con cámara (ZXing) =====
     val qrScanLauncherSku =
@@ -114,7 +127,11 @@ fun OutlinedTextFieldsInputsSku(
                 ) { desc, um ->
                     productoDescripcion.value = desc
                     unidadMedida.value = um
+                    showErrorSku.value =
+                        desc.equals("Sin descripción", ignoreCase = true) ||
+                                desc.startsWith("Error", ignoreCase = true)
                 }
+
                 delay(200L)
                 try {
                     keyboardController?.hide(); nextFocusRequester.requestFocus()
@@ -126,6 +143,7 @@ fun OutlinedTextFieldsInputsSku(
             }
             wasScanned.value = false
         }
+
     }
 
     // ===== escaneo Zebra (input masivo) → pasar foco =====
@@ -156,7 +174,7 @@ fun OutlinedTextFieldsInputsSku(
             label = { Text(text = "Código Producto") },
             value = sku.value,
             onValueChange = { newValue ->
-                val cleanSku = newValue.replace("\\s".toRegex(), "").uppercase()
+                val cleanSku = newValue.uppercase().replace(Regex("[^A-Z0-9_\\-]"), "")
                 val isZebra = cleanSku.length >= 5 && (cleanSku.length - sku.value.length > 2)
                 if (isZebra) zebraScanned.value = true
 
@@ -164,30 +182,23 @@ fun OutlinedTextFieldsInputsSku(
                 qrCodeContentSku.value = cleanSku
                 showErrorSku.value = false
 
-                val cid = clienteIdActual?.trim()?.uppercase()
+                // si queda vacío limpia descripción/unidad; el lookup lo hará el LaunchedEffect
                 if (cleanSku.isEmpty()) {
-                    productoDescripcion.value = ""; unidadMedida.value = ""
-                } else if (!cid.isNullOrBlank()) {
-                    lookupSkuForClient(db, cid, cleanSku) { desc, um ->
-                        productoDescripcion.value = desc
-                        unidadMedida.value = um
-                    }
+                    productoDescripcion.value = ""
+                    unidadMedida.value = ""
                 }
                 onUserInteraction()
             },
             isError = showErrorSku.value && (sku.value.isEmpty() || sku.value == "CODIGO NO ENCONTRADO"),
             trailingIcon = {
                 Row {
-                    // La lupa solo abre el diálogo (el diálogo ya carga por cliente)
                     IconButton(onClick = { showProductDialog.value = true }) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Buscar productos"
                         )
                     }
-                    IconButton(onClick = {
-                        qrCodeScannerSku.startQRCodeScanner(context as android.app.Activity)
-                    }) {
+                    IconButton(onClick = { qrCodeScannerSku.startQRCodeScanner(context as android.app.Activity) }) {
                         Icon(
                             imageVector = Icons.Filled.QrCodeScanner,
                             contentDescription = "Escanear Código"
@@ -198,11 +209,13 @@ fun OutlinedTextFieldsInputsSku(
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = {
                 try {
-                    keyboardController?.hide(); nextFocusRequester.requestFocus()
+                    keyboardController?.hide()
+                    nextFocusRequester.requestFocus()
                 } catch (_: Exception) {
                 }
             })
         )
+
 
         // borrar a la derecha
         if (sku.value.isNotEmpty()) {
@@ -212,6 +225,8 @@ fun OutlinedTextFieldsInputsSku(
                     qrCodeContentSku.value = ""
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
+                    showErrorSku.value = false
+                    onUserInteraction()
                 },
                 modifier = Modifier
                     .size(48.dp)
