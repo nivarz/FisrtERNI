@@ -73,6 +73,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
+import com.google.firebase.auth.FirebaseAuth
 
 
 @Composable
@@ -144,6 +145,9 @@ fun FormEntradaDeInventario(
     val showSuccessDialog = remember { mutableStateOf(false) }
     var usuarioDuplicado by remember { mutableStateOf("Desconocido") }
 
+    val uidActual  = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
+
     val clienteIdFromUser by userViewModel.clienteId.observeAsState()
     val clienteIdActual: String? =
         if (SelectedClientStore.isSuperuser)
@@ -208,7 +212,9 @@ fun FormEntradaDeInventario(
                 usuario = usuario,
                 listState = listState,
                 localidad = localidad,
-                clienteId = clienteIdActual.orEmpty()
+                clienteId = clienteIdActual.orEmpty(),
+                tipo = tipoActual,
+                uid = uidActual
             )
         }
     }
@@ -357,7 +363,9 @@ fun FormEntradaDeInventario(
                                 usuario = usuario,
                                 listState = listState,
                                 localidad = localidad,
-                                clienteId = clienteIdActual.orEmpty()
+                                clienteId = clienteIdActual.orEmpty(),
+                                tipo = tipoActual,
+                                uid = uidActual
                             )
 
                             // limpiar campos

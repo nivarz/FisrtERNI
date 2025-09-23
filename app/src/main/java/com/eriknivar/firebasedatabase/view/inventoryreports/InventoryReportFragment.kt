@@ -100,7 +100,10 @@ fun InventoryReportsFragment(
                 fetchFilteredInventoryFromFirestore(
                     db = firestore,
                     clienteId = cid,
+                    // No filtramos por 'dia' aquí: el invitado verá TODOS sus registros
+                    // Puedes dejar solo el usuario para un filtro visual opcional en memoria
                     filters = mapOf("usuario" to usuario),
+                    tipoUsuario = tipoUsuario,                 // 👈 clave: habilita whereEqualTo("usuarioUid", uid)
                     onResult = { nuevos ->
                         allData.clear()
                         allData.addAll(nuevos)

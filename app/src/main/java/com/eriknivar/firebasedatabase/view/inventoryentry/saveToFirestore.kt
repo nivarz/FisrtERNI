@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
+import java.util.Locale
 
 fun saveToFirestore(
     db: FirebaseFirestore,
@@ -20,62 +21,71 @@ fun saveToFirestore(
     expirationDate: String,
     quantity: Double,
     unidadMedida: String,
-    allData: MutableList<DataFields>,
-    usuario: String,
+    allData: MutableList<DataFields>,      // ⬅️ se mantiene por compatibilidad (no se usa aquí)
+    usuario: String,                       // nombre visible en UI
     coroutineScope: CoroutineScope,
     localidad: String,
     userViewModel: UserViewModel,
     showSuccessDialog: MutableState<Boolean>,
-    listState: LazyListState,
+    listState: LazyListState,              // ⬅️ se mantiene por compatibilidad (no se usa aquí)
     fotoUrl: String? = null
 ) {
-    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase(Locale.ROOT)
+    val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
 
-    // 🔗 Referencia a subcolección por cliente
+    // /clientes/{cid}/inventario
     val invRef = db.collection("clientes").document(cid).collection("inventario")
 
+    // arriba del data:
+    val hoyStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+        .format(java.util.Date())
+
     val data = hashMapOf(
+        // Identificación
         "clienteId" to cid,
-        "creadoPorUid" to uid,
-        "usuario" to usuario.trim(),
+        "localidad" to localidad.trim().uppercase(Locale.ROOT),
+        "ubicacion" to location.trim().uppercase(Locale.ROOT),
 
-        "localidad" to localidad.trim().uppercase(),
-        "ubicacion" to location.trim().uppercase(),
-        "codigoProducto" to sku.trim().uppercase(),
-        "lote" to (lote.ifBlank { "-" }.trim().uppercase()),
+        // Producto
+        "codigoProducto" to sku.trim().uppercase(Locale.ROOT),
+        "descripcion" to description,
+        "unidad" to unidadMedida,           // alias corto (legacy)
+        "unidadMedida" to unidadMedida,     // alias usado en UI/lista
 
+        // Lote / Cantidad
+        "lote" to (lote.ifBlank { "-" }.trim().uppercase(Locale.ROOT)),
+        "cantidad" to quantity,
+
+        // Auditoría de usuario
+        "usuarioUid" to uid,
+        "usuarioNombre" to usuario.trim(),
+        "tipoUsuarioCreador" to userViewModel.tipo.value.orEmpty(),
+
+        // Timestamps
         "fecha" to FieldValue.serverTimestamp(),
         "fechaRegistro" to FieldValue.serverTimestamp(),
         "creadoEn" to FieldValue.serverTimestamp(),
 
-        "descripcion" to description,
-        "cantidad" to quantity,
-        "unidadMedida" to unidadMedida,
-        "fechaVencimiento" to expirationDate,
-        "tipoUsuarioCreador" to userViewModel.tipo.value.orEmpty(),
-        "fotoUrl" to (fotoUrl ?: "")
+        // Foto (si llegó)
+        "fotoUrl" to (fotoUrl ?: ""),
+
+        // dentro del map 'data'
+        "fecha" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+        "fechaRegistro" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+        "fechaCliente" to com.google.firebase.Timestamp.now(),  // 👈 inmediato, sin race
+        "dia" to hoyStr,                                        // 👈 clave estable para filtrar
+
     )
+
     Log.d("FirestoreSave", "Data a guardar → $data")
 
-    invRef.add(data)   // 👈 ahora guarda en /clientes/{cid}/inventario
+    invRef.add(data)
         .addOnSuccessListener { ref ->
             Log.i("FirestoreSave", "✅ Guardado. DocID: ${ref.id}")
-
-            // (tu fetch deberá leer también desde /clientes/{cid}/inventario)
-            fetchDataFromFirestore(
-                db = db,
-                allData = allData,
-                usuario = usuario,
-                listState = listState,
-                localidad = localidad,
-                clienteId = userViewModel.clienteId.value.orEmpty()
-            )
-
+            // ❌ Ya no forzamos recarga: el listener realtime actualizará allData y el contador.
             coroutineScope.launch { showSuccessDialog.value = true }
         }
         .addOnFailureListener { e ->
             Log.e("FirestoreSave", "❌ Error al guardar", e)
         }
 }
-

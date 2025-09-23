@@ -46,9 +46,21 @@ import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.view.utility.contarRegistrosDelDia
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import com.google.firebase.firestore.ListenerRegistration
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.ktx.firestore
+import java.util.Calendar
 
 @Composable
 fun FirestoreApp(
@@ -77,6 +89,15 @@ fun FirestoreApp(
     val context = LocalContext.current
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
+
+    val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
+
+    // donde declaras estados del formulario
+    val cantidadRegistrosHoy by remember {
+        derivedStateOf { allData.size }   // <- cuenta lo que ya cargaste/escuchaste
+    }
+
 
     DisposableEffect(currentUserId, currentSessionId) {
         val firestore = Firebase.firestore
@@ -132,90 +153,112 @@ fun FirestoreApp(
     }
 
     val usuario by userViewModel.nombre.observeAsState("")
-    /*
-        LaunchedEffect(usuario, storageType) {
-            Log.d(
-                "FirestoreApp",
-                "🔄 LaunchedEffect lanzado para localidad: $storageType y usuario: $usuario"
-            )
-
-            if (usuario.isNotEmpty()) {
-                Log.d("FotoDebug", "🔄 Llamando a fetchFilteredInventoryFromFirestore...")
-                // 🔵 Limpiamos la lista antes de cargar nuevos datos
-                allData.clear()
 
 
-                fetchDataFromFirestore(
-                    db = Firebase.firestore,
-                    allData = allData,
-                    usuario = usuario,
-                    listState = listState,
-                    localidad = storageType,
-                    clienteId = userViewModel.clienteId.value.orEmpty()
-                )
-            }
-        }
-    */
 
+
+// 🔊 Listener Realtime de inventario (reemplaza el que tenías antes)
     DisposableEffect(
-        // keys: cambia cuando cambie el cliente o la localidad (storageType)
+        // Observa el cliente seleccionado y la localidad (storageType)
         userViewModel.clienteId.observeAsState("").value,
         storageType
     ) {
-        val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
-        if (cid.isBlank()) return@DisposableEffect onDispose { }
+        val firestore = Firebase.firestore
 
-        // Realtime sobre /clientes/{cid}/inventario filtrado por localidad
-        val query = Firebase.firestore
+        val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
+        val loc = storageType.trim().uppercase()
+
+        // Rol + UID actuales
+        val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
+        val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+
+        if (cid.isBlank() || loc.isBlank()) {
+            return@DisposableEffect onDispose { }
+        }
+
+        val (inicio, fin) = hoyBounds()
+
+        val base = firestore
             .collection("clientes").document(cid)
             .collection("inventario")
-            .whereEqualTo("localidad", storageType.trim())
 
-        val reg = query.addSnapshotListener { snap, e ->
+        // Query HOY, por localidad. Para invitado, además por dueño.
+        val hoyStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+
+        var q: com.google.firebase.firestore.Query = base
+            .whereEqualTo("localidad", loc)
+            .whereEqualTo("dia", hoyStr) // 👈 sin race
+            .orderBy("fechaCliente", com.google.firebase.firestore.Query.Direction.DESCENDING)
+
+        if (tipoActual == "invitado") {
+            q = q.whereEqualTo("usuarioUid", uidActual)
+        }
+
+        val reg = q.addSnapshotListener { snapshot, e ->
             if (e != null) {
                 Log.e("InvRealtime", "Listener error", e)
                 return@addSnapshotListener
             }
-            val docs = snap ?: return@addSnapshotListener
+            val docs = snapshot ?: return@addSnapshotListener
 
-            val nuevos: List<DataFields> = docs.documents.map { d ->
-                val base = d.toObject(DataFields::class.java) ?: DataFields()
+            val nuevos: List<DataFields> = docs.documents.map { doc ->
+                val df = doc.toObject(DataFields::class.java) ?: DataFields()
 
-                // Preferir ES → si no están, usar EN → si no, lo que ya trae 'base'
-                val cantidad = (d.getDouble("cantidad")
-                    ?: d.getLong("cantidad")?.toDouble()
-                    ?: d.getDouble("quantity")
-                    ?: d.getLong("quantity")?.toDouble()
-                    ?: base.quantity)
+                // ⏱ fecha para el contador (server o legacy; fallback ahora)
+                val fechaTS = doc.getTimestamp("fechaRegistro")
+                    ?: doc.getTimestamp("fecha")
+                    ?: Timestamp.now()
 
-                val ubicacion = (d.getString("ubicacion")
-                    ?: d.getString("location")
-                    ?: base.location)
+                // 👤 usuario para el contador (nombre o legacy; fallback a lo que traiga df)
+                val usuarioNombre = doc.getString("usuarioNombre")
+                    ?: doc.getString("usuario")
+                    ?: df.usuario
 
-                val fechaVto = (d.getString("fechaVencimiento")
-                    ?: d.getString("expirationDate")
-                    ?: base.expirationDate)
+                val cantidad = (doc.getDouble("cantidad")
+                    ?: doc.getLong("cantidad")?.toDouble()
+                    ?: doc.getDouble("quantity")
+                    ?: doc.getLong("quantity")?.toDouble()
+                    ?: df.quantity)
 
-                // Normalizamos aliases que usa la UI
-                base.copy(
-                    documentId     = d.id,
-                    quantity       = cantidad,
-                    location       = ubicacion,
-                    expirationDate = fechaVto,
-                    sku            = if (base.sku.isNotBlank()) base.sku else base.codigoProducto,
-                    description    = if (base.description.isNotBlank()) base.description else base.descripcion
+                val ubicacion = (doc.getString("ubicacion")
+                    ?: doc.getString("location")
+                    ?: df.location)
+
+                val unidad = (doc.getString("unidadMedida")
+                    ?: doc.getString("unidad")
+                    ?: df.unidadMedida)
+
+                val sku = when {
+                    df.sku.isNotBlank() -> df.sku
+                    !doc.getString("codigoProducto").isNullOrBlank() -> doc.getString("codigoProducto")!!
+                    else -> ""
+                }
+
+                val descripcion = when {
+                    df.description.isNotBlank() -> df.description
+                    !doc.getString("descripcion").isNullOrBlank() -> doc.getString("descripcion")!!
+                    else -> ""
+                }
+
+                df.copy(
+                    documentId   = doc.id,
+                    quantity     = cantidad,
+                    location     = ubicacion,
+                    unidadMedida = unidad,
+                    sku          = sku,
+                    description  = descripcion,
+                    // 👇 claves que necesitaba el contador
+                    fechaRegistro = fechaTS,
+                    usuario       = usuarioNombre
                 )
             }
 
             allData.clear()
             allData.addAll(nuevos)
-
-            Log.d(
-                "InvRealtime",
-                "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})"
-            )
-
+            Log.d("InvRealtime", "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})")
         }
+
 
         onDispose { reg.remove() }
     }
@@ -421,7 +464,9 @@ fun FirestoreApp(
                                     usuario = userViewModel.nombre.value.orEmpty(),
                                     listState = listState,
                                     localidad = storageType,
-                                    clienteId = userViewModel.clienteId.value.orEmpty()
+                                    clienteId = userViewModel.clienteId.value.orEmpty(),
+                                    tipo = tipoActual,
+                                    uid = uidActual
                                 )
                             },
                             listState = listState,
@@ -434,4 +479,18 @@ fun FirestoreApp(
             }
         }
     }
+}
+
+// Utilidad: límites de HOY [00:00, 24:00)
+private fun hoyBounds(): Pair<Timestamp, Timestamp> {
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val inicio = Timestamp(cal.time)
+    cal.add(Calendar.DAY_OF_MONTH, 1)
+    val fin = Timestamp(cal.time)
+    return inicio to fin
 }

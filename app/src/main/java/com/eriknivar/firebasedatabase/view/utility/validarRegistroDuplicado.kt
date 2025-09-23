@@ -1,82 +1,73 @@
 package com.eriknivar.firebasedatabase.view.utility
 
 import android.util.Log
-import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Verifica si YA existe un registro igual HOY para:
+ *   - localidad, ubicacion, codigoProducto, lote
+ *   - (si invitado) el mismo usuarioUid actual
+ *
+ * Usa igualdad por 'dia' (yyyyMMdd) + limit(1) para evitar índices compuestos
+ * y problemas de serverTimestamp.
+ */
 fun validarRegistroDuplicado(
     db: FirebaseFirestore,
     ubicacion: String,
     sku: String,
     lote: String,
-    cantidad: Double,          // se mantiene para no romper llamadas
+    cantidad: Double,                  // se mantiene por compatibilidad
     localidad: String,
     clienteId: String,
     onResult: (Boolean, String?) -> Unit,
     onError: (Exception) -> Unit
 ) {
-    // --- Normalización
-    val cid  = clienteId.trim().uppercase()
-    val loc  = localidad.trim().uppercase()
-    val ubi  = ubicacion.trim().uppercase()
-    val skuN = sku.trim().uppercase()
-    val loteN = lote.trim().ifBlank { "-" }.uppercase()
+    try {
+        // Normalización
+        val cid   = clienteId.trim().uppercase(Locale.ROOT)
+        val loc   = localidad.trim().uppercase(Locale.ROOT)
+        val ubi   = ubicacion.trim().uppercase(Locale.ROOT)
+        val cod   = sku.trim().uppercase(Locale.ROOT)
+        val lot   = lote.trim().ifBlank { "-" }.uppercase(Locale.ROOT)
 
-    // --- Ref a SUBCOLECCIÓN: /clientes/{cid}/inventario
-    val ref = db.collection("clientes").document(cid).collection("inventario")
+        // Día actual (clave estable)
+        val hoyStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+            .format(Date())
 
-    // --- Ventana HOY [00:00, 24:00)
-    val cal = java.util.Calendar.getInstance().apply {
-        set(java.util.Calendar.HOUR_OF_DAY, 0)
-        set(java.util.Calendar.MINUTE, 0)
-        set(java.util.Calendar.SECOND, 0)
-        set(java.util.Calendar.MILLISECOND, 0)
+        // UID actual (reglas: invitado solo puede ver/validar lo suyo)
+        val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+
+        // /clientes/{cid}/inventario
+        val ref = db.collection("clientes").document(cid).collection("inventario")
+
+        // ✅ Solo igualdades + limit(1) → no requiere índice
+        var q = ref
+            .whereEqualTo("localidad", loc)
+            .whereEqualTo("ubicacion", ubi)
+            .whereEqualTo("codigoProducto", cod)
+            .whereEqualTo("lote", lot)
+            .whereEqualTo("dia", hoyStr)
+            .whereEqualTo("usuarioUid", uidActual) // clave para cumplir reglas del invitado
+
+        q = q.limit(1)
+
+        q.get()
+            .addOnSuccessListener { snap ->
+                val doc = snap.documents.firstOrNull()
+                val usuarioNombre = doc?.getString("usuarioNombre")
+                    ?: doc?.getString("usuario")   // compatibilidad legacy
+                onResult(doc != null, usuarioNombre)
+            }
+            .addOnFailureListener { e ->
+                Log.e("DupCheck", "Fallo dup-check", e)
+                onError(e)
+            }
+    } catch (e: Exception) {
+        Log.e("DupCheck", "Excepción en dup-check", e)
+        onError(e)
     }
-    val tsIni = com.google.firebase.Timestamp(cal.time)
-    cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
-    val tsFin = com.google.firebase.Timestamp(cal.time)
-
-    // --- Consulta principal (rápida; requiere índice)
-    ref.whereEqualTo("localidad", loc)
-        .whereEqualTo("ubicacion", ubi)
-        .whereEqualTo("codigoProducto", skuN)   // usa "sku" si ese fuera tu campo
-        .whereEqualTo("lote", loteN)
-        .whereGreaterThanOrEqualTo("fecha", tsIni)
-        .whereLessThan("fecha", tsFin)
-        .orderBy("fecha")                       // para que calce con el índice
-        .limit(1)
-        .get()
-        .addOnSuccessListener { snap ->
-            val doc = snap.documents.firstOrNull()
-            onResult(doc != null, doc?.getString("usuario"))
-        }
-        .addOnFailureListener { e ->
-            android.util.Log.e("DupCheck", "Fallo consulta principal (índice/reglas): ${e.message}", e)
-            // Fallback: sin rango de fecha (evita índice); filtramos HOY en memoria
-            ref.whereEqualTo("localidad", loc)
-                .whereEqualTo("ubicacion", ubi)
-                .whereEqualTo("codigoProducto", skuN)
-                .whereEqualTo("lote", loteN)
-                .limit(20)
-                .get()
-                .addOnSuccessListener { s2 ->
-                    val existeHoy = s2.documents.any { d ->
-                        val t = d.getTimestamp("fecha") ?: return@any false
-                        t >= tsIni && t < tsFin
-                    }
-                    val usuario = s2.documents.firstOrNull()?.getString("usuario")
-                    onResult(existeHoy, usuario)
-                }
-                .addOnFailureListener { e2 ->
-                    android.util.Log.e("DupCheck", "Fallo también el fallback: ${e2.message}", e2)
-                    onError(e2)
-                }
-        }
 }
-
-
-
-
-
-
