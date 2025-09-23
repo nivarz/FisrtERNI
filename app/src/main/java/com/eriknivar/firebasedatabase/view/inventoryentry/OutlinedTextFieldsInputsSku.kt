@@ -100,7 +100,6 @@ fun OutlinedTextFieldsInputsSku(
         }
     }
 
-
     // ===== escaneo con cámara (ZXing) =====
     val qrScanLauncherSku =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -215,7 +214,6 @@ fun OutlinedTextFieldsInputsSku(
                 }
             })
         )
-
 
         // borrar a la derecha
         if (sku.value.isNotEmpty()) {

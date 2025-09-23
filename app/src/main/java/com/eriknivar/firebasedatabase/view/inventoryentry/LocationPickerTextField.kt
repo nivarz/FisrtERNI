@@ -118,7 +118,6 @@ fun OutlinedTextFieldsInputsLocation(
         }
     }
 
-
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
             delay(100)

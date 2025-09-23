@@ -213,6 +213,19 @@ fun FormEntradaDeInventario(
         }
     }
 
+    fun enfocarSkuDespuesDeGrabar() {
+        // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
+        focusManager.clearFocus(force = true)
+        // pequeño respiro para que Compose cierre diálogos/animaciones
+        coroutineScope.launch {
+            kotlinx.coroutines.delay(120)
+            try {
+                focusRequesterSku.requestFocus()
+                keyboardController?.show()
+            } catch (_: Exception) { }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -359,6 +372,8 @@ fun FormEntradaDeInventario(
                             imagenBitmap.value = null
                             userViewModel.limpiarValoresTemporales()
                         }
+
+                        enfocarSkuDespuesDeGrabar()
                     },
                     onError = { e ->                                     // 👈 MEJORADO
                         Log.e("DupCheck", "Error al validar duplicados: ${e.message}", e)
@@ -418,16 +433,9 @@ fun FormEntradaDeInventario(
                 Button(
                     onClick = {
                         onUserInteraction()
-                        focusManager.clearFocus()
                         keyboardController?.hide()
 
                         coroutineScope.launch {
-                            delay(300)
-                            try {
-                                focusRequesterSku.requestFocus()
-                            } catch (e: Exception) {
-                                Log.e("FocusError", "Error al solicitar foco en SKU: ${e.message}")
-                            }
 
                             // 🟥 1. Validación: ubicación contra maestro por cliente/localidad
                             val cid = clienteIdActual.orEmpty()
@@ -493,55 +501,6 @@ fun FormEntradaDeInventario(
                                 return@launch
                             }
 
-                            /*
-
-                            // 🟦 7.5 Validación REMOTA con ids correctos (o elimínala si no la necesitas)
-                            try {
-                                // 0) cliente actual
-                                val clienteIdActual =
-                                    if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId
-                                    else userVM.clienteId.value
-
-                                // 1) id REAL de la localidad (no el nombre)
-                                val localidadIdActual =
-                                    SelectedClientStore.selectedLocalidadId   // <- asegúrate de guardarlo al seleccionar
-
-                                // Si no tienes el id, NO bloquees el grabado (ya validamos contra Firestore)
-                                if (clienteIdActual.isNullOrBlank() || localidadIdActual.isNullOrBlank()) {
-                                    // omite validación remota
-                                } else {
-                                    // Si insistes en la remota: valida por id/código, no por nombre
-                                    val localidadesSrv = catalogRepo.localidades()
-                                    val locExiste = localidadesSrv.any {
-                                        it.id.equals(localidadIdActual, true) ||
-                                                it.codigo.equals(localidadIdActual, true)
-                                    }
-                                    if (!locExiste) {
-                                        openUbicacionInvalidaDialog.value = true
-                                        return@launch
-                                    }
-
-                                    val ubicacionesSrv =
-                                        catalogRepo.ubicaciones(localidadIdActual) // espera id/código de localidad
-                                    val ubiExiste = ubicacionesSrv.any {
-                                        it.codigoUbi.equals(location.value.trim().uppercase(), true)
-                                    }
-                                    if (!ubiExiste) {
-                                        openUbicacionInvalidaDialog.value = true
-                                        return@launch
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Toast.makeText(
-                                    context,
-                                    "No se pudo validar ubicación: ${e.message}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@launch
-                            }
-
-                            */
-
                             // ✅ 8. Si todas las validaciones pasaron, mostrar AlertDialog de confirmación
                             delay(150)
                             showConfirmDialog.value = true
@@ -575,7 +534,7 @@ fun FormEntradaDeInventario(
                 Button(
                     onClick = {
                         onUserInteraction()
-                        focusManager.clearFocus()
+                        //focusManager.clearFocus()
 
                         location.value = ""
                         tempLocationInput.value = ""
@@ -592,16 +551,7 @@ fun FormEntradaDeInventario(
                         showErrorSku.value = false
                         showErrorQuantity.value = false
 
-                        coroutineScope.launch {
-                            delay(200)
-                            try {
-                                focusRequesterLocation.requestFocus()
-                                keyboardController?.show()
-                            } catch (e: Exception) {
-                                Log.e("FocusError", "Error al solicitar foco: ${e.message}")
-                            }
-                        }
-
+                        enfocarSkuDespuesDeGrabar()
 
                     }, colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50), contentColor = Color.White
