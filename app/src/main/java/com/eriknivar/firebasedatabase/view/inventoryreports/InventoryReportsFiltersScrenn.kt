@@ -70,12 +70,16 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.google.firebase.firestore.FirebaseFirestore
 import com.eriknivar.firebasedatabase.data.Refs
 import com.eriknivar.firebasedatabase.data.ReportesRepo
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.firestore.DocumentSnapshot
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.ktx.toObject
+
 
 private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
     val base = this.toObject(DataFields::class.java) ?: DataFields()
@@ -271,7 +275,6 @@ fun InventoryReportFiltersScreen(
             // usuariosOptions.clear()
         }
     }
-
 
     // Carga inicial (y cuando cambie el cliente)
     LaunchedEffect(cid) { cargarReportes() }
@@ -495,7 +498,6 @@ fun InventoryReportFiltersScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-
                     val coroutineScope = rememberCoroutineScope()
                     var isLoadingExport by remember { mutableStateOf(false) }
                     var isExportEnabled by remember { mutableStateOf(true) }
@@ -558,7 +560,6 @@ fun InventoryReportFiltersScreen(
                             }
                         }
                     }
-
                 }
 
                 val azulMarino = Color(0xFF001F5B)
@@ -736,7 +737,74 @@ fun LocalidadDropdown(
     }
 }
 
+fun updateFirestore(
+    db: FirebaseFirestore,
+    cid: String,
+    docId: String,
+    location: String,
+    sku: String,               // opcional (mapéalo a codigoProducto si deseas permitir editarlo)
+    lote: String,
+    expirationDate: String?,
+    quantity: Double,
+    uiList: SnapshotStateList<DataFields>,
+    onSuccess: () -> Unit = {}
+) {
+    val docRef = db.collection("clientes")
+        .document(cid.trim().uppercase())
+        .collection("inventario")
+        .document(docId)
 
+    // ⚠️ Campos REALES en Firestore (ES)
+    val payload = hashMapOf<String, Any>(
+        "ubicacion" to location.trim().uppercase(),
+        "lote" to lote.trim().uppercase(),
+        "cantidad" to quantity
+    )
+
+    // Si vas a permitir editar el SKU desde el reporte:
+    if (sku.isNotBlank()) {
+        payload["codigoProducto"] = sku.trim().uppercase()
+    }
+
+    // Vencimiento solo si viene (ajusta si usas Timestamp)
+    if (!expirationDate.isNullOrBlank()) {
+        payload["fechaVencimiento"] = expirationDate
+    }
+
+    // Auditoría
+    payload["updatedAt"] = Timestamp.now()
+    payload["updatedBy"] = (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "")
+
+    docRef.update(payload)
+        .addOnSuccessListener {
+            Log.d("UpdateInv", "✅ Actualizado OK $docId")
+
+            // Sin listener: refleja en la lista de UI
+            val idx = uiList.indexOfFirst { it.documentId == docId }
+            if (idx >= 0) {
+                uiList[idx] = uiList[idx].copy(
+                    location = location.trim().uppercase(),
+                    lote = lote.trim().uppercase(),
+                    quantity = quantity,
+                    sku = if (sku.isNotBlank()) sku.trim().uppercase() else uiList[idx].sku,
+                    expirationDate = expirationDate ?: uiList[idx].expirationDate
+                )
+            }
+
+            onSuccess()
+        }
+        .addOnFailureListener { e ->
+            Log.e("UpdateInv", "❌ Error al actualizar", e)
+            // Muestra mensaje claro (útil cuando son reglas)
+            try {
+                Toast.makeText(
+                    (uiList as? Any)?.let { null }, // ignora contexto si no lo tienes aquí
+                    "No se pudo actualizar: ${e.message ?: "PERMISSION_DENIED"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (_: Exception) {}
+        }
+}
 
 
 

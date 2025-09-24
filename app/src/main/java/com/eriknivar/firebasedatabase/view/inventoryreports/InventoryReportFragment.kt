@@ -43,7 +43,6 @@ private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
     )
 }
 
-
 @Composable
 fun InventoryReportsFragment(
     navController: NavHostController,
