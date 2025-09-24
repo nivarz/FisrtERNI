@@ -19,14 +19,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
-import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
-import com.eriknivar.firebasedatabase.view.inventoryreports.fetchFilteredInventoryFromFirestore
-import com.eriknivar.firebasedatabase.view.inventoryreports.fetchAllInventory
+import com.eriknivar.firebasedatabase.data.ReportesRepo
+import kotlinx.coroutines.tasks.await
+import com.google.firebase.firestore.DocumentSnapshot
+import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+
+private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
+    val base = this.toObject(DataFields::class.java) ?: DataFields()
+    return base.copy(
+        // Aliases UI ← ES reales de Firestore
+        sku            = base.codigoProducto,
+        description    = base.descripcion,
+        location       = base.ubicacion,
+        quantity       = base.cantidad,
+        expirationDate = base.fechaVencimiento,
+        // (opcional) si tu UI lee `usuario` desde alias, ya viene en ES:
+        // usuario = base.usuarioNombre  // si tu DataFields tuviera ese alias
+    )
+}
 
 
 @Composable
@@ -84,38 +99,49 @@ fun InventoryReportsFragment(
     val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
 
     LaunchedEffect(usuario, tipoUsuario, cid) {
-        if (usuario.isNotEmpty()) {
+        if (usuario.isNotEmpty() && cid.isNotBlank()) {
             val firestore = Firebase.firestore
+            val uid = userViewModel.documentId.value ?: ""
 
-            if (tipoUsuario.lowercase().trim() == "admin" || tipoUsuario.lowercase()
-                    .trim() == "superuser"
-            ) {
-                fetchAllInventory(
-                    firestore,
-                    allData,
-                    tipoUsuario,
-                    clienteId = cid          // ✅ deja SOLO esta forma
-                )
-            } else {
-                fetchFilteredInventoryFromFirestore(
+            // Para admin/super/invitado usamos el helper; no pasamos "usuario" aquí.
+            // Si luego quieres filtrar por localidad o día, lo agregamos al map.
+            val filtros = emptyMap<String, String>()
+
+            try {
+                val q = ReportesRepo.buildReportQueryForRole(
                     db = firestore,
                     clienteId = cid,
-                    // No filtramos por 'dia' aquí: el invitado verá TODOS sus registros
-                    // Puedes dejar solo el usuario para un filtro visual opcional en memoria
-                    filters = mapOf("usuario" to usuario),
-                    tipoUsuario = tipoUsuario,                 // 👈 clave: habilita whereEqualTo("usuarioUid", uid)
-                    onResult = { nuevos ->
-                        allData.clear()
-                        allData.addAll(nuevos)
-                        Log.d("Reportes", "Cargados (usuario): ${allData.size}")
-                    },
-                    onError = { e ->
-                        Log.e("Reportes", "❌ Error al cargar por usuario", e)
-                    }
+                    tipoUsuario = tipoUsuario,
+                    uidActual = uid,
+                    filters = filtros
                 )
+
+                val snap = q.get().await()
+
+                // 🔎 Diagnóstico: ver nombres reales de campos
+                val first = snap.documents.firstOrNull()
+                if (first != null) {
+                    android.util.Log.d("DBG", "DocId=${first.id} data=${first.data}")
+                    android.util.Log.d("DBG", "sku=${first.getString("sku")} | SKU=${first.getString("SKU")}")
+                    android.util.Log.d("DBG", "ubicacion=${first.getString("ubicacion")} | location=${first.getString("location")}")
+                    android.util.Log.d("DBG", "usuario=${first.getString("usuario")} | usuarioUid=${first.getString("usuarioUid")}")
+                    android.util.Log.d("DBG", "cantidad=${first.getDouble("cantidad")} | qty=${first.getDouble("qty")}")
+                }
+
+                val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }
+
+
+                allData.clear()
+                allData.addAll(nuevos)
+                Log.d("Reportes", "Cargados reporte=${allData.size} (tipo=$tipoUsuario, cid=$cid)")
+            } catch (e: Exception) {
+                Log.e("Reportes", "❌ Error al cargar reportes", e)
+                Toast.makeText(context, "No se pudieron cargar los reportes", Toast.LENGTH_SHORT)
+                    .show()
             }
         }
     }
+
 
     var showSuccessDialog by remember { mutableStateOf(false) }
 

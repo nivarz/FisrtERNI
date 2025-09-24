@@ -154,9 +154,6 @@ fun FirestoreApp(
 
     val usuario by userViewModel.nombre.observeAsState("")
 
-
-
-
 // 🔊 Listener Realtime de inventario (reemplaza el que tenías antes)
     DisposableEffect(
         // Observa el cliente seleccionado y la localidad (storageType)
@@ -191,6 +188,7 @@ fun FirestoreApp(
             .whereEqualTo("dia", hoyStr) // 👈 sin race
             .orderBy("fechaCliente", com.google.firebase.firestore.Query.Direction.DESCENDING)
 
+        // ✅ SOLO si es invitado, filtramos por su uid
         if (tipoActual == "invitado") {
             q = q.whereEqualTo("usuarioUid", uidActual)
         }
@@ -241,6 +239,11 @@ fun FirestoreApp(
                     else -> ""
                 }
 
+                val tipoCreador = doc.getString("tipoUsuarioCreador")
+                    ?.lowercase()
+                    ?.trim()
+                    ?: ""
+
                 df.copy(
                     documentId   = doc.id,
                     quantity     = cantidad,
@@ -250,15 +253,27 @@ fun FirestoreApp(
                     description  = descripcion,
                     // 👇 claves que necesitaba el contador
                     fechaRegistro = fechaTS,
-                    usuario       = usuarioNombre
+                    usuario       = usuarioNombre,
+                    tipoUsuarioCreador = tipoCreador
+
                 )
             }
 
+            val filtrados = if (tipoActual.equals("admin", ignoreCase = true)) {
+                // admin NO ve movimientos creados por “superuser”, pero SÍ ve los de admin e invitado
+                nuevos.filter { it.tipoUsuarioCreador.lowercase() != "superuser" }
+            } else {
+                nuevos
+            }
+
+            allData.clear()
+            allData.addAll(filtrados)
+/*
             allData.clear()
             allData.addAll(nuevos)
             Log.d("InvRealtime", "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})")
+ */
         }
-
 
         onDispose { reg.remove() }
     }

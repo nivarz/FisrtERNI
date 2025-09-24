@@ -61,7 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eriknivar.firebasedatabase.view.inventoryentry.updateFirestore
-import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -73,7 +72,36 @@ import java.util.Locale
 import androidx.compose.runtime.livedata.observeAsState
 import com.google.firebase.firestore.FirebaseFirestore
 import com.eriknivar.firebasedatabase.data.Refs
+import com.eriknivar.firebasedatabase.data.ReportesRepo
+import kotlinx.coroutines.tasks.await
+import com.google.firebase.firestore.DocumentSnapshot
+import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 
+private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
+    val base = this.toObject(DataFields::class.java) ?: DataFields()
+
+    // Tomamos usuarioNombre si existe; si no, dejamos el que haya en ES
+    val usuarioUi = this.getString("usuarioNombre") ?: base.usuario
+
+    // unidadMedida puede venir como "unidad" en algunos docs
+    val unidad = if (base.unidadMedida.isNotBlank())
+        base.unidadMedida
+    else
+        (this.getString("unidad") ?: "")
+
+    return base.copy(
+        documentId    = this.id,                 // ← imprescindible para editar/eliminar
+        // Aliases UI ← campos ES reales
+        sku           = base.codigoProducto,
+        description   = base.descripcion,
+        location      = base.ubicacion,
+        quantity      = base.cantidad,
+        expirationDate= base.fechaVencimiento,
+        // Overrides extra para cubrir variantes
+        usuario       = usuarioUi,
+        unidadMedida  = unidad
+    )
+}
 
 @Composable
 fun InventoryReportFiltersScreen(
@@ -175,22 +203,28 @@ fun InventoryReportFiltersScreen(
             if (usr.isNotBlank()) put("usuario", usr) // 👈 importante: sin uppercase
         }
 
-        fetchFilteredInventoryFromFirestore(
+        // ⬇️ Reemplazo de fetchFilteredInventoryFromFirestore(...)
+        val q = ReportesRepo.buildReportQueryForRole(
             db = firestore,
             clienteId = cid,
-            filters = filtros,
             tipoUsuario = tipoUsuario,
-            onResult = { nuevos ->
+            uidActual = userViewModel.documentId.value,
+            filters = filtros
+        )
+
+        q.get()
+            .addOnSuccessListener { snap ->
+                val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }
                 filteredData.clear()
                 filteredData.addAll(nuevos.sortedByDescending { it.fechaRegistro?.toDate() })
                 filtrosExpandido.value = false
                 isLoading.value = false
-            },
-            onError = {
+            }
+            .addOnFailureListener {
                 isLoading.value = false
                 Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
             }
-        )
+
     }
 
     fun recargarFiltrosDelCliente(cid: String) {
@@ -390,59 +424,65 @@ fun InventoryReportFiltersScreen(
                                     put("localidad", localidadSeleccionada.value.trim().uppercase())
                             }
 
-
-                            fetchFilteredInventoryFromFirestore(
+                            // ⬇️ Reemplazo de fetchFilteredInventoryFromFirestore(...)
+                            val q = ReportesRepo.buildReportQueryForRole(
                                 db = Firebase.firestore,
                                 clienteId = cid,
-                                filters = filtros,
                                 tipoUsuario = tipoUsuario,
-                                onResult = { nuevosDatos ->
+                                uidActual = userViewModel.documentId.value,
+                                filters = filtros
+                            )
+
+                            q.get()
+                                .addOnSuccessListener { snap ->
+                                    // 🔎 DIAGNÓSTICO TEMPORAL (ponlo aquí mismo):
+                                    val first = snap.documents.firstOrNull()
+                                    if (first != null) {
+                                        android.util.Log.d("DBG", "DocId=${first.id} data=${first.data}")
+                                        android.util.Log.d("DBG", "sku=${first.getString("sku")} | SKU_alt=${first.getString("SKU")}")
+                                        android.util.Log.d("DBG", "ubicacion=${first.getString("ubicacion")} | location=${first.getString("location")}")
+                                        android.util.Log.d("DBG", "usuario=${first.getString("usuario")} | usuarioUid=${first.getString("usuarioUid")}")
+                                        android.util.Log.d("DBG", "cantidad=${first.getDouble("cantidad")} | qty=${first.getDouble("qty")}")
+                                    }
+                                    // ⬆️ hasta aquí el diagnóstico
+
+                                    val nuevosDatos = snap.documents.map { doc -> doc.toDataFieldsUi() }
+
                                     filteredData.clear()
                                     filteredData.addAll(
                                         nuevosDatos.filter { item ->
                                             val matchesSku =
-                                                sku.value.isBlank() || item.sku.contains(
-                                                    sku.value,
-                                                    true
-                                                ) || item.description.contains(sku.value, true)
-                                            val matchesLocation =
-                                                location.value.isBlank() || item.location.equals(
-                                                    location.value,
-                                                    true
-                                                )
+                                                sku.value.isBlank() ||
+                                                        item.sku.contains(sku.value, true) ||
+                                                        item.description.contains(sku.value, true)
 
-                                            val dateFormatted =
-                                                item.fechaRegistro?.toDate()?.let { sdf.format(it) }
-                                                    ?: ""
+                                            val matchesLocation =
+                                                location.value.isBlank() ||
+                                                        item.location.equals(location.value, true)
+
+                                            val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
                                             val matchesDate = try {
                                                 (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
-                                                        (endDate.value.isBlank() || dateFormatted <= endDate.value)
-                                            } catch (_: Exception) {
-                                                true
-                                            }
+                                                        (endDate.value.isBlank()   || dateFormatted <= endDate.value)
+                                            } catch (_: Exception) { true }
 
                                             val matchesLocalidad =
                                                 localidadSeleccionada.value.isBlank() ||
-                                                        item.localidad.equals(
-                                                            localidadSeleccionada.value,
-                                                            ignoreCase = true
-                                                        )
+                                                        item.localidad.equals(localidadSeleccionada.value, ignoreCase = true)
 
                                             matchesSku && matchesLocation && matchesDate && matchesLocalidad
                                         }.sortedByDescending { it.fechaRegistro?.toDate() }
                                     )
+
                                     filtrosExpandido.value = false
                                     isLoading.value = false
-                                },
-                                onError = {
-                                    isLoading.value = false
-                                    Toast.makeText(
-                                        context,
-                                        "Error al consultar Firestore",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
                                 }
-                            )
+                                .addOnFailureListener {
+                                    isLoading.value = false
+                                    Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
+                                }
+
+
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
