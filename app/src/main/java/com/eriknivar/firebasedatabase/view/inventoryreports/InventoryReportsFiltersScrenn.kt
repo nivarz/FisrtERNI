@@ -4,11 +4,20 @@ import android.app.DatePickerDialog
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,6 +79,8 @@ import java.util.Calendar
 import java.util.Locale
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import com.google.firebase.firestore.FirebaseFirestore
 import com.eriknivar.firebasedatabase.data.Refs
 import com.eriknivar.firebasedatabase.data.ReportesRepo
@@ -77,6 +88,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.view.utility.auditoria.registrarAuditoriaConteo
 import com.google.firebase.Timestamp
+import kotlinx.coroutines.tasks.await
 
 
 private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
@@ -92,16 +104,16 @@ private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
         (this.getString("unidad") ?: "")
 
     return base.copy(
-        documentId    = this.id,                 // ← imprescindible para editar/eliminar
+        documentId = this.id,                 // ← imprescindible para editar/eliminar
         // Aliases UI ← campos ES reales
-        sku           = base.codigoProducto,
-        description   = base.descripcion,
-        location      = base.ubicacion,
-        quantity      = base.cantidad,
-        expirationDate= base.fechaVencimiento,
+        sku = base.codigoProducto,
+        description = base.descripcion,
+        location = base.ubicacion,
+        quantity = base.cantidad,
+        expirationDate = base.fechaVencimiento,
         // Overrides extra para cubrir variantes
-        usuario       = usuarioUi,
-        unidadMedida  = unidad
+        usuario = usuarioUi,
+        unidadMedida = unidad
     )
 }
 
@@ -145,8 +157,6 @@ fun InventoryReportFiltersScreen(
     val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
     val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
 
-
-
     LaunchedEffect(cid) {
         firestore.collection("clientes").document(cid)
             .collection("localidades")
@@ -189,6 +199,7 @@ fun InventoryReportFiltersScreen(
         )
     }
 
+    var loading by remember { mutableStateOf(true) } // ⬅️ inicia en true
 
     fun cargarReportes() {
         val filtros = buildMap<String, String> {
@@ -214,6 +225,7 @@ fun InventoryReportFiltersScreen(
             filters = filtros
         )
 
+        loading = true
         q.get()
             .addOnSuccessListener { snap ->
                 val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }
@@ -221,8 +233,10 @@ fun InventoryReportFiltersScreen(
                 filteredData.addAll(nuevos.sortedByDescending { it.fechaRegistro?.toDate() })
                 filtrosExpandido.value = false
                 isLoading.value = false
+                loading = false
             }
             .addOnFailureListener {
+                loading = false
                 isLoading.value = false
                 Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
             }
@@ -282,6 +296,9 @@ fun InventoryReportFiltersScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+
+        // 🔄 Overlay encima del contenido
+        //LoadingOverlay(visible = loading)
 
         // 🔽 Encabezado expandible
         Row(
@@ -439,15 +456,39 @@ fun InventoryReportFiltersScreen(
                                     // 🔎 DIAGNÓSTICO TEMPORAL (ponlo aquí mismo):
                                     val first = snap.documents.firstOrNull()
                                     if (first != null) {
-                                        android.util.Log.d("DBG", "DocId=${first.id} data=${first.data}")
-                                        android.util.Log.d("DBG", "sku=${first.getString("sku")} | SKU_alt=${first.getString("SKU")}")
-                                        android.util.Log.d("DBG", "ubicacion=${first.getString("ubicacion")} | location=${first.getString("location")}")
-                                        android.util.Log.d("DBG", "usuario=${first.getString("usuario")} | usuarioUid=${first.getString("usuarioUid")}")
-                                        android.util.Log.d("DBG", "cantidad=${first.getDouble("cantidad")} | qty=${first.getDouble("qty")}")
+                                        android.util.Log.d(
+                                            "DBG",
+                                            "DocId=${first.id} data=${first.data}"
+                                        )
+                                        android.util.Log.d(
+                                            "DBG",
+                                            "sku=${first.getString("sku")} | SKU_alt=${
+                                                first.getString("SKU")
+                                            }"
+                                        )
+                                        android.util.Log.d(
+                                            "DBG",
+                                            "ubicacion=${first.getString("ubicacion")} | location=${
+                                                first.getString("location")
+                                            }"
+                                        )
+                                        android.util.Log.d(
+                                            "DBG",
+                                            "usuario=${first.getString("usuario")} | usuarioUid=${
+                                                first.getString("usuarioUid")
+                                            }"
+                                        )
+                                        android.util.Log.d(
+                                            "DBG",
+                                            "cantidad=${first.getDouble("cantidad")} | qty=${
+                                                first.getDouble("qty")
+                                            }"
+                                        )
                                     }
                                     // ⬆️ hasta aquí el diagnóstico
 
-                                    val nuevosDatos = snap.documents.map { doc -> doc.toDataFieldsUi() }
+                                    val nuevosDatos =
+                                        snap.documents.map { doc -> doc.toDataFieldsUi() }
 
                                     filteredData.clear()
                                     filteredData.addAll(
@@ -461,15 +502,22 @@ fun InventoryReportFiltersScreen(
                                                 location.value.isBlank() ||
                                                         item.location.equals(location.value, true)
 
-                                            val dateFormatted = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: ""
+                                            val dateFormatted =
+                                                item.fechaRegistro?.toDate()?.let { sdf.format(it) }
+                                                    ?: ""
                                             val matchesDate = try {
                                                 (startDate.value.isBlank() || dateFormatted >= startDate.value) &&
-                                                        (endDate.value.isBlank()   || dateFormatted <= endDate.value)
-                                            } catch (_: Exception) { true }
+                                                        (endDate.value.isBlank() || dateFormatted <= endDate.value)
+                                            } catch (_: Exception) {
+                                                true
+                                            }
 
                                             val matchesLocalidad =
                                                 localidadSeleccionada.value.isBlank() ||
-                                                        item.localidad.equals(localidadSeleccionada.value, ignoreCase = true)
+                                                        item.localidad.equals(
+                                                            localidadSeleccionada.value,
+                                                            ignoreCase = true
+                                                        )
 
                                             matchesSku && matchesLocation && matchesDate && matchesLocalidad
                                         }.sortedByDescending { it.fechaRegistro?.toDate() }
@@ -480,7 +528,11 @@ fun InventoryReportFiltersScreen(
                                 }
                                 .addOnFailureListener {
                                     isLoading.value = false
-                                    Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Error al consultar Firestore",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
 
 
@@ -630,97 +682,97 @@ fun InventoryReportFiltersScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 🧩 Lista de resultados (siempre visible)
-        if (filteredData.isEmpty()) {
-            Text("No hay resultados", modifier = Modifier.padding(top = 8.dp))
-        } else {
+        when {
+            loading -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(6) { ShimmerReportCard() } // 6 esqueletos mientras carga
+                }
+            }
 
-            LazyColumn {
-                items(filteredData) { item ->
-                    InventoryReportItem(
-                        item = item,
-                        puedeModificarRegistro = puedeModificarRegistro,
-                        tipoUsuarioActual = userViewModel.tipo.value
-                            ?: "", // ✅ Aquí el nuevo parámetro
+            filteredData.isEmpty() -> {
+                Text("No hay resultados", modifier = Modifier.padding(top = 8.dp))
+            }
 
-                        onDelete = { documentId ->
-                            val db = Firebase.firestore
-                            val docRef = db.collection("clientes").document(cid)
-                                .collection("inventario").document(documentId)
+            else -> {
+                LazyColumn {
+                    items(filteredData) { item ->
+                        InventoryReportItem(
+                            item = item,
+                            puedeModificarRegistro = puedeModificarRegistro,
+                            tipoUsuarioActual = userViewModel.tipo.value
+                                ?: "", // ✅ Aquí el nuevo parámetro
 
-                            // 1) Leer ANTES para auditar
-                            docRef.get()
-                                .addOnSuccessListener { snap ->
-                                    val antes = snap.data?.let { mapParaAuditoria(it) } ?: emptyMap()
+                            onDelete = { documentId ->
+                                val db = Firebase.firestore
+                                val docRef = db.collection("clientes").document(cid)
+                                    .collection("inventario").document(documentId)
 
-                                    // 2) Borrar
-                                    docRef.delete()
-                                        .addOnSuccessListener {
-                                            // 3) Registrar auditoría de eliminación
-                                            registrarAuditoriaConteo(
-                                                clienteId = cid,
-                                                registroId = documentId,
-                                                tipoAccion = "eliminación",
-                                                usuarioNombre = (userViewModel.nombre.value ?: ""),
-                                                usuarioUid = (userViewModel.documentId.value ?: ""),
-                                                valoresAntes = antes,
-                                                valoresDespues = emptyMap()
-                                            )
+                                // 1) Leer ANTES para auditar
+                                docRef.get()
+                                    .addOnSuccessListener { snap ->
+                                        val antes =
+                                            snap.data?.let { mapParaAuditoria(it) } ?: emptyMap()
 
-                                            Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT).show()
-                                            filteredData.removeIf { it.documentId == documentId }
-                                        }
-                                        .addOnFailureListener {
-                                            Toast.makeText(context, "Error al eliminar", Toast.LENGTH_SHORT).show()
-                                        }
-                                }
-                                .addOnFailureListener {
-                                    Toast.makeText(context, "No se pudo leer el registro a eliminar", Toast.LENGTH_SHORT).show()
-                                }
-                        }
+                                        // 2) Borrar
+                                        docRef.delete()
+                                            .addOnSuccessListener {
+                                                // 3) Registrar auditoría de eliminación
+                                                registrarAuditoriaConteo(
+                                                    clienteId = cid,
+                                                    registroId = documentId,
+                                                    tipoAccion = "eliminación",
+                                                    usuarioNombre = (userViewModel.nombre.value
+                                                        ?: ""),
+                                                    usuarioUid = (userViewModel.documentId.value
+                                                        ?: ""),
+                                                    valoresAntes = antes,
+                                                    valoresDespues = emptyMap()
+                                                )
 
-
-                        /*
-                        onDelete = { documentId ->
-                            Firebase.firestore
-                                .collection("clientes").document(cid)
-                                .collection("inventario")
-                                .document(documentId)
-                                .delete()
-                                .addOnSuccessListener {
-                                    Toast.makeText(
-                                        context,
-                                        "Registro eliminado",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    filteredData.removeIf { it.documentId == documentId }
-                                }
-                                .addOnFailureListener {
-                                    Toast.makeText(context, "Error al eliminar", Toast.LENGTH_SHORT)
-                                        .show()
-                                }
-                        }*/
-
-
-
-                        ,
-                        onEdit = { updatedItem ->
-                            updateFirestore(
-                                Firebase.firestore,
-                                cid,
-                                updatedItem.documentId,
-                                updatedItem.location,
-                                updatedItem.sku,
-                                updatedItem.lote,
-                                updatedItem.expirationDate,
-                                updatedItem.quantity,
-                                filteredData,
-                                onSuccess = onSuccess,
-                                usuarioNombre = userViewModel.nombre.value,
-                                usuarioUid = userViewModel.documentId.value
-                            )
-                        }
-                    )
+                                                Toast.makeText(
+                                                    context,
+                                                    "Registro eliminado",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                filteredData.removeIf { it.documentId == documentId }
+                                            }
+                                            .addOnFailureListener {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Error al eliminar",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                    }
+                                    .addOnFailureListener {
+                                        Toast.makeText(
+                                            context,
+                                            "No se pudo leer el registro a eliminar",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            },
+                            onEdit = { updatedItem ->
+                                updateFirestore(
+                                    Firebase.firestore,
+                                    cid,
+                                    updatedItem.documentId,
+                                    updatedItem.location,
+                                    updatedItem.sku,
+                                    updatedItem.lote,
+                                    updatedItem.expirationDate,
+                                    updatedItem.quantity,
+                                    filteredData,
+                                    onSuccess = onSuccess,
+                                    usuarioNombre = userViewModel.nombre.value,
+                                    usuarioUid = userViewModel.documentId.value
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -857,80 +909,112 @@ fun updateFirestore(
 
 /** Solo conservamos campos auditables y de forma legible para tus tarjetas */
 private fun mapParaAuditoria(full: Map<String, Any?>): Map<String, Any?> {
-    val keep = setOf("codigoProducto","descripcion","ubicacion","lote","cantidad","unidadMedida","fechaVencimiento","localidad")
+    val keep = setOf(
+        "codigoProducto",
+        "descripcion",
+        "ubicacion",
+        "lote",
+        "cantidad",
+        "unidadMedida",
+        "fechaVencimiento",
+        "localidad"
+    )
     return full.filterKeys { it in keep }
 }
 
-/*
-fun updateFirestore(
-    db: FirebaseFirestore,
-    cid: String,
-    docId: String,
-    location: String,
-    sku: String,               // opcional (mapéalo a codigoProducto si deseas permitir editarlo)
-    lote: String,
-    expirationDate: String?,
-    quantity: Double,
-    uiList: SnapshotStateList<DataFields>,
-    onSuccess: () -> Unit = {}
+@Composable
+fun LoadingOverlay(
+    visible: Boolean,
+    text: String = "Cargando datos..."
 ) {
-    val docRef = db.collection("clientes")
-        .document(cid.trim().uppercase())
-        .collection("inventario")
-        .document(docId)
-
-    // ⚠️ Campos REALES en Firestore (ES)
-    val payload = hashMapOf<String, Any>(
-        "ubicacion" to location.trim().uppercase(),
-        "lote" to lote.trim().uppercase(),
-        "cantidad" to quantity
-    )
-
-    // Si vas a permitir editar el SKU desde el reporte:
-    if (sku.isNotBlank()) {
-        payload["codigoProducto"] = sku.trim().uppercase()
-    }
-
-    // Vencimiento solo si viene (ajusta si usas Timestamp)
-    if (!expirationDate.isNullOrBlank()) {
-        payload["fechaVencimiento"] = expirationDate
-    }
-
-    // Auditoría
-    payload["updatedAt"] = Timestamp.now()
-    payload["updatedBy"] = (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "")
-
-    docRef.update(payload)
-        .addOnSuccessListener {
-            Log.d("UpdateInv", "✅ Actualizado OK $docId")
-
-            // Sin listener: refleja en la lista de UI
-            val idx = uiList.indexOfFirst { it.documentId == docId }
-            if (idx >= 0) {
-                uiList[idx] = uiList[idx].copy(
-                    location = location.trim().uppercase(),
-                    lote = lote.trim().uppercase(),
-                    quantity = quantity,
-                    sku = if (sku.isNotBlank()) sku.trim().uppercase() else uiList[idx].sku,
-                    expirationDate = expirationDate ?: uiList[idx].expirationDate
-                )
+    AnimatedVisibility(visible = visible) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                Spacer(Modifier.height(12.dp))
+                Text(text, style = MaterialTheme.typography.bodyMedium)
             }
-
-            onSuccess()
         }
-        .addOnFailureListener { e ->
-            Log.e("UpdateInv", "❌ Error al actualizar", e)
-            // Muestra mensaje claro (útil cuando son reglas)
-            try {
-                Toast.makeText(
-                    (uiList as? Any)?.let { null }, // ignora contexto si no lo tienes aquí
-                    "No se pudo actualizar: ${e.message ?: "PERMISSION_DENIED"}",
-                    Toast.LENGTH_LONG
-                ).show()
-            } catch (_: Exception) {}
-        }
+    }
 }
-*/
 
+@Composable
+private fun rememberShimmerBrush(): Brush {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val anim = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerAnim"
+    )
+    return Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFEDEDED),
+            Color(0xFFDCDCDC),
+            Color(0xFFEDEDED)
+        ),
+        start = Offset.Zero,
+        end = Offset(x = anim.value, y = anim.value)
+    )
+}
 
+@Composable
+private fun ShimmerLine(modifier: Modifier = Modifier) {
+    val brush = rememberShimmerBrush()
+    Box(
+        modifier
+            .background(brush, shape = RoundedCornerShape(6.dp))
+            .height(14.dp)
+    )
+}
 
+@Composable
+private fun ShimmerChip(modifier: Modifier = Modifier) {
+    val brush = rememberShimmerBrush()
+    Box(
+        modifier
+            .background(brush, shape = RoundedCornerShape(50))
+            .height(20.dp)
+            .width(72.dp)
+    )
+}
+
+@Composable
+fun ShimmerReportCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            // Título
+            ShimmerLine(Modifier.fillMaxWidth(0.6f))
+            Spacer(Modifier.height(8.dp))
+            // Subtítulo
+            ShimmerLine(Modifier.fillMaxWidth(0.4f))
+            Spacer(Modifier.height(12.dp))
+            // Chips / contadores
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ShimmerChip()
+                ShimmerChip()
+                ShimmerChip()
+            }
+            Spacer(Modifier.height(12.dp))
+            // 2 líneas de contenido
+            ShimmerLine(Modifier.fillMaxWidth())
+            Spacer(Modifier.height(6.dp))
+            ShimmerLine(Modifier.fillMaxWidth(0.8f))
+        }
+    }
+}

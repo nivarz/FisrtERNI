@@ -118,7 +118,7 @@ fun MessageCard(
 
     if (showDialog) {
         AlertDialog(
-            onDismissRequest = { showDialog = true },
+            onDismissRequest = { showDialog = false },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que deseas borrar este registro?") },
             confirmButton = {
@@ -132,97 +132,89 @@ fun MessageCard(
                         val docRef = Firebase.firestore.collection("clientes").document(cid)
                             .collection("inventario").document(item.documentId)
 
-                        // 1) Leer el doc para validar permisos a nivel de app (evita intentos fallidos)
-                        docRef.get().addOnSuccessListener { snap ->
-                            val creador =
-                                snap.getString("creadoPorUid") ?: snap.getString("createdByUid")
-                            val tsCreado =
-                                snap.getTimestamp("creadoEn") ?: snap.getTimestamp("createdAt")
-                                ?: snap.getTimestamp("fechaRegistro")
-                                ?: snap.getTimestamp("fecha")
+// 1) Leer el doc para validar (app-side)
+                        docRef.get()
+                            .addOnSuccessListener { snap ->
+                                // Autor: usa los campos que realmente guardas
+                                val creador = snap.getString("usuarioUid")
+                                    ?: snap.getString("creadoPorUid")
+                                    ?: snap.getString("createdByUid")
+                                    ?: ""
 
-                            fun sameDay(a: java.util.Date, b: java.util.Date): Boolean {
-                                val ca = java.util.Calendar.getInstance().apply { time = a }
-                                val cb = java.util.Calendar.getInstance().apply { time = b }
-                                return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) && ca.get(
-                                    java.util.Calendar.DAY_OF_YEAR
-                                ) == cb.get(java.util.Calendar.DAY_OF_YEAR)
-                            }
+                                // Timestamp de creación: prueba en este orden (según tus rules)
+                                val tsCreado = listOf("creadoEn", "createdAt", "fechaCliente", "fechaRegistro", "fecha")
+                                    .firstNotNullOfOrNull { snap.getTimestamp(it) }
 
-                            val now = com.google.firebase.Timestamp.now().toDate()
-                            val rol = (userViewModel.tipo.value ?: "").lowercase()
-                            val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
-                            val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
-                            val clienteDelDoc = snap.getString("clienteId") ?: cid
+                                // Comparación de “mismo día” con zona del cliente
+                                fun sameDayInZone(a: java.util.Date, b: java.util.Date, zoneId: java.time.ZoneId): Boolean {
+                                    val la = a.toInstant().atZone(zoneId).toLocalDate()
+                                    val lb = b.toInstant().atZone(zoneId).toLocalDate()
+                                    return la == lb
+                                }
+                                val zone = java.time.ZoneId.of("America/Santo_Domingo")
+                                val ahora = com.google.firebase.Timestamp.now().toDate()
 
-                            val puedeBorrar = when {
-                                rol == "superuser" -> true
-                                rol == "admin" -> clienteDelDoc.equals(cid, ignoreCase = true)
-                                rol == "invitado" -> (creador == uid) && (tsCreado != null && sameDay(
-                                    tsCreado.toDate(), now
-                                ))
+                                // Cliente del doc (por si faltara en resource)
+                                val clienteDelDoc = snap.getString("clienteId") ?: cid
 
-                                else -> false
-                            }
+                                val puedeBorrar = when (rol) {
+                                    "superuser" -> true
+                                    "admin"     -> clienteDelDoc.equals(cid, ignoreCase = true)
+                                    "invitado"  -> creador == uid &&
+                                            tsCreado != null &&
+                                            sameDayInZone(tsCreado.toDate(), ahora, zone)
+                                    else        -> false
+                                }
 
-                            if (!puedeBorrar) {
-                                Toast.makeText(
-                                    context,
-                                    "Solo puedes borrar registros que creaste hoy.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                return@addOnSuccessListener
-                            }
-
-                            // 2) Borrar en la SUBCOLECCIÓN correcta
-                            docRef.delete().addOnSuccessListener {
-                                // Quitar de la UI (optimistic)
-                                val idx =
-                                    allData.indexOfFirst { it.documentId == item.documentId }
-                                if (idx >= 0) allData.removeAt(idx)
-
-                                // (Opcional) Auditoría
-                                val uidAudit = FirebaseAuth.getInstance().currentUser?.uid
-                                registrarAuditoriaConteo(
-                                    clienteId = cid,
-                                    registroId = item.documentId,
-                                    tipoAccion = "Eliminación",
-                                    usuarioNombre = userViewModel.nombre.value
-                                        ?: "Desconocido",
-                                    usuarioUid = uidAudit,
-                                    valoresAntes = mapOf(
-                                        "ubicacion" to item.location,
-                                        "sku" to item.sku,
-                                        "lote" to item.lote,
-                                        "fecha_vencimiento" to item.expirationDate,
-                                        "cantidad" to item.quantity.toString(),
-                                        "unidad_medida" to item.unidadMedida,
-                                        "descripcion" to item.description
-                                    )
-                                )
-
-                                showDialog = false
-                                confirmDeletion = false
-                            }
-
-
-                                .addOnFailureListener { e ->
-                                    Log.e("DeleteInv", "❌ Error al borrar", e)
+                                if (!puedeBorrar) {
                                     Toast.makeText(
                                         context,
-                                        "No se pudo borrar (permisos).",
+                                        "Solo puedes borrar registros que creaste hoy.",
                                         Toast.LENGTH_LONG
                                     ).show()
+                                    return@addOnSuccessListener
                                 }
-                        }.addOnFailureListener { e ->
-                            Log.e("DeleteInv", "❌ No se pudo leer doc antes de borrar", e)
-                            Toast.makeText(
-                                context, "No se pudo verificar permisos.", Toast.LENGTH_LONG
-                            ).show()
-                        }
+
+                                // 2) Borrar
+                                docRef.delete()
+                                    .addOnSuccessListener {
+                                        // Optimistic UI
+                                        val idx = allData.indexOfFirst { it.documentId == item.documentId }
+                                        if (idx >= 0) allData.removeAt(idx)
+
+                                        // Auditoría (antes de cerrar)
+                                        registrarAuditoriaConteo(
+                                            clienteId = cid,
+                                            registroId = item.documentId,
+                                            tipoAccion = "eliminación",
+                                            usuarioNombre = (FirebaseAuth.getInstance().currentUser?.email?.substringBefore("@")
+                                                ?: userViewModel.documentId.value ?: "Desconocido"),
+                                            usuarioUid = uid,
+                                            valoresAntes = mapOf(
+                                                "ubicacion" to item.location,
+                                                "sku" to item.sku,
+                                                "lote" to item.lote,
+                                                "fecha_vencimiento" to item.expirationDate,
+                                                "cantidad" to item.quantity.toString(),
+                                                "unidad_medida" to item.unidadMedida,
+                                                "descripcion" to item.description
+                                            )
+                                        )
+
+                                        Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT).show()
+                                        showDialog = false
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Log.e("DeleteInv", "❌ Error al borrar", e)
+                                        Toast.makeText(context, "No se pudo borrar (permisos).", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e("DeleteInv", "❌ No se pudo leer doc antes de borrar", e)
+                                Toast.makeText(context, "No se pudo verificar permisos.", Toast.LENGTH_LONG).show()
+                            }
                     }
-
-
+                
                 ) { Text("Sí") }
             },
             dismissButton = {
@@ -595,8 +587,8 @@ fun MessageCard(
                                             "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
                                             "fechaVencimiento" to editedExpirationDate.trim(),
                                             "updatedAt" to FieldValue.serverTimestamp(),
-                                            "updatedBy" to (userViewModel.documentId.value ?: ""),
-                                            "clienteId" to cid
+                                            "updatedBy" to (userViewModel.documentId.value ?: "")
+                                            //"clienteId" to cid
                                         )
 
                                         val task = if (isInvitado) {
