@@ -20,10 +20,12 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,17 +48,18 @@ fun AuditoriaCard(
     tipoAccion: String,
     registroId: String,
     usuario: String,
-    fecha: Timestamp,
-    valoresAntes: Map<String, Any?>?,
-    valoresDespues: Map<String, Any?>?,
+    fecha: Timestamp?,
+    valoresAntes: Map<String, Any?> = emptyMap(),
+    valoresDespues: Map<String, Any?> = emptyMap(),
     tipoUsuario: String,
+    usuarioEmail: String? = null,
     onDelete: (String) -> Unit
 
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-    val fechaFormateada = sdf.format(fecha.toDate())
+    val fechaFormateada = fecha?.toDate()?.let { sdf.format(it) } ?: "-"
     var showDeleteDialog by remember { mutableStateOf(false) }
 
 
@@ -65,74 +68,74 @@ fun AuditoriaCard(
             .fillMaxWidth()
             .padding(8.dp)
             .clickable { isExpanded = !isExpanded },
-        elevation = CardDefaults.cardElevation(4.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White) // ⬅️ fondo blanco
     ) {
+
         Column(modifier = Modifier.padding(16.dp)) {
 
-            val colorAccion = when (tipoAccion.lowercase()) {
-                "eliminación" -> Color.Red
-                "modificación" -> Color(0xFF0D47A1)
-                else -> Color.Black
-            }
-
-            val iconAccion = when (tipoAccion.lowercase()) {
-                "eliminación" -> Icons.Default.Delete
-                "modificación" -> Icons.Default.Edit
-                else -> Icons.Default.Info
+            val (colorAccion, iconAccion) = when (tipoAccion.lowercase()) {
+                "eliminación" -> Color(0xFFF44336) to Icons.Default.Delete      // rojo
+                "modificación" -> Color(0xFFFFC107) to Icons.Default.Edit       // ámbar
+                "creación", "crear" -> Color(0xFF4CAF50) to Icons.Default.Info  // verde
+                else -> Color(0xFF0D47A1) to Icons.Default.Info                 // azul
             }
 
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = iconAccion,
-                    contentDescription = null,
-                    tint = colorAccion,
-                    modifier = Modifier.size(20.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = iconAccion, contentDescription = null, tint = colorAccion)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Acción: ${tipoAccion.uppercase()}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                    )
+                    Spacer(Modifier.width(8.dp))
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = "Acción: $tipoAccion",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = colorAccion
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                if (tipoUsuario.lowercase() == "superuser") {
-                    IconButton(onClick = {
-                        showDeleteDialog = true // ✅ Solo abre el diálogo
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteForever,
-                            contentDescription = "Eliminar registro",
-                            tint = Color.Red
+                    // ⬇️ Badge de color según la acción
+                    Badge(
+                        containerColor = colorAccion,
+                        contentColor = Color.White
+                    ) {
+                        Text(
+                            text = tipoAccion.uppercase(),
+                            style = MaterialTheme.typography.labelSmall
                         )
                     }
                 }
 
-
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = "Expandir",
-                    tint = Color.Gray
-                )
+                // (Si aquí tenías el botón de eliminar para superuser, déjalo igual)
+                if (tipoUsuario.equals("superuser", ignoreCase = true)) {
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = "Eliminar registro de auditoría",
+                            tint = Color(0xFFF44336)
+                        )
+                    }
+                }
             }
+            Text(
+                text = if (usuarioEmail.isNullOrBlank())
+                    "Usuario: $usuario"
+                else
+                    "Usuario: $usuario ($usuarioEmail)",
+                style = MaterialTheme.typography.bodySmall
+            )
 
-            Text("Usuario: $usuario", fontSize = 14.sp, color = Color.Black)
+           // Text("Usuario: $usuario", fontSize = 14.sp, color = Color.Black)
             Text("Fecha: $fechaFormateada", fontSize = 12.sp, color = Color.DarkGray)
             Text("ID del Registro: $registroId", fontSize = 12.sp, color = Color.LightGray)
 
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(top = 8.dp)) {
-                    valoresAntes?.keys?.forEach { campo ->
+                    valoresAntes.keys.forEach { campo ->
                         val antes = valoresAntes[campo]?.toString() ?: "-"
-                        val despues = valoresDespues?.get(campo)?.toString() ?: "-"
+                        val despues = valoresDespues.get(campo)?.toString() ?: "-"
                         val huboCambio = antes != despues
 
                         Column(modifier = Modifier.padding(vertical = 6.dp)) {

@@ -60,7 +60,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eriknivar.firebasedatabase.view.inventoryentry.updateFirestore
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -74,11 +73,10 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.google.firebase.firestore.FirebaseFirestore
 import com.eriknivar.firebasedatabase.data.Refs
 import com.eriknivar.firebasedatabase.data.ReportesRepo
-import kotlinx.coroutines.tasks.await
 import com.google.firebase.firestore.DocumentSnapshot
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
+import com.eriknivar.firebasedatabase.view.utility.auditoria.registrarAuditoriaConteo
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.ktx.toObject
 
 
 private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
@@ -644,6 +642,45 @@ fun InventoryReportFiltersScreen(
                         puedeModificarRegistro = puedeModificarRegistro,
                         tipoUsuarioActual = userViewModel.tipo.value
                             ?: "", // ✅ Aquí el nuevo parámetro
+
+                        onDelete = { documentId ->
+                            val db = Firebase.firestore
+                            val docRef = db.collection("clientes").document(cid)
+                                .collection("inventario").document(documentId)
+
+                            // 1) Leer ANTES para auditar
+                            docRef.get()
+                                .addOnSuccessListener { snap ->
+                                    val antes = snap.data?.let { mapParaAuditoria(it) } ?: emptyMap()
+
+                                    // 2) Borrar
+                                    docRef.delete()
+                                        .addOnSuccessListener {
+                                            // 3) Registrar auditoría de eliminación
+                                            registrarAuditoriaConteo(
+                                                clienteId = cid,
+                                                registroId = documentId,
+                                                tipoAccion = "eliminación",
+                                                usuarioNombre = (userViewModel.nombre.value ?: ""),
+                                                usuarioUid = (userViewModel.documentId.value ?: ""),
+                                                valoresAntes = antes,
+                                                valoresDespues = emptyMap()
+                                            )
+
+                                            Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT).show()
+                                            filteredData.removeIf { it.documentId == documentId }
+                                        }
+                                        .addOnFailureListener {
+                                            Toast.makeText(context, "Error al eliminar", Toast.LENGTH_SHORT).show()
+                                        }
+                                }
+                                .addOnFailureListener {
+                                    Toast.makeText(context, "No se pudo leer el registro a eliminar", Toast.LENGTH_SHORT).show()
+                                }
+                        }
+
+
+                        /*
                         onDelete = { documentId ->
                             Firebase.firestore
                                 .collection("clientes").document(cid)
@@ -662,7 +699,11 @@ fun InventoryReportFiltersScreen(
                                     Toast.makeText(context, "Error al eliminar", Toast.LENGTH_SHORT)
                                         .show()
                                 }
-                        },
+                        }*/
+
+
+
+                        ,
                         onEdit = { updatedItem ->
                             updateFirestore(
                                 Firebase.firestore,
@@ -674,7 +715,9 @@ fun InventoryReportFiltersScreen(
                                 updatedItem.expirationDate,
                                 updatedItem.quantity,
                                 filteredData,
-                                onSuccess = onSuccess
+                                onSuccess = onSuccess,
+                                usuarioNombre = userViewModel.nombre.value,
+                                usuarioUid = userViewModel.documentId.value
                             )
                         }
                     )
@@ -737,6 +780,88 @@ fun LocalidadDropdown(
     }
 }
 
+
+fun updateFirestore(
+    db: FirebaseFirestore,
+    cid: String,
+    docId: String,
+    location: String,
+    sku: String,               // si lo editas, lo auditamos como codigoProducto
+    lote: String,
+    expirationDate: String?,
+    quantity: Double,
+    uiList: SnapshotStateList<DataFields>,
+    onSuccess: () -> Unit = {},
+    usuarioNombre: String? = null,
+    usuarioUid: String? = null
+) {
+    val docRef = db.collection("clientes").document(cid.trim().uppercase())
+        .collection("inventario").document(docId)
+
+    // 1) Snapshot ANTES
+    docRef.get().addOnSuccessListener { beforeSnap ->
+        val antes = beforeSnap.data?.let { mapParaAuditoria(it) } ?: emptyMap()
+
+        // 2) Payload del UPDATE (campos reales ES)
+        val payload = hashMapOf<String, Any>(
+            "ubicacion" to location.trim().uppercase(),
+            "lote" to lote.trim().uppercase(),
+            "cantidad" to quantity
+        )
+        if (sku.isNotBlank()) payload["codigoProducto"] = sku.trim().uppercase()
+        if (!expirationDate.isNullOrBlank()) payload["fechaVencimiento"] = expirationDate
+        payload["updatedAt"] = Timestamp.now()
+        payload["updatedBy"] = (usuarioUid ?: "")
+
+        // 3) Ejecutar UPDATE
+        docRef.update(payload)
+            .addOnSuccessListener {
+                // Reflejar en UI (si no usas listener)
+                val idx = uiList.indexOfFirst { it.documentId == docId }
+                if (idx >= 0) {
+                    uiList[idx] = uiList[idx].copy(
+                        location = location.trim().uppercase(),
+                        lote = lote.trim().uppercase(),
+                        quantity = quantity,
+                        sku = if (sku.isNotBlank()) sku.trim().uppercase() else uiList[idx].sku,
+                        expirationDate = expirationDate ?: uiList[idx].expirationDate
+                    )
+                }
+
+                // 4) Snapshot DESPUÉS (para auditar valores finales)
+                docRef.get().addOnSuccessListener { afterSnap ->
+                    val despues = afterSnap.data?.let { mapParaAuditoria(it) } ?: emptyMap()
+                    registrarAuditoriaConteo(
+                        clienteId = cid,
+                        registroId = docId,
+                        tipoAccion = "modificación",
+                        usuarioNombre = usuarioNombre ?: "",
+                        usuarioUid = usuarioUid,
+                        valoresAntes = antes,
+                        valoresDespues = despues
+                    )
+                    Log.d("Auditoría", "✓ registrada (update)")
+                    onSuccess()
+                }.addOnFailureListener { e ->
+                    Log.e("Auditoría", "No se pudo leer 'después' (update)", e)
+                    onSuccess()
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("UpdateInv", "❌ Error al actualizar", e)
+            }
+    }.addOnFailureListener { e ->
+        Log.e("Auditoría", "No se pudo leer 'antes' (update)", e)
+    }
+}
+
+/** Solo conservamos campos auditables y de forma legible para tus tarjetas */
+private fun mapParaAuditoria(full: Map<String, Any?>): Map<String, Any?> {
+    val keep = setOf("codigoProducto","descripcion","ubicacion","lote","cantidad","unidadMedida","fechaVencimiento","localidad")
+    return full.filterKeys { it in keep }
+}
+
+/*
 fun updateFirestore(
     db: FirebaseFirestore,
     cid: String,
@@ -805,7 +930,7 @@ fun updateFirestore(
             } catch (_: Exception) {}
         }
 }
-
+*/
 
 
 

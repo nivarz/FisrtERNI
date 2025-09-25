@@ -19,6 +19,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.eriknivar.firebasedatabase.view.auditoria.AuditoriaRegistrosScreen
 import com.eriknivar.firebasedatabase.view.settings.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
 import com.eriknivar.firebasedatabase.view.inventoryentry.ReconteoAsignadoScreen
@@ -26,7 +27,6 @@ import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFrag
 import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
 import com.eriknivar.firebasedatabase.view.login.LoginScreen
 import com.eriknivar.firebasedatabase.view.masterdata.MasterDataFragment
-import com.eriknivar.firebasedatabase.view.utility.auditoria.AuditoriaRegistrosScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.ClientesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.LocalidadesScreen
 import com.eriknivar.firebasedatabase.view.settings.settingsmenu.UbicacionesScreen
