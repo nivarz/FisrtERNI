@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -49,7 +50,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -68,7 +71,9 @@ import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.view.utility.auditoria.registrarAuditoriaConteo
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
-
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 
 @Composable
 fun MessageCard(
@@ -80,11 +85,9 @@ fun MessageCard(
     index: Int,
     expandedStates: MutableMap<String, Boolean>,
     userViewModel: UserViewModel
-
 ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
-    var confirmDeletion by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
     var showImageDialog by remember { mutableStateOf(false) }
@@ -98,16 +101,31 @@ fun MessageCard(
         item.documentId, item.quantity
     ) { mutableStateOf(item.quantity.toString()) }
 
+    // Estados para el campo de Ubicación en el diálogo de edición
+    val editedLocationState = remember { mutableStateOf(editedLocation.uppercase()) }
+    val showErrorLocation = remember { mutableStateOf(false) }
+    val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
+    val focusLoc = remember { FocusRequester() }
+    val focusNext =
+        remember { FocusRequester() } // para saltar al siguiente campo si la validación pasa
+    val keyboard = LocalSoftwareKeyboardController.current
+
     LaunchedEffect(item.documentId, item.location, item.lote, item.expirationDate, item.quantity) {
-        editedLocation = item.location
-        editedLote = item.lote
-        editedExpirationDate = item.expirationDate
-        editedQuantity = item.quantity.toString()
+        // ✅ No tocar campos si el usuario ya está editando (evita “rebote”)
+        if (!isEditing) {
+            editedLocation = item.location
+            editedLote = item.lote
+            editedExpirationDate = item.expirationDate
+            editedQuantity = item.quantity.toString()
+            editedLocationState.value = item.location.trim().uppercase()
+            showErrorLocation.value = false
+        }
     }
 
     // 🔐 1) Resolver datos base
     val cid = userViewModel.clienteId.value.orEmpty().trim().uppercase()
     val rol = (userViewModel.tipo.value ?: "").lowercase()
+    val isInvitado = (rol == "invitado")
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
     val fechaFormateada = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
@@ -115,112 +133,108 @@ fun MessageCard(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que deseas borrar este registro?") },
             confirmButton = {
-
                 Button(
                     onClick = {
-                        val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
-                        val rol = (userViewModel.tipo.value ?: "").lowercase()
+                        val cidLocal = (userViewModel.clienteId.value ?: "").trim().uppercase()
+                        val rolLocal = (userViewModel.tipo.value ?: "").lowercase()
                         val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
 
-                        val docRef = Firebase.firestore.collection("clientes").document(cid)
+                        val docRef = Firebase.firestore.collection("clientes").document(cidLocal)
                             .collection("inventario").document(item.documentId)
 
-// 1) Leer el doc para validar (app-side)
-                        docRef.get()
-                            .addOnSuccessListener { snap ->
-                                // Autor: usa los campos que realmente guardas
-                                val creador = snap.getString("usuarioUid")
-                                    ?: snap.getString("creadoPorUid")
-                                    ?: snap.getString("createdByUid")
-                                    ?: ""
+                        // 1) Leer el doc para validar (app-side)
+                        docRef.get().addOnSuccessListener { snap ->
+                            val creador =
+                                snap.getString("usuarioUid") ?: snap.getString("creadoPorUid")
+                                ?: snap.getString("createdByUid") ?: ""
 
-                                // Timestamp de creación: prueba en este orden (según tus rules)
-                                val tsCreado = listOf("creadoEn", "createdAt", "fechaCliente", "fechaRegistro", "fecha")
-                                    .firstNotNullOfOrNull { snap.getTimestamp(it) }
+                            val tsCreado = listOf(
+                                "creadoEn", "createdAt", "fechaCliente", "fechaRegistro", "fecha"
+                            ).firstNotNullOfOrNull { snap.getTimestamp(it) }
 
-                                // Comparación de “mismo día” con zona del cliente
-                                fun sameDayInZone(a: java.util.Date, b: java.util.Date, zoneId: java.time.ZoneId): Boolean {
-                                    val la = a.toInstant().atZone(zoneId).toLocalDate()
-                                    val lb = b.toInstant().atZone(zoneId).toLocalDate()
-                                    return la == lb
-                                }
-                                val zone = java.time.ZoneId.of("America/Santo_Domingo")
-                                val ahora = com.google.firebase.Timestamp.now().toDate()
-
-                                // Cliente del doc (por si faltara en resource)
-                                val clienteDelDoc = snap.getString("clienteId") ?: cid
-
-                                val puedeBorrar = when (rol) {
-                                    "superuser" -> true
-                                    "admin"     -> clienteDelDoc.equals(cid, ignoreCase = true)
-                                    "invitado"  -> creador == uid &&
-                                            tsCreado != null &&
-                                            sameDayInZone(tsCreado.toDate(), ahora, zone)
-                                    else        -> false
-                                }
-
-                                if (!puedeBorrar) {
-                                    Toast.makeText(
-                                        context,
-                                        "Solo puedes borrar registros que creaste hoy.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    return@addOnSuccessListener
-                                }
-
-                                // 2) Borrar
-                                docRef.delete()
-                                    .addOnSuccessListener {
-                                        // Optimistic UI
-                                        val idx = allData.indexOfFirst { it.documentId == item.documentId }
-                                        if (idx >= 0) allData.removeAt(idx)
-
-                                        // Auditoría (antes de cerrar)
-                                        registrarAuditoriaConteo(
-                                            clienteId = cid,
-                                            registroId = item.documentId,
-                                            tipoAccion = "eliminación",
-                                            usuarioNombre = (FirebaseAuth.getInstance().currentUser?.email?.substringBefore("@")
-                                                ?: userViewModel.documentId.value ?: "Desconocido"),
-                                            usuarioUid = uid,
-                                            valoresAntes = mapOf(
-                                                "ubicacion" to item.location,
-                                                "sku" to item.sku,
-                                                "lote" to item.lote,
-                                                "fecha_vencimiento" to item.expirationDate,
-                                                "cantidad" to item.quantity.toString(),
-                                                "unidad_medida" to item.unidadMedida,
-                                                "descripcion" to item.description
-                                            )
-                                        )
-
-                                        Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT).show()
-                                        showDialog = false
-                                    }
-                                    .addOnFailureListener { e ->
-                                        Log.e("DeleteInv", "❌ Error al borrar", e)
-                                        Toast.makeText(context, "No se pudo borrar (permisos).", Toast.LENGTH_LONG).show()
-                                    }
+                            fun sameDayInZone(
+                                a: java.util.Date, b: java.util.Date, zoneId: java.time.ZoneId
+                            ): Boolean {
+                                val la = a.toInstant().atZone(zoneId).toLocalDate()
+                                val lb = b.toInstant().atZone(zoneId).toLocalDate()
+                                return la == lb
                             }
-                            .addOnFailureListener { e ->
-                                Log.e("DeleteInv", "❌ No se pudo leer doc antes de borrar", e)
-                                Toast.makeText(context, "No se pudo verificar permisos.", Toast.LENGTH_LONG).show()
+
+                            val zone = java.time.ZoneId.of("America/Santo_Domingo")
+                            val ahora = com.google.firebase.Timestamp.now().toDate()
+
+                            val clienteDelDoc = snap.getString("clienteId") ?: cidLocal
+
+                            val puedeBorrar = when (rolLocal) {
+                                "superuser" -> true
+                                "admin" -> clienteDelDoc.equals(cidLocal, ignoreCase = true)
+                                "invitado" -> creador == uid && tsCreado != null && sameDayInZone(
+                                    tsCreado.toDate(), ahora, zone
+                                )
+
+                                else -> false
                             }
-                    }
-                
-                ) { Text("Sí") }
+
+                            if (!puedeBorrar) {
+                                Toast.makeText(
+                                    context,
+                                    "Solo puedes borrar registros que creaste hoy.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                return@addOnSuccessListener
+                            }
+
+                            // 2) Borrar
+                            docRef.delete().addOnSuccessListener {
+                                // Optimistic UI
+                                val idx = allData.indexOfFirst { it.documentId == item.documentId }
+                                if (idx >= 0) allData.removeAt(idx)
+
+                                // Auditoría (antes de cerrar)
+                                registrarAuditoriaConteo(
+                                    clienteId = cidLocal,
+                                    registroId = item.documentId,
+                                    tipoAccion = "eliminación",
+                                    usuarioNombre = (FirebaseAuth.getInstance().currentUser?.email?.substringBefore(
+                                        "@"
+                                    ) ?: userViewModel.documentId.value ?: "Desconocido"),
+                                    usuarioUid = uid,
+                                    valoresAntes = mapOf(
+                                        "ubicacion" to item.location,
+                                        "sku" to item.sku,
+                                        "lote" to item.lote,
+                                        "fecha_vencimiento" to item.expirationDate,
+                                        "cantidad" to item.quantity.toString(),
+                                        "unidad_medida" to item.unidadMedida,
+                                        "descripcion" to item.description
+                                    )
+                                )
+
+                                Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT)
+                                    .show()
+                                showDialog = false
+                            }.addOnFailureListener { e ->
+                                Log.e("DeleteInv", "❌ Error al borrar", e)
+                                Toast.makeText(
+                                    context, "No se pudo borrar (permisos).", Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }.addOnFailureListener { e ->
+                            Log.e("DeleteInv", "❌ No se pudo leer doc antes de borrar", e)
+                            Toast.makeText(
+                                context, "No se pudo verificar permisos.", Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }) { Text("Sí") }
             },
             dismissButton = {
-                Button(onClick = { showDialog = false }) {
-                    Text("No")
-                }
+                Button(onClick = { showDialog = false }) { Text("No") }
             })
     }
 
@@ -243,14 +257,12 @@ fun MessageCard(
     // ✅ Hacemos scroll SOLO si expanded pasa a true
     LaunchedEffect(isExpanded) {
         if (isExpanded) {
-            // Le damos un pequeño delay para que Compose reacomode y sea más suave
             delay(200)
             listState.animateScrollToItem(index)
         }
     }
 
     val backgroundColorCard = if (isExpanded) Color(0xFFE3F2FD) else Color.White
-    //val borderColor = if (isExpanded) Color(0xFF2196F3) else Color.Transparent
 
     Card(
         modifier = Modifier
@@ -259,7 +271,7 @@ fun MessageCard(
             .border(
                 width = 2.dp,
                 color = if (isExpanded) Color(0xFF2196F3) else Color.Transparent,
-                shape = RoundedCornerShape(12.dp) // 🔵 Bordes suaves tipo SAP Fiori
+                shape = RoundedCornerShape(12.dp)
             )
             .clickable {
                 expandedStates[item.documentId] = !(expandedStates[item.documentId] ?: false)
@@ -267,7 +279,6 @@ fun MessageCard(
         elevation = CardDefaults.cardElevation(4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColorCard)
-
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -317,7 +328,7 @@ fun MessageCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             AnimatedVisibility(visible = isExpanded) {
-                Column { // ✅ Debe empezar con Column, no con Row
+                Column {
                     // Datos
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Column(
@@ -412,13 +423,19 @@ fun MessageCard(
                             horizontalAlignment = Alignment.End
                         ) {
                             if (!isEditing) {
-                                IconButton(onClick = { isEditing = true }) {
+                                IconButton(onClick = {
+                                    isEditing = true
+                                    // ✅ Inicializa el campo una sola vez al abrir el diálogo
+                                    editedLocationState.value = item.location.trim().uppercase()
+                                    showErrorLocation.value = false
+                                }) {
                                     Icon(
                                         Icons.Default.Edit,
                                         contentDescription = "Editar",
                                         tint = Color.Blue
                                     )
                                 }
+
                                 IconButton(onClick = { showDialog = true }) {
                                     Icon(
                                         Icons.Default.DeleteForever,
@@ -432,64 +449,79 @@ fun MessageCard(
                 }
             }
 
-            val rol = (userViewModel.tipo.value ?: "").lowercase()
-            val isInvitado = (rol == "invitado")
-
             // ⬇️ Resto del contenido dividido en dos columnas
             Row(modifier = Modifier.fillMaxWidth()) {
 
                 Column(modifier = Modifier.weight(1f)) {
                     if (isEditing) {
+
                         AlertDialog(onDismissRequest = {
                             isEditing = false
                             editedLocation = item.location
                             editedLote = item.lote
                             editedExpirationDate = item.expirationDate
                             editedQuantity = item.quantity.toString()
+                            editedLocationState.value = item.location.uppercase()
+                            showErrorLocation.value = false
                         }, title = {
-                            Text(
-                                "Editar Registro", fontWeight = FontWeight.Bold
-                            )
+                            Text("Editar Registro", fontWeight = FontWeight.Bold)
                         }, text = {
                             Column {
+                                // === Ubicación (con validación al perder foco y con IME Next) ===
                                 OutlinedTextField(
-                                    value = editedLocation,
-                                    onValueChange = { editedLocation = it.uppercase().trim() },
+                                    value = editedLocationState.value,
+                                    onValueChange = {
+                                        editedLocationState.value = it.trim().uppercase()
+                                        showErrorLocation.value = false
+                                    },
                                     label = { Text("Editar Ubicación") },
-                                    readOnly = false,
-                                    enabled = true,
                                     singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
+                                    isError = showErrorLocation.value && (editedLocationState.value.isBlank() || editedLocationState.value == "UBICACIÓN NO EXISTE"),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(focusLoc),
+                                    // ✅ No dispares validaciones al cambiar de foco ni al presionar Next
+                                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions.Default
                                 )
+
+
                                 Spacer(modifier = Modifier.height(8.dp))
                                 SnackbarHost(hostState = snackbarHostState)
 
+                                // === Lote ===
                                 OutlinedTextField(
-                                    value = "-",
+                                    value = editedLote,
                                     onValueChange = { editedLote = it.uppercase().trim() },
                                     label = { Text("Editar Lote") },
-                                    readOnly = false,
-                                    singleLine = isInvitado,
+                                    readOnly = isInvitado, // Invitado no edita lote
+                                    singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
+
                                 Spacer(modifier = Modifier.height(8.dp))
 
+                                // === Fecha de Vencimiento ===
                                 OutlinedTextField(
                                     value = "-",
                                     onValueChange = { editedExpirationDate = it },
                                     label = { Text("Editar Fecha Vencimiento") },
-                                    readOnly = isInvitado,
+                                    readOnly = isInvitado, // Invitado no edita fecha
                                     modifier = Modifier.fillMaxWidth(),
                                     trailingIcon = {
-                                        IconButton(onClick = { datePickerDialog.show() }) {
-                                            Icon(
-                                                Icons.Default.CalendarMonth,
-                                                contentDescription = "Seleccionar fecha"
-                                            )
+                                        if (!isInvitado) {
+                                            IconButton(onClick = { datePickerDialog.show() }) {
+                                                Icon(
+                                                    Icons.Default.CalendarMonth,
+                                                    contentDescription = "Seleccionar fecha"
+                                                )
+                                            }
                                         }
                                     })
+
                                 Spacer(modifier = Modifier.height(8.dp))
 
+                                // === Cantidad ===
                                 OutlinedTextField(
                                     value = editedQuantity,
                                     onValueChange = { editedQuantity = it },
@@ -500,15 +532,18 @@ fun MessageCard(
                                 )
                             }
                         }, confirmButton = {
+                            // ⚠️ Antes el enabled dependía de 'nuevaUbi' declarada más abajo → crash.
+                            // Ahora usamos directamente el valor del estado ya disponible.
                             Button(
-                                onClick = {
+                                enabled = editedLocationState.value.trim()
+                                    .isNotBlank() && !showErrorLocation.value, onClick = {
                                     // === 0) Datos base ===
-                                    val rol = (userViewModel.tipo.value ?: "").lowercase()
-                                    val isInvitado = (rol == "invitado")
-                                    val cid =
+                                    val rolLocal = (userViewModel.tipo.value ?: "").lowercase()
+                                    val isInv = (rolLocal == "invitado")
+                                    val cidLocal =
                                         (userViewModel.clienteId.value ?: "").trim().uppercase()
 
-                                    if (cid.isBlank()) {
+                                    if (cidLocal.isBlank()) {
                                         Toast.makeText(
                                             context,
                                             "Falta clienteId (no se puede guardar).",
@@ -517,16 +552,26 @@ fun MessageCard(
                                         return@Button
                                     }
 
-                                    // Normalizaciones y detección de cambios
-                                    val nuevaUbi = editedLocation.trim().uppercase()
-                                    val qtyParsed = editedQuantity.toDoubleOrNull()
+                                    // ✅ Normalizaciones y detección de cambios (ambos lados)
+                                    val originalUbi = item.location.trim().uppercase()
+                                    val nuevaUbi = editedLocationState.value.trim().uppercase()
+
+
+                                    val qtyParsed =
+                                        editedQuantity.replace(",", ".").toDoubleOrNull()
                                     val qty = qtyParsed ?: item.quantity
 
-                                    val locationChanged = (nuevaUbi != item.location)
+                                    val locationChanged = (nuevaUbi != originalUbi)
                                     val quantityChanged = (qty != item.quantity)
+                                    val loteChanged =
+                                        (editedLote.trim().uppercase() != (item.lote.trim()
+                                            .uppercase()))
+                                    val fechaChanged =
+                                        (editedExpirationDate.trim() != item.expirationDate.trim())
+
 
                                     // === 1) Validaciones ===
-                                    if (isInvitado) {
+                                    if (isInv) {
                                         if (!locationChanged && !quantityChanged) {
                                             Toast.makeText(
                                                 context,
@@ -536,7 +581,7 @@ fun MessageCard(
                                             return@Button
                                         }
                                     } else {
-                                        if (editedLocation.isBlank() || editedLote.isBlank() || editedExpirationDate.isBlank() || editedQuantity.isBlank()) {
+                                        if (nuevaUbi.isBlank() || editedQuantity.isBlank()) {
                                             Toast.makeText(
                                                 context,
                                                 "Todos los campos deben estar completos",
@@ -546,191 +591,259 @@ fun MessageCard(
                                         }
                                     }
 
-                                    // === 2) Auditoría (capturas ANTES y DESPUÉS) =======================
-                                    // Snapshot ANTES (del item original)
+                                    // === 2) Auditoría (capturas ANTES y DESPUÉS) ===
                                     val valoresAntes: Map<String, Any?> = mapOf(
                                         "ubicacion" to item.location,
                                         "lote" to item.lote,
                                         "fechaVencimiento" to item.expirationDate,
                                         "cantidad" to item.quantity
                                     )
-                                    // Snapshot DESPUÉS (con los nuevos estados)
                                     val valoresDespues: Map<String, Any?> = mapOf(
                                         "ubicacion" to nuevaUbi,
                                         "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
                                         "fechaVencimiento" to editedExpirationDate.trim(),
                                         "cantidad" to qty
                                     )
-                                    // Solo guardaremos en auditoría los campos que realmente cambian:
                                     val cambiosClaves =
                                         valoresAntes.keys.filter { k -> valoresAntes[k] != valoresDespues[k] }
                                     val auditAntes = valoresAntes.filterKeys { it in cambiosClaves }
                                     val auditDespues =
                                         valoresDespues.filterKeys { it in cambiosClaves }
                                     val huboCambios = cambiosClaves.isNotEmpty()
-                                    // ===================================================================
 
-                                    // === 3) Función que realiza el update (según rol)
+                                    // === 3) Update Firestore (según rol) ===
                                     fun continuarConUpdate() {
-                                        val docRef =
-                                            Firebase.firestore.collection("clientes").document(cid)
-                                                .collection("inventario").document(item.documentId)
+                                        val docRef = Firebase.firestore.collection("clientes")
+                                            .document(cidLocal).collection("inventario")
+                                            .document(item.documentId)
 
-                                        val updatesInvitado = buildMap<String, Any> {
-                                            if (quantityChanged) put("cantidad", qty)
-                                            if (locationChanged) put("ubicacion", nuevaUbi)
-                                        }
+                                        // ✅ Siempre enviamos la nueva ubicación (aunque sea igual) para evitar “no-op”
+                                        if (isInv) {
+                                            val updatesInvitado = mutableMapOf<String, Any>(
+                                                "ubicacion" to nuevaUbi  // <<— siempre
+                                            )
+                                            if (quantityChanged) updatesInvitado["cantidad"] = qty
 
-                                        val updatesFull = mapOf(
-                                            "cantidad" to qty,
-                                            "ubicacion" to nuevaUbi,
-                                            "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
-                                            "fechaVencimiento" to editedExpirationDate.trim(),
-                                            "updatedAt" to FieldValue.serverTimestamp(),
-                                            "updatedBy" to (userViewModel.documentId.value ?: "")
-                                            //"clienteId" to cid
-                                        )
+                                            Log.d(
+                                                "EditarInv", "Invitado UPDATE -> $updatesInvitado"
+                                            )
+                                            docRef.update(updatesInvitado).addOnSuccessListener {
+                                                // === 4) Optimistic UI ===
+                                                val idx =
+                                                    allData.indexOfFirst { it.documentId == item.documentId }
+                                                if (idx >= 0) {
+                                                    val updatedItem = item.copy(
+                                                        quantity = if (quantityChanged) qty else item.quantity,
+                                                        location = nuevaUbi,     // <<— forzamos nueva ubicación en UI
+                                                        lote = item.lote,        // invitados no cambian
+                                                        expirationDate = item.expirationDate
+                                                    )
+                                                    allData[idx] = updatedItem
+                                                }
 
-                                        val task = if (isInvitado) {
-                                            if (updatesInvitado.isEmpty()) {
+                                                // === 5) Auditoría (solo si hubo cambios reales) ===
+                                                val huboCambios =
+                                                    (locationChanged || quantityChanged)
+                                                if (huboCambios) {
+                                                    val auth =
+                                                        FirebaseAuth.getInstance().currentUser
+                                                    val usuarioUid =
+                                                        userViewModel.documentId.value ?: auth?.uid
+                                                        ?: ""
+                                                    val emailAuth = auth?.email
+
+                                                    Firebase.firestore.collection("usuarios")
+                                                        .document(usuarioUid).get()
+                                                        .addOnSuccessListener { udoc ->
+                                                            val nombreDoc = udoc.getString("nombre")
+                                                                ?.takeIf { it.isNotBlank() }
+                                                            val emailDoc = udoc.getString("email")
+                                                                ?.takeIf { it.isNotBlank() }
+                                                            val usuarioNombreFinal =
+                                                                nombreDoc ?: auth?.displayName
+                                                                ?: (emailAuth
+                                                                    ?: emailDoc)?.substringBefore(
+                                                                    "@"
+                                                                ) ?: usuarioUid
+                                                            val usuarioEmailFinal =
+                                                                emailAuth ?: emailDoc
+
+                                                            registrarAuditoriaConteo(
+                                                                clienteId = cidLocal,
+                                                                registroId = item.documentId,
+                                                                tipoAccion = "editar",
+                                                                usuarioNombre = usuarioNombreFinal,
+                                                                usuarioUid = usuarioUid,
+                                                                valoresAntes = mapOf(
+                                                                    "ubicacion" to item.location,
+                                                                    "cantidad" to item.quantity
+                                                                ),
+                                                                valoresDespues = mapOf(
+                                                                    "ubicacion" to nuevaUbi,
+                                                                    "cantidad" to (if (quantityChanged) qty else item.quantity)
+                                                                ),
+                                                                usuarioEmail = usuarioEmailFinal
+                                                            )
+                                                        }
+                                                }
+
+                                                // === 6) Feedback y cierre
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        "Registro modificado exitoso"
+                                                    )
+                                                }
+                                                isEditing = false
+                                                onSuccess()
+                                            }.addOnFailureListener { e ->
+                                                Log.e(
+                                                    "EditarInv", "❌ Error update (invitado)", e
+                                                )
                                                 Toast.makeText(
                                                     context,
-                                                    "No hay cambios válidos para guardar.",
-                                                    Toast.LENGTH_SHORT
+                                                    "No se pudo guardar (permisos).",
+                                                    Toast.LENGTH_LONG
                                                 ).show()
-                                                return
                                             }
-                                            docRef.update(updatesInvitado)
+
                                         } else {
-                                            docRef.update(updatesFull)
-                                        }.addOnSuccessListener {
-                                            // === 4) Optimistic UI: refrescar card localmente
-                                            val idx =
-                                                allData.indexOfFirst { it.documentId == item.documentId }
-                                            if (idx >= 0) {
-                                                val updatedItem = item.copy(
-                                                    quantity = qty,
-                                                    location = if (locationChanged) nuevaUbi else item.location,
-                                                    lote = if (isInvitado) item.lote else editedLote.trim()
-                                                        .ifBlank { "-" }.uppercase(),
-                                                    expirationDate = if (isInvitado) item.expirationDate else editedExpirationDate.trim()
-                                                )
-                                                allData[idx] = updatedItem
-                                            }
+                                            // admin / superuser: siempre enviamos ubicacion + demás campos
+                                            val updatesFull =
+                                                mutableMapOf<String, Any>(
+                                                    "ubicacion" to nuevaUbi,  // <<— siempre
+                                                    "cantidad" to qty,
+                                                    "lote" to editedLote.trim().ifBlank { "-" }
+                                                        .uppercase(),
+                                                    "fechaVencimiento" to editedExpirationDate.trim(),
+                                                    "updatedAt" to FieldValue.serverTimestamp(),
+                                                    "updatedBy" to (userViewModel.documentId.value
+                                                        ?: ""))
 
-                                            // === 5) REGISTRO DE AUDITORÍA (solo si hubo cambios reales)
-                                            if (huboCambios) {
-                                                val auth = FirebaseAuth.getInstance().currentUser
-                                                val usuarioUid =
-                                                    userViewModel.documentId.value ?: auth?.uid
-                                                    ?: ""
-                                                val emailAuth = auth?.email
-
-                                                Log.d(
-                                                    "Auditoria",
-                                                    "try create -> cid=$cid, role=${(userViewModel.tipo.value ?: "").lowercase()}, uid=$usuarioUid"
-                                                )
-
-                                                // 1) Lee nombre/email desde /usuarios/{uid}
-                                                Firebase.firestore.collection("usuarios")
-                                                    .document(usuarioUid).get()
-                                                    .addOnSuccessListener { udoc ->
-                                                        val nombreDoc = udoc.getString("nombre")
-                                                            ?.takeIf { it.isNotBlank() }
-                                                        val emailDoc = udoc.getString("email")
-                                                            ?.takeIf { it.isNotBlank() }
-
-                                                        // 2) Nombre/correo finales con fallbacks
-                                                        val usuarioNombreFinal = nombreDoc
-                                                            ?: auth?.displayName
-                                                            ?: (emailAuth
-                                                                ?: emailDoc)?.substringBefore("@")
-                                                            ?: usuarioUid
-                                                        val usuarioEmailFinal =
-                                                            emailAuth ?: emailDoc
-
-                                                        // 3) Registrar auditoría
-                                                        registrarAuditoriaConteo(
-                                                            clienteId = cid,
-                                                            registroId = item.documentId,
-                                                            tipoAccion = "editar",
-                                                            usuarioNombre = usuarioNombreFinal,
-                                                            usuarioUid = usuarioUid,
-                                                            valoresAntes = auditAntes,
-                                                            valoresDespues = auditDespues,
-                                                            usuarioEmail = usuarioEmailFinal
-                                                        )
-                                                            .addOnSuccessListener { ref ->
-                                                                Log.d(
-                                                                    "Auditoria",
-                                                                    "OK -> /clientes/$cid/auditoria_registros/${ref.id}"
-                                                                )
-                                                            }
-                                                            .addOnFailureListener { e ->
-                                                                Log.e(
-                                                                    "Auditoria",
-                                                                    "Fallo al registrar auditoría",
-                                                                    e
-                                                                )
-                                                                Toast.makeText(
-                                                                    context,
-                                                                    "No se pudo registrar la auditoría: ${e.message}",
-                                                                    Toast.LENGTH_LONG
-                                                                ).show()
-                                                            }
-                                                    }
-                                                    .addOnFailureListener {
-                                                        // Si falla leer /usuarios/{uid}, registra con fallbacks rápidos
-                                                        val usuarioNombreFallback =
-                                                            auth?.displayName
-                                                                ?: emailAuth?.substringBefore("@")
-                                                                ?: usuarioUid
-
-                                                        registrarAuditoriaConteo(
-                                                            clienteId = cid,
-                                                            registroId = item.documentId,
-                                                            tipoAccion = "editar",
-                                                            usuarioNombre = usuarioNombreFallback,
-                                                            usuarioUid = usuarioUid,
-                                                            valoresAntes = auditAntes,
-                                                            valoresDespues = auditDespues,
-                                                            usuarioEmail = emailAuth
-                                                        )
-                                                    }
-                                            }
-
-                                            // === 6) Feedback y cierre del diálogo
-                                            coroutineScope.launch { snackbarHostState.showSnackbar("Registro modificado exitoso") }
-                                            isEditing = false
-                                            onSuccess()
-                                        }
-                                    }
-
-                                    // === 4) Validar ubicación SÓLO si cambió
-                                    if (locationChanged) {
-                                        coroutineScope.launch {
-                                            val ok = UbicacionesRepo.existeUbicacion(
-                                                clienteId = cid,
-                                                localidad = item.localidad.ifBlank { "ALM_REP" },
-                                                codigoIngresado = nuevaUbi
+                                            Log.d(
+                                                "EditarInv", "Admin/SU UPDATE -> $updatesFull"
                                             )
-                                            if (!ok) {
-                                                snackbarHostState.showSnackbar("La ubicación no existe en la base de datos")
-                                                return@launch
+                                            docRef.update(updatesFull).addOnSuccessListener {
+                                                // === 4) Optimistic UI ===
+                                                val idx =
+                                                    allData.indexOfFirst { it.documentId == item.documentId }
+                                                if (idx >= 0) {
+                                                    val updatedItem = item.copy(
+                                                        quantity = qty,
+                                                        location = nuevaUbi,  // <<— forzamos nueva ubicación en UI
+                                                        lote = editedLote.trim().ifBlank { "-" }
+                                                            .uppercase(),
+                                                        expirationDate = editedExpirationDate.trim())
+                                                    allData[idx] = updatedItem
+                                                }
+
+                                                // === 5) Auditoría (solo si hubo cambios reales)
+                                                val huboCambios =
+                                                    (locationChanged || quantityChanged || loteChanged || fechaChanged)
+                                                if (huboCambios) {
+                                                    val auth =
+                                                        FirebaseAuth.getInstance().currentUser
+                                                    val usuarioUid =
+                                                        userViewModel.documentId.value ?: auth?.uid
+                                                        ?: ""
+                                                    val emailAuth = auth?.email
+
+                                                    Firebase.firestore.collection("usuarios")
+                                                        .document(usuarioUid).get()
+                                                        .addOnSuccessListener { udoc ->
+                                                            val nombreDoc = udoc.getString("nombre")
+                                                                ?.takeIf { it.isNotBlank() }
+                                                            val emailDoc = udoc.getString("email")
+                                                                ?.takeIf { it.isNotBlank() }
+                                                            val usuarioNombreFinal =
+                                                                nombreDoc ?: auth?.displayName
+                                                                ?: (emailAuth
+                                                                    ?: emailDoc)?.substringBefore(
+                                                                    "@"
+                                                                ) ?: usuarioUid
+                                                            val usuarioEmailFinal =
+                                                                emailAuth ?: emailDoc
+
+                                                            registrarAuditoriaConteo(
+                                                                clienteId = cidLocal,
+                                                                registroId = item.documentId,
+                                                                tipoAccion = "editar",
+                                                                usuarioNombre = usuarioNombreFinal,
+                                                                usuarioUid = usuarioUid,
+                                                                valoresAntes = mapOf(
+                                                                    "ubicacion" to item.location,
+                                                                    "lote" to item.lote,
+                                                                    "fechaVencimiento" to item.expirationDate,
+                                                                    "cantidad" to item.quantity
+                                                                ),
+                                                                valoresDespues = mapOf(
+                                                                    "ubicacion" to nuevaUbi,
+                                                                    "lote" to editedLote.trim()
+                                                                        .ifBlank { "-" }
+                                                                        .uppercase(),
+                                                                    "fechaVencimiento" to editedExpirationDate.trim(),
+                                                                    "cantidad" to qty),
+                                                                usuarioEmail = usuarioEmailFinal)
+                                                        }
+                                                }
+
+                                                // === 6) Feedback y cierre
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        "Registro modificado exitoso"
+                                                    )
+                                                }
+                                                isEditing = false
+                                                onSuccess()
+                                            }.addOnFailureListener { e ->
+                                                Log.e(
+                                                    "EditarInv", "❌ Error update (admin/SU)", e
+                                                )
+                                                Toast.makeText(
+                                                    context,
+                                                    "No se pudo guardar (permisos).",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
                                             }
-                                            continuarConUpdate()
                                         }
-                                    } else {
-                                        continuarConUpdate()
                                     }
+                                    // === 2.5) Validación en app (reuso del helper de la pantalla principal) ===
+                                    val locCodigo = item.localidad?.trim()?.uppercase().orEmpty()
+
+                                    // Guarda dependiendo de si cambió la ubicación
+                                    if (!locationChanged) {
+                                        // No cambió la ubicación → no validar maestro, guardar directo
+                                        continuarConUpdate()
+                                    } else {
+                                        // Sí cambió → validar en maestro y solo si es válida, guardar
+                                        validarUbicacionEnMaestro(
+                                            codigo = nuevaUbi,
+                                            clienteIdActual = cidLocal,
+                                            localidadActual = locCodigo,
+                                            location = editedLocationState,               // mantiene el texto/estado coherente
+                                            showErrorLocation = showErrorLocation,
+                                            showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
+                                            nextFocusRequester = null,                    // no mover foco en el diálogo
+                                            keyboardController = keyboard,
+                                            ocultarTeclado = false,                       // no cierres teclado aquí
+                                            onValid = {
+                                                // ✅ Existe en maestro → ahora sí guardamos
+                                                continuarConUpdate()
+                                            },
+                                            onInvalid = {
+                                                // ❌ No existe → no guardes y muestra feedback
+                                                showErrorLocation.value = true
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar("Ubicación no existe en el maestro")
+                                                }
+                                            })
+                                    }
+
                                 }, colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF003366), contentColor = Color.White
                                 )
                             ) {
                                 Text("Guardar")
                             }
-
-
                         }, dismissButton = {
                             Button(
                                 onClick = {
@@ -739,6 +852,8 @@ fun MessageCard(
                                     editedLote = item.lote
                                     editedExpirationDate = item.expirationDate
                                     editedQuantity = item.quantity.toString()
+                                    editedLocationState.value = item.location.uppercase()
+                                    showErrorLocation.value = false
                                 }, colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xD8692121), contentColor = Color.White
                                 )
@@ -748,9 +863,21 @@ fun MessageCard(
                         })
                     }
                 }
+
+                if (showUbicacionNoExisteDialog.value) {
+                    AlertDialog(
+                        onDismissRequest = { showUbicacionNoExisteDialog.value = false },
+                        title = { Text("Ubicación inválida") },
+                        text = { Text("La ubicación ingresada no existe en el maestro.") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showUbicacionNoExisteDialog.value = false
+                                    focusLoc.requestFocus()
+                                }) { Text("Aceptar") }
+                        })
+                }
             }
         }
     }
 }
-
-

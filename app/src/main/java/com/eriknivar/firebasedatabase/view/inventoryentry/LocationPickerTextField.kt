@@ -37,7 +37,9 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.MutableState
 import com.google.firebase.firestore.ktx.firestore
+
 
 @Composable
 fun OutlinedTextFieldsInputsLocation(
@@ -241,104 +243,108 @@ fun OutlinedTextFieldsInputsLocation(
     }
 }
 
+
+
 fun validarUbicacionEnMaestro(
     codigo: String,
     clienteIdActual: String?,
-    localidadActual: String?,                 // 👈 ahora SÍ se usa
+    localidadActual: String?,
     location: MutableState<String>,
     showErrorLocation: MutableState<Boolean>,
     showUbicacionNoExisteDialog: MutableState<Boolean>,
-    nextFocusRequester: FocusRequester,
+    nextFocusRequester: FocusRequester?,
     keyboardController: SoftwareKeyboardController?,
-    ocultarTeclado: Boolean = false
+    ocultarTeclado: Boolean = false,
+    onValid: (() -> Unit)? = null,      // ⬅️ se usará para “guardar”
+    onInvalid: (() -> Unit)? = null     // ⬅️ feedback adicional
 ) {
+    val TAG = "UBI_VALID"
     val code = codigo.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
-    val cid = clienteIdActual?.trim()?.uppercase()
-    val loc = localidadActual?.trim()?.uppercase()
+    val cid  = clienteIdActual?.trim()?.uppercase()
+    val loc  = localidadActual?.trim()?.uppercase()
 
-    Log.d("UBI_VALID", "-> cid=$cid  loc=$loc  code='$code'")
+    Log.d(TAG, "-> cid=$cid  loc=$loc  code='$code'")
 
     // Validaciones rápidas
-    if (cid.isNullOrBlank() || code.isBlank()) {
-        location.value = ""
+    if (cid.isNullOrBlank() || code.isBlank() || loc.isNullOrBlank()) {
         showErrorLocation.value = true
         showUbicacionNoExisteDialog.value = true
-        return
-    }
-    if (loc.isNullOrBlank()) {
-        // Debe seleccionar la localidad antes de validar
-        location.value = ""
-        showErrorLocation.value = true
-        showUbicacionNoExisteDialog.value = true
-        Log.w("UBI_VALID", "Localidad no seleccionada")
+        onInvalid?.invoke()
         return
     }
 
-    // Maestro NUEVO: clientes/{cid}/localidades/{loc}/ubicaciones/{code}
-    val docRef = Firebase.firestore
-        .collection("clientes").document(cid)
+    val db = Firebase.firestore
+
+    // Ruta NUEVA
+    val docNueva = db.collection("clientes").document(cid)
         .collection("localidades").document(loc)
         .collection("ubicaciones").document(code)
 
-    docRef.get()
+    docNueva.get()
         .addOnSuccessListener { snap ->
-            Log.d(
-                "UBI_VALID",
-                "exists=${snap.exists()} path=clientes/$cid/localidades/$loc/ubicaciones/$code"
-            )
+            Log.d(TAG, "exists=${snap.exists()} path=clientes/$cid/localidades/$loc/ubicaciones/$code")
             if (snap.exists()) {
-                // Sanity check opcional (coincidencias de claves)
-                val okCliente = (snap.getString("clienteId") ?: "").equals(cid, true)
-                val okLocalidad = (snap.getString("localidadCodigo") ?: "").equals(loc, true)
-                if (okCliente && okLocalidad) {
-                    location.value = code
-                    showErrorLocation.value = false
-                    if (ocultarTeclado) keyboardController?.hide()
-                    try {
-                        nextFocusRequester.requestFocus()
-                    } catch (_: Exception) {
-                    }
-                } else {
-                    location.value = ""
-                    showErrorLocation.value = true
-                    showUbicacionNoExisteDialog.value = true
-                }
+                // ✅ éxito (nueva)
+                location.value = code
+                showErrorLocation.value = false
+                if (ocultarTeclado) keyboardController?.hide()
+                try { nextFocusRequester?.requestFocus() } catch (_: Exception) {}
+                onValid?.invoke()                                  // ⬅️ DISPARA GUARDADO
             } else {
-                // (opcional) Fallback al esquema VIEJO mientras migras datos:
-                Firebase.firestore
-                    .collection("clientes").document(cid)
-                    .collection("ubicaciones")
-                    .whereEqualTo("codigo_ubi", code)
-                    .limit(1)
-                    .get()
-                    .addOnSuccessListener { old ->
-                        if (!old.isEmpty) {
-                            // ACEPTA mientras migras
+                // LEGACY por id
+                val docLegacy = db.collection("clientes").document(cid)
+                    .collection("ubicaciones").document(code)
+
+                docLegacy.get()
+                    .addOnSuccessListener { legacySnap ->
+                        Log.d(TAG, "LEGACY exists=${legacySnap.exists()} path=clientes/$cid/ubicaciones/$code")
+                        if (legacySnap.exists()) {
+                            // ✅ éxito (legacy)
                             location.value = code
                             showErrorLocation.value = false
                             if (ocultarTeclado) keyboardController?.hide()
-                            try {
-                                nextFocusRequester.requestFocus()
-                            } catch (_: Exception) {
-                            }
+                            try { nextFocusRequester?.requestFocus() } catch (_: Exception) {}
+                            onValid?.invoke()                      // ⬅️ DISPARA GUARDADO
                         } else {
-                            location.value = ""
-                            showErrorLocation.value = true
-                            showUbicacionNoExisteDialog.value = true
+                            // LEGACY por campo alterno (si lo usaste)
+                            db.collection("clientes").document(cid)
+                                .collection("ubicaciones")
+                                .whereEqualTo("codigo_ubi", code)
+                                .limit(1)
+                                .get()
+                                .addOnSuccessListener { q ->
+                                    if (!q.isEmpty) {
+                                        location.value = code
+                                        showErrorLocation.value = false
+                                        if (ocultarTeclado) keyboardController?.hide()
+                                        try { nextFocusRequester?.requestFocus() } catch (_: Exception) {}
+                                        onValid?.invoke()          // ⬅️ DISPARA GUARDADO
+                                    } else {
+                                        showErrorLocation.value = true
+                                        showUbicacionNoExisteDialog.value = true
+                                        onInvalid?.invoke()
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    showErrorLocation.value = true
+                                    showUbicacionNoExisteDialog.value = true
+                                    onInvalid?.invoke()
+                                }
                         }
                     }
-                    .addOnFailureListener {
-                        location.value = ""
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "LEGACY get() failed: ${e.message}")
                         showErrorLocation.value = true
                         showUbicacionNoExisteDialog.value = true
+                        onInvalid?.invoke()
                     }
             }
         }
         .addOnFailureListener { e ->
-            Log.e("UBI_VALID", "error: ${e.message}", e)
-            location.value = ""
+            Log.e(TAG, "NUEVA get() failed: ${e.message}")
             showErrorLocation.value = true
             showUbicacionNoExisteDialog.value = true
+            onInvalid?.invoke()
         }
 }
 

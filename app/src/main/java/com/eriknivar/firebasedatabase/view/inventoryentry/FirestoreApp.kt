@@ -186,6 +186,7 @@ fun FirestoreApp(
         var q: com.google.firebase.firestore.Query = base
             .whereEqualTo("localidad", loc)
             .whereEqualTo("dia", hoyStr) // 👈 sin race
+            .whereEqualTo("usuarioUid", uidActual) // 🔒 SIEMPRE solo mis registros
             .orderBy("fechaCliente", com.google.firebase.firestore.Query.Direction.DESCENDING)
 
         // ✅ SOLO si es invitado, filtramos por su uid
@@ -258,21 +259,21 @@ fun FirestoreApp(
 
                 )
             }
-
+/*
             val filtrados = if (tipoActual.equals("admin", ignoreCase = true)) {
                 // admin NO ve movimientos creados por “superuser”, pero SÍ ve los de admin e invitado
                 nuevos.filter { it.tipoUsuarioCreador.lowercase() != "superuser" }
             } else {
                 nuevos
-            }
+
 
             allData.clear()
-            allData.addAll(filtrados)
-/*
+            allData.addAll(filtrados)  }*/
+
             allData.clear()
             allData.addAll(nuevos)
             Log.d("InvRealtime", "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})")
- */
+
         }
 
         onDispose { reg.remove() }

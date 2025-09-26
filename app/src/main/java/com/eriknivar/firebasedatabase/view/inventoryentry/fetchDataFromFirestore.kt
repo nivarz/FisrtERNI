@@ -13,26 +13,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 
-// Límites del día [00:00, 24:00)
-private fun hoyBounds(): Pair<Timestamp, Timestamp> {
-    val cal = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val inicio = Timestamp(cal.time)
-    cal.add(Calendar.DAY_OF_MONTH, 1)
-    val fin = Timestamp(cal.time)
-    return inicio to fin
-}
-
 /**
  * Carga puntual de inventario para HOY, por cliente/localidad.
  * - Si tipo == "invitado" filtra por usuarioUid == uid (coherente con reglas).
  * - Ordena por fechaRegistro DESC.
  * - Mapea tolerante (campos legacy).
  */
+
 fun fetchDataFromFirestore(
     db: FirebaseFirestore,
     allData: MutableList<DataFields>,
@@ -40,28 +27,22 @@ fun fetchDataFromFirestore(
     listState: LazyListState,
     localidad: String,
     clienteId: String,
-    tipo: String,                    // "admin" | "invitado" | "superuser"
-    uid: String                      // uid actual
+    tipo: String,                    // ya no condiciona el query, lo dejamos para compat
+    uid: String                      // uid actual (OBLIGATORIO)
 ) {
     val cid = clienteId.trim().uppercase(Locale.ROOT)
     val loc = localidad.trim().uppercase(Locale.ROOT)
-    val (inicio, fin) = hoyBounds()
 
-    // /clientes/{cid}/inventario
-    val base = db.collection("clientes").document(cid).collection("inventario")
-
+    // yyyyMMdd (mismo formato que guardas en los docs)
     val hoyStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
         .format(java.util.Date())
 
-    var q: Query = base
+    // /clientes/{cid}/inventario —> SOLO mis registros de HOY
+    val q: Query = db.collection("clientes").document(cid).collection("inventario")
         .whereEqualTo("localidad", loc)
-        .whereEqualTo("dia", hoyStr) // 👈 estable
+        .whereEqualTo("dia", hoyStr)             // solo hoy
+        .whereEqualTo("usuarioUid", uid)         // solo mis registros
         .orderBy("fechaCliente", Query.Direction.DESCENDING)
-
-    if (tipo.equals("invitado", ignoreCase = true)) {
-        q = q.whereEqualTo("usuarioUid", uid)
-    }
-
 
     q.get()
         .addOnSuccessListener { result ->
