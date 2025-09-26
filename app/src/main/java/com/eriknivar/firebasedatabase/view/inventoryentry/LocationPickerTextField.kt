@@ -219,7 +219,7 @@ fun OutlinedTextFieldsInputsLocation(
                     .padding(start = 4.dp)
             ) {
                 Icon(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(32.dp),
                     imageVector = Icons.Default.DeleteForever,
                     contentDescription = "Borrar texto",
                     tint = Color.Red

@@ -1,8 +1,11 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.app.Activity
 import android.graphics.Bitmap
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -73,7 +76,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
+import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import com.google.firebase.auth.FirebaseAuth
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 
 
 @Composable
@@ -91,7 +96,8 @@ fun FormEntradaDeInventario(
     allData: SnapshotStateList<DataFields>,
     listState: LazyListState,
     isVisible: Boolean,
-    onUserInteraction: () -> Unit
+    onUserInteraction: () -> Unit,
+    conteoMode: ConteoMode
 
 ) {
 
@@ -123,6 +129,15 @@ fun FormEntradaDeInventario(
     val focusRequesterLocation = remember { FocusRequester() }
     val openUbicacionInvalidaDialog = remember { mutableStateOf(false) }
     val tempLocationInput = remember { mutableStateOf("") }
+    val tempLotInput = remember { mutableStateOf("") }
+
+    var isSaving by remember { mutableStateOf(false) }
+    // El botón “Grabar” solo se habilita si NO está guardando y hay datos mínimos válidos
+    val canSave =
+        !isSaving && location.value.isNotBlank() && sku.value.isNotBlank() && (quantity.value.replace(
+            ",",
+            "."
+        ).toDoubleOrNull()?.let { it > 0 } == true)
 
     val context = LocalContext.current
     val firestore = Firebase.firestore
@@ -145,16 +160,38 @@ fun FormEntradaDeInventario(
     val showSuccessDialog = remember { mutableStateOf(false) }
     var usuarioDuplicado by remember { mutableStateOf("Desconocido") }
 
-    val uidActual  = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
+
+    var showExitDialog by remember { mutableStateOf(false) }
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val componentActivity = LocalContext.current as? ComponentActivity
+    val backOwner = LocalOnBackPressedDispatcherOwner.current
+    var pendingExit by remember { mutableStateOf(false) }
+
+    // ¿hay datos sin grabar?
+    val hasDirtyForm = location.value.isNotBlank() ||
+            sku.value.isNotBlank() ||
+            (quantity.value.isNotBlank() && quantity.value != "0") ||
+            (
+                    conteoMode == ConteoMode.CON_LOTE &&
+                            (
+                                    (lot.value.isNotBlank() && lot.value != "-") ||
+                                            (dateText.value.isNotBlank() && dateText.value != "-")
+                                    )
+                    )
+
+    BackHandler(enabled = hasDirtyForm && !isSaving && !pendingExit) {
+        showExitDialog = true
+    }
+
 
     val clienteIdFromUser by userViewModel.clienteId.observeAsState()
     val clienteIdActual: String? =
-        if (SelectedClientStore.isSuperuser)
-            SelectedClientStore.selectedClienteId?.takeIf { it.isNullOrBlank().not() }
-                ?: clienteIdFromUser
-        else
-            clienteIdFromUser
+        if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId?.takeIf {
+            it.isNullOrBlank().not()
+        } ?: clienteIdFromUser
+        else clienteIdFromUser
 
 
     val imagenBitmap = remember { mutableStateOf<Bitmap?>(null) }
@@ -163,6 +200,14 @@ fun FormEntradaDeInventario(
             imagenBitmap.value = bitmap
         }
 
+    val conLote = (conteoMode == ConteoMode.CON_LOTE)
+
+    LaunchedEffect(conLote) {
+        if (!conLote) {
+            lot.value = "-"
+            dateText.value = "-"
+        }
+    }
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -228,7 +273,8 @@ fun FormEntradaDeInventario(
             try {
                 focusRequesterSku.requestFocus()
                 keyboardController?.show()
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -299,7 +345,9 @@ fun FormEntradaDeInventario(
                 focusRequester = focusRequesterLot,
                 nextFocusRequester = focusRequesterFecha,
                 keyboardController = keyboardController,
-                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear
+                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
+                enable = conLote
+
             )
 
             // 📌 CAMPO DE TEXTO PARA LA FECHA
@@ -307,8 +355,25 @@ fun FormEntradaDeInventario(
             DatePickerTextField(
                 dateText,
                 focusRequester = focusRequesterFecha,
-                nextFocusRequester = focusRequesterCantidad
-            )// FUNCION PARA EL CALENDARIO
+                nextFocusRequester = focusRequesterCantidad,
+                enable = conLote
+
+            )
+
+            // Opcional: forzar “-” cuando se cambia a SIN_LOTE
+            LaunchedEffect(conLote) {
+                if (!conLote) {
+                    lot.value = "-"
+                    dateText.value = "-"
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                android.util.Log.d(
+                    "CONTEO_MODE_FORM", "conteoMode=${conteoMode.name}, conLote=$conLote"
+                )
+            }
+
 
             // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 
@@ -335,6 +400,7 @@ fun FormEntradaDeInventario(
                         if (existeDuplicado) {
                             usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
                             showDialogRegistroDuplicado.value = true
+                            isSaving = false
                         } else {
                             Log.d("FotoDebug", "📤 Enviando a Firestore: $fotoUrl")
 
@@ -380,7 +446,7 @@ fun FormEntradaDeInventario(
                             imagenBitmap.value = null
                             userViewModel.limpiarValoresTemporales()
                         }
-
+                        isSaving = false
                         enfocarSkuDespuesDeGrabar()
                     },
                     onError = { e ->                                     // 👈 MEJORADO
@@ -390,8 +456,8 @@ fun FormEntradaDeInventario(
                             "Error al validar duplicados: ${e.message ?: "ver Logcat"}",
                             Toast.LENGTH_LONG
                         ).show()
-                    }
-                )
+                        isSaving = false
+                    })
             }
 
             fun subirImagenAFirebase(bitmap: Bitmap, onUrlLista: (String) -> Unit) {
@@ -402,20 +468,18 @@ fun FormEntradaDeInventario(
                 val storageRef =
                     Firebase.storage.reference.child("fotos_registro/${UUID.randomUUID()}.jpg")
 
-                storageRef.putBytes(data)
-                    .addOnSuccessListener {
-                        storageRef.downloadUrl.addOnSuccessListener { uri ->
-                            val fotoUrl = uri.toString()
-                            Log.d("FotoDebug", "✅ URL generada: $fotoUrl") // 👈 útil para confirmar
+                storageRef.putBytes(data).addOnSuccessListener {
+                    storageRef.downloadUrl.addOnSuccessListener { uri ->
+                        val fotoUrl = uri.toString()
+                        Log.d("FotoDebug", "✅ URL generada: $fotoUrl") // 👈 útil para confirmar
 
-                            onUrlLista(fotoUrl)
-                        }
+                        onUrlLista(fotoUrl)
+                    }
 
-                    }
-                    .addOnFailureListener {
-                        Toast.makeText(context, "Error al subir imagen", Toast.LENGTH_SHORT).show()
-                        onUrlLista("") // en caso de fallo se puede pasar vacío o null
-                    }
+                }.addOnFailureListener {
+                    Toast.makeText(context, "Error al subir imagen", Toast.LENGTH_SHORT).show()
+                    onUrlLista("") // en caso de fallo se puede pasar vacío o null
+                }
             }
 
 
@@ -430,6 +494,7 @@ fun FormEntradaDeInventario(
 
                 Button(
                     onClick = { tomarFotoLauncher.launch(null) },
+                    //enabled = isSaving,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
                     modifier = Modifier
                         .weight(1f)
@@ -440,6 +505,9 @@ fun FormEntradaDeInventario(
 
                 Button(
                     onClick = {
+                        if (isSaving) return@Button     // doble-tap guard
+                        isSaving = true
+
                         onUserInteraction()
                         keyboardController?.hide()
 
@@ -457,6 +525,7 @@ fun FormEntradaDeInventario(
                                 showErrorLocation.value = true
                                 delay(150)
                                 openUbicacionInvalidaDialog.value = true
+                                isSaving = false
                                 return@launch
                             }
 
@@ -468,6 +537,7 @@ fun FormEntradaDeInventario(
                                 showErrorQuantity.value = quantity.value.isEmpty()
                                 delay(150)
                                 showDialog = true
+                                isSaving = false
                                 return@launch
                             }
 
@@ -477,6 +547,7 @@ fun FormEntradaDeInventario(
                                 showErrorSku.value = true
                                 delay(150)
                                 showDialog1 = true
+                                isSaving = false
                                 return@launch
                             }
 
@@ -491,13 +562,11 @@ fun FormEntradaDeInventario(
                             }
 
                             // 🟥 6. Validación: producto no existe o sin descripción válida
-                            if (productoDescripcion.value == "Sin descripción" ||
-                                productoDescripcion.value.isEmpty() ||
-                                productoDescripcion.value == "Error al obtener datos"
-                            ) {
+                            if (productoDescripcion.value == "Sin descripción" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
                                 errorMessage2 = "Código No Existe"
                                 delay(150)
                                 showDialog2 = true
+                                isSaving = false
                                 return@launch
                             }
 
@@ -506,6 +575,7 @@ fun FormEntradaDeInventario(
                                 errorMessage = "No Admite cantidades 0"
                                 showDialogValueQuantityCero = true
                                 showErrorQuantity.value = true
+                                isSaving = false
                                 return@launch
                             }
 
@@ -528,14 +598,24 @@ fun FormEntradaDeInventario(
 
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF003366), contentColor = Color.White
-                    ),
-                    modifier = Modifier
+                    ), modifier = Modifier
                         .weight(1f)
-                        .height(40.dp),
+                        .height(40.dp), enabled = canSave
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Grabar", fontSize = 13.sp, color = Color.White)
+                    // 👇 ESTE ES EL CONTENIDO DEL BOTÓN
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp, modifier = Modifier
+                                .height(18.dp)
+                                .width(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Procesando…", fontSize = 13.sp, color = Color.White)
+                    } else {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Grabar", fontSize = 13.sp, color = Color.White)
+                    }
                 }
 
                 // 🔘 Botón Limpiar
@@ -561,7 +641,8 @@ fun FormEntradaDeInventario(
 
                         enfocarSkuDespuesDeGrabar()
 
-                    }, colors = ButtonDefaults.buttonColors(
+                    }, //enabled = isSaving,
+                    colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50), contentColor = Color.White
                     ), modifier = Modifier
                         .weight(1f)
@@ -605,17 +686,18 @@ fun FormEntradaDeInventario(
                                     continuarGuardadoConFoto(null)
                                 }
 
-                            }
-                        ) {
+                            }) {
                             Text("Sí, grabar", color = Color(0xFF003366))
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showConfirmDialog.value = false }) {
+                        TextButton(onClick = {
+                            showConfirmDialog.value = false
+                            isSaving = false
+                        }) {
                             Text("Cancelar", color = Color(0xFF003366))
                         }
-                    }
-                )
+                    })
             }
 
             if (showDialog) {
@@ -690,16 +772,14 @@ fun FormEntradaDeInventario(
                                     append("\"$usuarioDuplicado\"")
                                 }
                                 append(". Verifica antes de grabar nuevamente.")
-                            },
-                            fontSize = 14.sp // opcional, ajusta tamaño a gusto
+                            }, fontSize = 14.sp // opcional, ajusta tamaño a gusto
                         )
                     },
                     confirmButton = {
                         Button(onClick = { showDialogRegistroDuplicado.value = false }) {
                             Text("Aceptar")
                         }
-                    }
-                )
+                    })
             }
 
             if (showSuccessDialog.value) {
@@ -732,8 +812,7 @@ fun FormEntradaDeInventario(
                                 .fillMaxWidth()
                         ) {
                             CircularProgressIndicator(
-                                color = Color(0xFF003366),
-                                strokeWidth = 3.dp
+                                color = Color(0xFF003366), strokeWidth = 3.dp
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
@@ -761,7 +840,33 @@ fun FormEntradaDeInventario(
                         }
                     })
             }
+            if (showExitDialog) {
+                AlertDialog(
+                    onDismissRequest = { showExitDialog = false },
+                    title = { Text("Salir del conteo") },
+                    text = { Text("Tienes datos sin grabar. ¿Seguro que deseas salir?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showExitDialog = false
+                            pendingExit =
+                                true    // 👈 marca intención de salir (no llames back aquí)
+
+                        }) { Text("Salir") }
+
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showExitDialog = false }) { Text("Cancelar") }
+                    }
+
+
+                )
+            }
+        }
+    }
+    LaunchedEffect(pendingExit) {
+        if (pendingExit) {
+            backDispatcher?.onBackPressed()
+            pendingExit = false
         }
     }
 }
-

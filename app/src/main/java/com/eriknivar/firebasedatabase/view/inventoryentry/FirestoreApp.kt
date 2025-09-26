@@ -57,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.*
+import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
@@ -67,6 +68,7 @@ fun FirestoreApp(
     navController: NavHostController,
     storageType: String,
     userViewModel: UserViewModel,
+    conteoMode: ConteoMode = ConteoMode.CON_LOTE
 
     ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -451,7 +453,9 @@ fun FirestoreApp(
                         dateText = dateText,
                         quantity = quantity,
                         isVisible = expandedForm.value, // 🔵 Usamos esto para mostrar/ocultar internamente
-                        onUserInteraction = { actualizarActividad(context) }
+                        onUserInteraction = { actualizarActividad(context) },
+                        conteoMode = conteoMode
+
                     )
                 }
 
@@ -495,6 +499,8 @@ fun FirestoreApp(
             }
         }
     }
+
+
 }
 
 // Utilidad: límites de HOY [00:00, 24:00)

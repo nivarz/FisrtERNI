@@ -20,8 +20,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.eriknivar.firebasedatabase.view.auditoria.AuditoriaRegistrosScreen
+import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import com.eriknivar.firebasedatabase.view.settings.SettingsFragment
 import com.eriknivar.firebasedatabase.view.inventoryentry.FirestoreApp
+import com.eriknivar.firebasedatabase.view.inventoryentry.FormEntradaDeInventario
 import com.eriknivar.firebasedatabase.view.inventoryentry.ReconteoAsignadoScreen
 import com.eriknivar.firebasedatabase.view.inventoryreports.InventoryReportsFragment
 import com.eriknivar.firebasedatabase.view.login.CambiarPasswordScreen
@@ -38,6 +40,9 @@ import com.eriknivar.firebasedatabase.view.utility.UsuarioFormRoute
 import com.eriknivar.firebasedatabase.viewmodel.SplashScreen
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.delay
+
+// Fuera de cualquier función/clase:
+private const val RUTA_APP_ENTRADA = "appEntrada?loc={loc}&mode={mode}"
 
 @Composable
 fun NetworkAwareNavGraph(
@@ -166,7 +171,6 @@ fun NetworkAwareNavGraph(
                 )
             }
 
-
             composable(Rutas.CLIENTES) {
                 ClientesScreen(navController, userViewModel)
             }
@@ -206,8 +210,25 @@ fun NetworkAwareNavGraph(
                     }
                 )
             }
+            composable(
+                route = RUTA_APP_ENTRADA,
+                arguments = listOf(
+                    navArgument("loc")  { type = NavType.StringType; defaultValue = "" },
+                    navArgument("mode") { type = NavType.StringType; defaultValue = ConteoMode.CON_LOTE.name }
+                )
+            ) { backStackEntry ->
+                val loc = backStackEntry.arguments?.getString("loc").orEmpty()
+                val modeStr = backStackEntry.arguments?.getString("mode") ?: ConteoMode.CON_LOTE.name
+                val conteoMode = runCatching { ConteoMode.valueOf(modeStr) }.getOrElse { ConteoMode.CON_LOTE }
 
-
+                // ⬇️ ¡Aquí renderizamos FirestoreApp para que NO se pierda el Drawer!
+                FirestoreApp(
+                    navController = navController,
+                    storageType = loc,          // si usas loc como “localidad/almacén”
+                    userViewModel = userViewModel,
+                    conteoMode = conteoMode     // <-- lo añadiste en FirestoreApp.kt
+                )
+            }
 
 
         }

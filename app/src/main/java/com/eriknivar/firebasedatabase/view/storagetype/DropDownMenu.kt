@@ -8,13 +8,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -59,7 +63,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.style.TextAlign
-
+import com.eriknivar.firebasedatabase.view.common.ConteoMode
 
 @Composable
 fun DropDownUpScreen(
@@ -90,10 +94,16 @@ fun DropDownUpScreen(
     val cid by userViewModel.clienteId.observeAsState("")     // ya lo usas para el tipo
     val cidActual = cid.trim().uppercase()
 
-    val canOpenMenu = hasClienteSeleccionado && !isLocalidadesLoading && (localidades.isNotEmpty() || isSuperuser)
+    var showConteoDialog by remember { mutableStateOf(false) }
+    var localidadElegida by remember { mutableStateOf("") }
+    var pendingDialog by remember { mutableStateOf(false) }
+
+    val canOpenMenu =
+        hasClienteSeleccionado && !isLocalidadesLoading && (localidades.isNotEmpty() || isSuperuser)
 
     LaunchedEffect(hasClienteSeleccionado, isLocalidadesLoading, localidades.size, isSuperuser) {
-        Log.d("DDM",
+        Log.d(
+            "DDM",
             "hasCliente=${hasClienteSeleccionado}, loading=${isLocalidadesLoading}, size=${localidades.size}, super=${isSuperuser}"
         )
     }
@@ -122,7 +132,14 @@ fun DropDownUpScreen(
                 value = localidadSeleccionada ?: "",
                 onValueChange = { /* readOnly */ },
                 textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
-                placeholder = { Text("Selecciona un Almacen", color = Color(0xFF001F5B), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                placeholder = {
+                    Text(
+                        "Selecciona un Almacen",
+                        color = Color(0xFF001F5B),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                },
                 readOnly = true,
                 singleLine = true,
                 enabled = hasClienteSeleccionado,
@@ -131,7 +148,11 @@ fun DropDownUpScreen(
                     when {
                         !hasClienteSeleccionado -> Text("Selecciona un cliente para ver sus almacenes")
                         isLocalidadesLoading -> Text("Cargando…")
-                        localidades.isEmpty() -> Text("Sin almacenes disponibles para este cliente", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        localidades.isEmpty() -> Text(
+                            "Sin almacenes disponibles para este cliente",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 },
                 trailingIcon = {
@@ -164,7 +185,7 @@ fun DropDownUpScreen(
                 modifier = Modifier
                     .fillMaxWidth(),
 
-            )
+                )
         }
 
         DropdownMenu(
@@ -204,9 +225,11 @@ fun DropDownUpScreen(
                         DropdownMenuItem(
                             text = { Text(loc) },
                             onClick = {
-                                expandedDropdown = false
                                 onUserInteraction()
-                                onSelectLocalidad(loc)        // navega desde el padre
+                                localidadElegida = loc
+                                pendingDialog = true        // pedir abrir diálogo
+                                expandedDropdown = false     // ⬅️ abre el diálogo
+
                             }
                         )
                     }
@@ -245,6 +268,26 @@ fun DropDownUpScreen(
             }
         }
 
+        // Abre el diálogo solo cuando el menú terminó de cerrarse
+        LaunchedEffect(expandedDropdown, pendingDialog) {
+            if (!expandedDropdown && pendingDialog) {
+                kotlinx.coroutines.delay(120)   // 100–150 ms
+                showConteoDialog = true
+                pendingDialog = false
+            }
+        }
+
+        // Diálogo de selección de modo
+        ConteoModeDialog(
+            visible = showConteoDialog,
+            onDismiss = { showConteoDialog = false },
+            onConfirm = { modo ->
+                showConteoDialog = false
+                val loc = localidadElegida.orEmpty()
+                navController.navigate("appEntrada?loc=$loc&mode=${modo.name}")
+            }
+        )
+
 
         ClientePickerDialog(
             open = showClientePicker,
@@ -264,9 +307,5 @@ fun DropDownUpScreen(
         }
 
     }
+
 }
-
-
-
-
-

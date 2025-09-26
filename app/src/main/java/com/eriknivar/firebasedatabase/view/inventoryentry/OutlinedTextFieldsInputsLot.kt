@@ -3,6 +3,8 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,13 +45,13 @@ fun OutlinedTextFieldsInputsLot(
     nextFocusRequester: FocusRequester,
     keyboardController: SoftwareKeyboardController?,
     onUserInteraction: () -> Unit = {},
-    shouldRequestFocusAfterClear: MutableState<Boolean> // 👈 Nueva bandera
+    shouldRequestFocusAfterClear: MutableState<Boolean>, // 👈 Nueva bandera
+    enable: Boolean = true
 
 ) {
     val qrCodeContentLot = remember { mutableStateOf("") }
     val wasScanned = remember { mutableStateOf(false) }
     val zebraScanned = remember { mutableStateOf(false) }
-
 
     val qrScanLauncherLot =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -62,6 +64,9 @@ fun OutlinedTextFieldsInputsLot(
                 wasScanned.value = true // ✅ Indicamos que vino del escáner
             }
         }
+
+    // fuerza "-" cuando está deshabilitado
+    LaunchedEffect(enable) { if (!enable) lot.value = "-" }
 
 
     // ✅ Foco automático después de limpiar
@@ -110,6 +115,11 @@ fun OutlinedTextFieldsInputsLot(
         }
     }
 
+    // detecta foco como en Location (si allí usas temp*, aquí no hace falta uno nuevo)
+    val interaction = remember { MutableInteractionSource() }
+    val isFocused by interaction.collectIsFocusedAsState()
+
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -123,6 +133,7 @@ fun OutlinedTextFieldsInputsLot(
             singleLine = true,
             label = { Text(text = "Lote") },
             value = lot.value,
+            interactionSource = interaction,
             onValueChange = {
                 val upper = it.trim().uppercase()
                 val isZebra = upper.length >= 5 && (upper.length - lot.value.length > 2)
@@ -134,17 +145,22 @@ fun OutlinedTextFieldsInputsLot(
 
                 onUserInteraction()
             },
+            // ⬇️ NUEVO
+            enabled = enable,
+            readOnly = !enable,
             trailingIcon = {
-                IconButton(
-                    onClick = {
-                        qrCodeScannerLot.startQRCodeScanner(context as android.app.Activity)
-                    },
-                    modifier = Modifier.size(60.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCodeScanner,
-                        contentDescription = "Escanear Código"
-                    )
+                if (enable) {
+                    IconButton(
+                        onClick = {
+                            qrCodeScannerLot.startQRCodeScanner(context as android.app.Activity)
+                        },
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.QrCodeScanner,
+                            contentDescription = "Escanear Código"
+                        )
+                    }
                 }
             },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
@@ -153,8 +169,10 @@ fun OutlinedTextFieldsInputsLot(
             })
         )
 
-        // 🔵 Ícono de borrar separado (afuera del campo)
-        if (lot.value.isNotEmpty()) {
+        // ⬇️ NUEVO: solo mostrar borrar si está habilitado
+
+        // Mostrar zafacón cuando hay texto (y no es "-") y el campo está habilitado
+        if (enable && lot.value.isNotBlank() && lot.value != "-") {
             IconButton(
                 onClick = {
                     lot.value = ""
@@ -163,15 +181,17 @@ fun OutlinedTextFieldsInputsLot(
                 modifier = Modifier
                     .size(48.dp)
                     .padding(start = 4.dp)
-
             ) {
                 Icon(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(32.dp),
                     imageVector = Icons.Default.DeleteForever,
                     contentDescription = "Borrar texto",
                     tint = Color.Red
                 )
             }
         }
+
+
+
     }
 }
