@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
+import java.util.Calendar
 import java.util.Locale
 
 fun saveToFirestore(
@@ -36,6 +37,13 @@ fun saveToFirestore(
     // /clientes/{cid}/inventario
     val invRef = db.collection("clientes").document(cid).collection("inventario")
 
+    // “sin lote/fecha” => guarda guiones
+    val loteFinal = lote.trim().uppercase(Locale.ROOT).ifBlank { "-" }
+    val vencFinal = expirationDate.trim().ifBlank { "-" }
+
+    val cal = Calendar.getInstance()          // hora local del dispositivo
+    val diaHoy = cal.get(Calendar.DAY_OF_MONTH)  // <-- 1..31 (entero)
+
     // arriba del data:
     val hoyStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
         .format(java.util.Date())
@@ -49,11 +57,12 @@ fun saveToFirestore(
         // Producto
         "codigoProducto" to sku.trim().uppercase(Locale.ROOT),
         "descripcion" to description,
-        "unidad" to unidadMedida,           // alias corto (legacy)
+        //"unidad" to unidadMedida,           // alias corto (legacy)
         "unidadMedida" to unidadMedida,     // alias usado en UI/lista
 
         // Lote / Cantidad
         "lote" to (lote.ifBlank { "-" }.trim().uppercase(Locale.ROOT)),
+        "fechaVencimiento" to vencFinal,
         "cantidad" to quantity,
 
         // Auditoría de usuario
@@ -66,14 +75,12 @@ fun saveToFirestore(
         "fechaRegistro" to FieldValue.serverTimestamp(),
         "creadoEn" to FieldValue.serverTimestamp(),
 
+        // Ayuda para filtros del día
+        "dia" to hoyStr,
+        "fechaCliente" to FieldValue.serverTimestamp(),
+
         // Foto (si llegó)
         "fotoUrl" to (fotoUrl ?: ""),
-
-        // dentro del map 'data'
-        "fecha" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-        "fechaRegistro" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-        "fechaCliente" to com.google.firebase.Timestamp.now(),  // 👈 inmediato, sin race
-        "dia" to hoyStr,                                        // 👈 clave estable para filtrar
 
     )
 

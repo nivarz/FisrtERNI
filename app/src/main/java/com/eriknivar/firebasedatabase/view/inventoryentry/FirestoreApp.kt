@@ -493,6 +493,7 @@ fun FirestoreApp(
                             index = index,
                             expandedStates = expandedStates,
                             userViewModel = userViewModel,
+                            conteoMode = conteoMode
                         )
                     }
                 }

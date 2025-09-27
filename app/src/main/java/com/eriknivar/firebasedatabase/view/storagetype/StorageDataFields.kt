@@ -34,7 +34,12 @@ data class DataFields(
     val expirationDate: String = "",
     val sku: String = "",            // 👈 alias de codigoProducto
     val description: String = ""     // 👈 alias de descripcion
-)
+){
+    // Úsalo en UI: si expirationDate viene vacío, cae a fechaVencimiento
+    val expirationForUi: String
+        get() = if (expirationDate.isNotBlank()) expirationDate
+        else fechaVencimiento.ifBlank { "-" }
+}
 
 
 

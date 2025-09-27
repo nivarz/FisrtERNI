@@ -130,6 +130,7 @@ fun FormEntradaDeInventario(
     val openUbicacionInvalidaDialog = remember { mutableStateOf(false) }
     val tempLocationInput = remember { mutableStateOf("") }
     val tempLotInput = remember { mutableStateOf("") }
+    val showSavingDialog = remember { mutableStateOf(false) }
 
     var isSaving by remember { mutableStateOf(false) }
     // El botón “Grabar” solo se habilita si NO está guardando y hay datos mínimos válidos
@@ -169,20 +170,58 @@ fun FormEntradaDeInventario(
     val backOwner = LocalOnBackPressedDispatcherOwner.current
     var pendingExit by remember { mutableStateOf(false) }
 
-    // ¿hay datos sin grabar?
-    val hasDirtyForm = location.value.isNotBlank() ||
-            sku.value.isNotBlank() ||
-            (quantity.value.isNotBlank() && quantity.value != "0") ||
-            (
-                    conteoMode == ConteoMode.CON_LOTE &&
-                            (
-                                    (lot.value.isNotBlank() && lot.value != "-") ||
-                                            (dateText.value.isNotBlank() && dateText.value != "-")
-                                    )
-                    )
+    val conLote = (conteoMode == ConteoMode.CON_LOTE)
 
-    BackHandler(enabled = hasDirtyForm && !isSaving && !pendingExit) {
-        showExitDialog = true
+    // 👇 Centraliza si hay algún diálogo modal abierto que deba cerrar primero con Back
+    val anyBlockingDialogOpen =
+        showConfirmDialog.value ||
+                showDialog ||
+                showDialog1 ||
+                showDialog2 ||
+                showDialogValueQuantityCero ||
+                openUbicacionInvalidaDialog.value ||
+                showDialogRegistroDuplicado.value ||
+                showSavingDialog.value
+    // Nota: normalmente NO cierres showSuccessDialog con back;
+    // si quieres que Back lo cierre, añádelo aquí: || showSuccessDialog.value
+
+    // 👇 Detecta si hay cambios que NO se han grabado
+    val hasDirtyForm: Boolean = run {
+        val locDirty  = location.value.trim().isNotBlank()
+        val skuDirty  = sku.value.trim().isNotBlank()
+        val qtyDirty  = quantity.value.trim().isNotBlank()
+
+        // En SIN_LOTE: ignora los "-" automáticos
+        val loteVal   = lot.value.trim()
+        val vencVal   = dateText.value.trim()
+
+        val loteDirty = if (conLote) loteVal.isNotBlank() else false
+        val vencDirty = if (conLote) (vencVal.isNotBlank() && vencVal != "-") else false
+
+        locDirty || skuDirty || qtyDirty || loteDirty || vencDirty
+    }
+
+    // ¿hay datos sin grabar?
+    BackHandler(enabled = !isSaving && !pendingExit) {
+        when {
+            anyBlockingDialogOpen -> {
+                showConfirmDialog.value = false
+                showDialog = false
+                showDialog1 = false
+                showDialog2 = false
+                showDialogValueQuantityCero = false
+                openUbicacionInvalidaDialog.value = false
+                showDialogRegistroDuplicado.value = false
+                // showSuccessDialog: déjalo si NO quieres cerrarlo con back
+                // showSavingDialog: lo cierra el flujo de guardado
+            }
+            hasDirtyForm -> {
+                showExitDialog = true
+            }
+            else -> {
+                pendingExit = true
+            }
+        }
     }
 
 
@@ -200,14 +239,7 @@ fun FormEntradaDeInventario(
             imagenBitmap.value = bitmap
         }
 
-    val conLote = (conteoMode == ConteoMode.CON_LOTE)
 
-    LaunchedEffect(conLote) {
-        if (!conLote) {
-            lot.value = "-"
-            dateText.value = "-"
-        }
-    }
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -662,8 +694,6 @@ fun FormEntradaDeInventario(
                     .padding(8.dp)
             )
 
-            val showSavingDialog = remember { mutableStateOf(false) }
-
             if (showConfirmDialog.value) {
                 AlertDialog(
                     onDismissRequest = { showConfirmDialog.value = false },
@@ -848,17 +878,16 @@ fun FormEntradaDeInventario(
                     confirmButton = {
                         TextButton(onClick = {
                             showExitDialog = false
-                            pendingExit =
-                                true    // 👈 marca intención de salir (no llames back aquí)
-
+                            // Limpieza visual mínima (opcional)
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            // Dispara la salida (BackHandler ya está deshabilitado por pendingExit)
+                            pendingExit = true
                         }) { Text("Salir") }
-
                     },
                     dismissButton = {
                         TextButton(onClick = { showExitDialog = false }) { Text("Cancelar") }
                     }
-
-
                 )
             }
         }

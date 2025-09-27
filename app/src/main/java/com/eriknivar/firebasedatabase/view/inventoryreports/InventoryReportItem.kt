@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +49,9 @@ import java.util.Calendar
 import java.util.Locale
 import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
 import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 
 @Composable
 fun InventoryReportItem(
@@ -71,11 +76,14 @@ fun InventoryReportItem(
     val backgroundColor = if (expanded) Color(0xFFE3F2FD) else Color.White
 
     var isSaving by remember { mutableStateOf(false) }
-    var showUbiInvalida by remember { mutableStateOf(false) }
-    var ubiInvalidaTexto by remember { mutableStateOf("") }
+   // var showUbiInvalida by remember { mutableStateOf(false) }
+    //var ubiInvalidaTexto by remember { mutableStateOf("") }
 
     val cid = clienteIdActual.trim().uppercase()
     val loc = item.localidad.trim().uppercase()
+
+    var showUbiInvalida by remember { mutableStateOf(false) }
+    var ubiInvalidaTexto by remember { mutableStateOf<AnnotatedString>(AnnotatedString("")) }
 
 
     val datePickerDialog = DatePickerDialog(
@@ -209,17 +217,24 @@ fun InventoryReportItem(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Button(
+                        IconButton(
                             onClick = { showEditDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
-                        ) {
-                            Text("Editar")
+
+                            ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                tint = Color.Blue
+                            )
                         }
-                        Button(
+                        IconButton(
                             onClick = { showDeleteDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
                         ) {
-                            Text("Eliminar")
+                            Icon(
+                                Icons.Default.DeleteForever,
+                                contentDescription = "Eliminar",
+                                tint = Color.Red
+                            )
                         }
                     }
                 } else {
@@ -239,12 +254,12 @@ fun InventoryReportItem(
                     onDelete(item.documentId)
                     showDeleteDialog = false
                 }) {
-                    Text("Sí")
+                    Text("Sí", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("No")
+                    Text("No", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -307,12 +322,13 @@ fun InventoryReportItem(
                         if (isSaving) return@TextButton
                         isSaving = true
 
-                        val cid  = clienteIdActual.trim().uppercase()
-                        val loc  = item.localidad.trim().uppercase()          // usa el campo correcto de tu DataFields
-                        val ubi  = ubicacion.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
-                        val loteEdit  = lote.trim().uppercase()
+                        val cid = clienteIdActual.trim().uppercase()
+                        val loc = item.localidad.trim()
+                            .uppercase()          // usa el campo correcto de tu DataFields
+                        val ubi = ubicacion.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
+                        val loteEdit = lote.trim().uppercase()
                         val fechaEdit = fechaVencimiento.trim()
-                        val cantEdit  = cantidad.replace(",", ".").toDoubleOrNull() ?: item.quantity
+                        val cantEdit = cantidad.replace(",", ".").toDoubleOrNull() ?: item.quantity
 
                         if (cid.isBlank() || loc.isBlank() || ubi.isBlank()) {
                             isSaving = false
@@ -331,42 +347,55 @@ fun InventoryReportItem(
                                         expirationDate = fechaEdit,
                                         quantity = cantEdit
                                     )
-                                    onEdit(actualizado)         // tu lógica de persistencia afuera
+                                    onEdit(actualizado)
                                     isSaving = false
                                     showEditDialog = false
                                 } else {
-                                    ubiInvalidaTexto = "“$ubi” no existe en el maestro para $loc."
+                                    ubiInvalidaTexto = buildAnnotatedString {
+                                        append("“")
+                                        pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                                        append(ubi)
+                                        pop()
+                                        append("” no existe en el maestro para ")
+                                        // Si también quieres resaltar la localidad, deja este bloque:
+                                        pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                                        append(loc)
+                                        pop()
+                                        append(".")
+                                    }
                                     showUbiInvalida = true
                                     isSaving = false
                                 }
                             },
                             onError = {
-                                ubiInvalidaTexto = "No se pudo validar la ubicación."
+                                ubiInvalidaTexto = AnnotatedString("No se pudo validar la ubicación.")
                                 showUbiInvalida = true
                                 isSaving = false
                             }
                         )
+
                     }
                 ) {
-                    Text(if (isSaving) "Validando…" else "Guardar")
+                    Text(if (isSaving) "Validando…" else "Guardar", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showEditDialog = false }) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
                 }
             }
         )
         if (showUbiInvalida) {
-            androidx.compose.material3.AlertDialog(
+            AlertDialog(
                 onDismissRequest = { showUbiInvalida = false },
-                title = { Text("Ubicación inválida") },
-                text  = { Text(ubiInvalidaTexto) },
                 confirmButton = {
-                    TextButton(onClick = { showUbiInvalida = false }) { Text("Entendido") }
-                }
+                    TextButton(onClick = { showUbiInvalida = false }) {
+                        Text("Entendido", fontWeight = FontWeight.Bold, color = Color(0xFF003366))
+                    }
+                },
+                title = { Text("Ubicación inválida") },
+                text  = { Text(ubiInvalidaTexto) } // <- AnnotatedString con “ubi” (y “loc”) en negrita
             )
         }
-
     }
 }

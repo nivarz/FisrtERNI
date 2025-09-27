@@ -39,10 +39,13 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.ListenerRegistration
 
 data class ClienteLite(val id: String, val nombre: String)
@@ -68,6 +71,25 @@ fun AuditoriaRegistrosScreen(
     var auditorias by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    val tipo by userViewModel.tipo.observeAsState("")
+
+    if (!tipo.equals("admin", true) && !isSuper) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Text(
+                text = "⛔ Acceso restringido",
+                color = Color.Red,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(32.dp)
+            )
+        }
+        return
+    }
 
     // 1) Cargar lista de clientes (solo SUPERUSER)
     LaunchedEffect(isSuper) {

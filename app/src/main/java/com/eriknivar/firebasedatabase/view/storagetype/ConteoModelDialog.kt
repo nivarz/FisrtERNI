@@ -10,12 +10,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -102,22 +104,29 @@ private fun OptionCard(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val selectedColor by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceVariant,
+    // Azul marino cuando está seleccionado
+    val navy = Color(0xFF0D3B66)
+
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) navy else MaterialTheme.colorScheme.surfaceVariant,
         label = "option-bg"
     )
+    val contentOn = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+    val subtitleOn = if (selected) Color.White.copy(alpha = 0.85f)
+    else MaterialTheme.colorScheme.onSurfaceVariant
 
     ElevatedCard(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = containerColor,
+            contentColor   = contentOn
+        )
     ) {
         Row(
             modifier = Modifier
-                .background(selectedColor)
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-                .clickable { onClick() },
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Icono
@@ -125,14 +134,17 @@ private fun OptionCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(
+                        if (selected) navy.copy(alpha = .15f)
+                        else MaterialTheme.colorScheme.surface
+                    )
                     .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = contentOn
                 )
             }
 
@@ -143,20 +155,23 @@ private fun OptionCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = contentOn
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = subtitleOn
                 )
             }
 
-            // ✅ Solo RadioButton (sin puntito extra)
             RadioButton(
                 selected = selected,
-                onClick = onClick
+                onClick = onClick,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = contentOn,
+                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         }
     }

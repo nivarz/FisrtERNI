@@ -46,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -76,7 +77,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
 import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
-
+import com.eriknivar.firebasedatabase.view.common.ConteoMode
 
 @Composable
 fun MessageCard(
@@ -87,7 +88,8 @@ fun MessageCard(
     listState: LazyListState,
     index: Int,
     expandedStates: MutableMap<String, Boolean>,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+    conteoMode: ConteoMode
 ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
@@ -98,11 +100,17 @@ fun MessageCard(
     var editedLocation by remember(item.documentId, item.location) { mutableStateOf(item.location) }
     var editedLote by remember(item.documentId, item.lote) { mutableStateOf(item.lote) }
     var editedExpirationDate by remember(
-        item.documentId, item.expirationDate
-    ) { mutableStateOf(item.expirationDate) }
+        item.documentId,
+        item.expirationForUi
+    ) { mutableStateOf(item.expirationForUi.ifBlank { "-" }) }
+
     var editedQuantity by remember(
         item.documentId, item.quantity
     ) { mutableStateOf(item.quantity.toString()) }
+
+    LaunchedEffect(item.documentId) {
+        editedExpirationDate = item.expirationForUi.ifBlank { "-" }
+    }
 
     // Estados para el campo de Ubicación en el diálogo de edición
     val editedLocationState = remember { mutableStateOf(editedLocation.uppercase()) }
@@ -113,12 +121,41 @@ fun MessageCard(
         remember { FocusRequester() } // para saltar al siguiente campo si la validación pasa
     val keyboard = LocalSoftwareKeyboardController.current
 
+    // --- Flags de permisos/modo para edición de Lote/Vencimiento ---
+    val isInv = (userViewModel.tipo.value ?: "")
+        .equals("invitado", ignoreCase = true)
+    // Evita dependencia directa del enum: comparamos por nombre/string
+    val isConLote = item.lote.trim() != "-"
+    val canEditLoteYVenc = (conteoMode == ConteoMode.CON_LOTE)
+
+    // Para evitar reescrituras en recomposición
+    var dialogInitialized by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isEditing, item.documentId) {
+        if (isEditing && !dialogInitialized) {
+            // Carga los valores actuales del registro
+            editedLocationState.value = item.location.trim().uppercase()
+            editedLote = item.lote.trim().uppercase()
+
+            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
+
+            editedQuantity = item.quantity.toString()
+
+            dialogInitialized = true
+        }
+    }
+
+    LaunchedEffect(canEditLoteYVenc) {
+        if (!canEditLoteYVenc) editedExpirationDate = "-"    // SIN_LOTE -> “-”
+    }
+
+
     LaunchedEffect(item.documentId, item.location, item.lote, item.expirationDate, item.quantity) {
         // ✅ No tocar campos si el usuario ya está editando (evita “rebote”)
         if (!isEditing) {
             editedLocation = item.location
             editedLote = item.lote
-            editedExpirationDate = item.expirationDate
+            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
             editedQuantity = item.quantity.toString()
             editedLocationState.value = item.location.trim().uppercase()
             showErrorLocation.value = false
@@ -142,7 +179,7 @@ fun MessageCard(
             title = { Text("Confirmar eliminación") },
             text = { Text("¿Estás seguro de que deseas borrar este registro?") },
             confirmButton = {
-                Button(
+                TextButton(
                     onClick = {
                         val cidLocal = (userViewModel.clienteId.value ?: "").trim().uppercase()
                         val rolLocal = (userViewModel.tipo.value ?: "").lowercase()
@@ -234,23 +271,14 @@ fun MessageCard(
                                 context, "No se pudo verificar permisos.", Toast.LENGTH_LONG
                             ).show()
                         }
-                    }) { Text("Sí") }
+                    }) { Text("Sí", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                Button(onClick = { showDialog = false }) { Text("No") }
+                TextButton(
+                    onClick = { showDialog = false }) { Text("No", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
             })
     }
 
-    val datePickerDialog = DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            editedExpirationDate =
-                String.format(Locale.US, "%02d/%02d/%04d", dayOfMonth, month + 1, year)
-        },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    )
 
     val isExpanded = expandedStates[item.documentId] ?: false
     val rotationAngle by animateFloatAsState(
@@ -264,8 +292,64 @@ fun MessageCard(
             listState.animateScrollToItem(index)
         }
     }
-
     val backgroundColorCard = if (isExpanded) Color(0xFFE3F2FD) else Color.White
+
+
+    // saber si la fecha vino del date picker
+    var justPicked by remember { mutableStateOf(false) }
+
+    // (opcional) normaliza la fecha inicial del item: si vino "yyyy-MM-dd" -> "dd/MM/yyyy"
+    LaunchedEffect(isEditing, item.documentId) {
+        if (isEditing) {
+            val raw = item.expirationDate.trim()
+            editedExpirationDate = when {
+                raw.isBlank() || raw == "-" -> ""
+                raw.matches(Regex("""^\d{2}/\d{2}/\d{4}$""")) -> raw
+                raw.matches(Regex("""^\d{4}-\d{2}-\d{2}$""")) -> {
+                    val y = raw.substring(0, 4)
+                    val m = raw.substring(5, 7)
+                    val d = raw.substring(8, 10)
+                    "$d/$m/$y"
+                }
+
+                else -> raw // por si ya viene en otro formato conocido por ti
+            }
+            justPicked = false
+        }
+    }
+
+    // construye el DatePicker con fecha inicial
+    val cal = Calendar.getInstance().apply {
+        val r = editedExpirationDate
+        if (r.matches(Regex("""^\d{2}/\d{2}/\d{4}$"""))) {
+            val d = r.substring(0, 2).toInt()
+            val m = r.substring(3, 5).toInt() - 1
+            val y = r.substring(6, 10).toInt()
+            set(y, m, d)
+        }
+    }
+
+    val datePickerDialog = DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            editedExpirationDate = "%02d/%02d/%04d".format(dayOfMonth, month + 1, year)
+            justPicked = true
+        },
+        cal.get(Calendar.YEAR),
+        cal.get(Calendar.MONTH),
+        cal.get(Calendar.DAY_OF_MONTH)
+    )
+
+    // si el campo está deshabilitado por modo, fuerza "-"
+    LaunchedEffect(canEditLoteYVenc) { if (!canEditLoteYVenc) editedExpirationDate = "-" }
+
+    // si borran o queda vacío, quita el flag
+    LaunchedEffect(editedExpirationDate) {
+        if (editedExpirationDate.isBlank() || editedExpirationDate == "-") justPicked = false
+    }
+
+    val iconAlpha = if (canEditLoteYVenc) 1f else 0.3f
+
 
     Card(
         modifier = Modifier
@@ -351,7 +435,7 @@ fun MessageCard(
                             }
                             Row {
                                 Text("Fecha Vencimiento: ", fontSize = 13.sp, color = Color.Blue)
-                                Text(item.expirationDate, fontSize = 13.sp, color = Color.Black)
+                                Text(item.expirationForUi, fontSize = 13.sp, color = Color.Black)
                             }
                             Row {
                                 Text("Cantidad: ", fontSize = 13.sp, color = Color.Blue)
@@ -462,7 +546,7 @@ fun MessageCard(
                             isEditing = false
                             editedLocation = item.location
                             editedLote = item.lote
-                            editedExpirationDate = item.expirationDate
+                            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
                             editedQuantity = item.quantity.toString()
                             editedLocationState.value = item.location.uppercase()
                             showErrorLocation.value = false
@@ -497,7 +581,8 @@ fun MessageCard(
                                     value = editedLote,
                                     onValueChange = { editedLote = it.uppercase().trim() },
                                     label = { Text("Editar Lote") },
-                                    readOnly = isInvitado, // Invitado no edita lote
+                                    enabled = canEditLoteYVenc,
+                                    readOnly = !canEditLoteYVenc,
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -506,21 +591,23 @@ fun MessageCard(
 
                                 // === Fecha de Vencimiento ===
                                 OutlinedTextField(
-                                    value = "-",
+                                    value = editedExpirationDate.ifBlank { "-" },        // ← no uses ifBlank aquí; ya viene “-”
                                     onValueChange = { editedExpirationDate = it },
                                     label = { Text("Editar Fecha Vencimiento") },
-                                    readOnly = isInvitado, // Invitado no edita fecha
+                                    enabled = canEditLoteYVenc,
+                                    readOnly = !canEditLoteYVenc,
+                                    singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
                                     trailingIcon = {
-                                        if (!isInvitado) {
-                                            IconButton(onClick = { datePickerDialog.show() }) {
-                                                Icon(
-                                                    Icons.Default.CalendarMonth,
-                                                    contentDescription = "Seleccionar fecha"
-                                                )
-                                            }
+                                        IconButton(
+                                            onClick = { if (canEditLoteYVenc) datePickerDialog.show() },
+                                            enabled = canEditLoteYVenc,
+                                            modifier = Modifier.alpha(if (canEditLoteYVenc) 1f else 0.3f)
+                                        ) {
+                                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
                                         }
-                                    })
+                                    }
+                                )
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -572,7 +659,6 @@ fun MessageCard(
                                     val fechaChanged =
                                         (editedExpirationDate.trim() != item.expirationDate.trim())
 
-
                                     // === 1) Validaciones ===
                                     if (isInv) {
                                         if (!locationChanged && !quantityChanged) {
@@ -604,7 +690,7 @@ fun MessageCard(
                                     val valoresDespues: Map<String, Any?> = mapOf(
                                         "ubicacion" to nuevaUbi,
                                         "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
-                                        "fechaVencimiento" to editedExpirationDate.trim(),
+                                        "fechaVencimiento" to editedExpirationDate.trim().ifBlank { "-" },
                                         "cantidad" to qty
                                     )
                                     val cambiosClaves =
@@ -854,7 +940,7 @@ fun MessageCard(
                                     isEditing = false
                                     editedLocation = item.location
                                     editedLote = item.lote
-                                    editedExpirationDate = item.expirationDate
+                                    editedExpirationDate = item.expirationForUi.ifBlank { "-" }
                                     editedQuantity = item.quantity.toString()
                                     editedLocationState.value = item.location.uppercase()
                                     showErrorLocation.value = false
