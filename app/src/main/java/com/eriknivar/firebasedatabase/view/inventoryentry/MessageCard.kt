@@ -74,6 +74,9 @@ import com.google.firebase.firestore.FieldValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
+import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
+
 
 @Composable
 fun MessageCard(
@@ -806,36 +809,37 @@ fun MessageCard(
                                             }
                                         }
                                     }
-                                    // === 2.5) Validación en app (reuso del helper de la pantalla principal) ===
-                                    val locCodigo = item.localidad?.trim()?.uppercase().orEmpty()
+                                    // === 2.5) Validación en app (helper compartido) ===
+                                    val locCodigo = item.localidad.trim().uppercase().orEmpty()
 
-                                    // Guarda dependiendo de si cambió la ubicación
                                     if (!locationChanged) {
                                         // No cambió la ubicación → no validar maestro, guardar directo
                                         continuarConUpdate()
                                     } else {
-                                        // Sí cambió → validar en maestro y solo si es válida, guardar
+                                        // Sí cambió → validar en maestro (nueva ruta + fallback legacy)
+                                        val ubiNormalizada = normalizeUbi(nuevaUbi)
                                         validarUbicacionEnMaestro(
-                                            codigo = nuevaUbi,
-                                            clienteIdActual = cidLocal,
-                                            localidadActual = locCodigo,
-                                            location = editedLocationState,               // mantiene el texto/estado coherente
-                                            showErrorLocation = showErrorLocation,
-                                            showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
-                                            nextFocusRequester = null,                    // no mover foco en el diálogo
-                                            keyboardController = keyboard,
-                                            ocultarTeclado = false,                       // no cierres teclado aquí
-                                            onValid = {
-                                                // ✅ Existe en maestro → ahora sí guardamos
-                                                continuarConUpdate()
+                                            clienteId = cidLocal,
+                                            localidadCodigo = locCodigo,
+                                            codigoUbi = ubiNormalizada,
+                                            onResult = { existe ->
+                                                if (existe) {
+                                                    // Asegura que guardamos la versión normalizada
+                                                    editedLocationState.value = ubiNormalizada
+                                                    continuarConUpdate()
+                                                } else {
+                                                    showErrorLocation.value = true
+                                                    showUbicacionNoExisteDialog.value = true
+                                                }
                                             },
-                                            onInvalid = {
-                                                // ❌ No existe → no guardes y muestra feedback
+                                            onError = { e ->
+                                                // Red / permisos: informa y no guardes
                                                 showErrorLocation.value = true
                                                 coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar("Ubicación no existe en el maestro")
+                                                    snackbarHostState.showSnackbar("No se pudo validar ubicación (${e.message ?: "error"}).")
                                                 }
-                                            })
+                                            }
+                                        )
                                     }
 
                                 }, colors = ButtonDefaults.buttonColors(

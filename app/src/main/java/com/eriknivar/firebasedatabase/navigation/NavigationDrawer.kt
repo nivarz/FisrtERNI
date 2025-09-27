@@ -376,7 +376,7 @@ fun NavigationDrawer(
                                             }
                                     }
                                 ) {
-                                    Text("Sí")
+                                    Text("Sí", color = Color.Black)
                                 }
                             },
                             dismissButton = {
@@ -387,7 +387,7 @@ fun NavigationDrawer(
                                             false // Solo cierra el diálogo si presiona "Cancelar"
                                     }
                                 ) {
-                                    Text("Cancelar")
+                                    Text("Cancelar", color = Color.Black)
                                 }
                             }
                         )
@@ -448,8 +448,6 @@ fun NavigationDrawer(
 
                                 )
 
-
-                            //Spacer(modifier = Modifier.weight(1.15f)) // Equilibra el espacio del otro lado
                         }
                     })
             }) { innerPadding ->

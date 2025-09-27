@@ -45,46 +45,8 @@ import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import com.google.firebase.ktx.Firebase
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.DocumentSnapshot
-
-private fun validarUbicacionEnMaestro(
-    clienteId: String,
-    localidadCodigo: String,
-    codigoUbi: String,
-    onResult: (Boolean) -> Unit,
-    onError: (Exception) -> Unit = {}
-) {
-    val cid = clienteId.trim().uppercase()
-    val loc = localidadCodigo.trim().uppercase()
-    val code = codigoUbi.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
-
-    val db = Firebase.firestore
-
-    // 1) Maestro nuevo: /clientes/{cid}/localidades/{loc}/ubicaciones/{code}
-    db.collection("clientes").document(cid)
-        .collection("localidades").document(loc)
-        .collection("ubicaciones").document(code)
-        .get()
-        .addOnSuccessListener { snap ->
-            if (snap.exists()) {
-                onResult(true)
-            } else {
-                // 2) Legacy: /clientes/{cid}/ubicaciones  (campo 'codigo_ubi')
-                db.collection("clientes").document(cid)
-                    .collection("ubicaciones")
-                    .whereEqualTo("codigo_ubi", code)
-                    .limit(1)
-                    .get()
-                    .addOnSuccessListener { q ->
-                        onResult(!q.isEmpty)
-                    }
-                    .addOnFailureListener { onError(it) }
-            }
-        }
-        .addOnFailureListener { onError(it) }
-}
+import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
+import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
 
 @Composable
 fun InventoryReportItem(
@@ -111,6 +73,9 @@ fun InventoryReportItem(
     var isSaving by remember { mutableStateOf(false) }
     var showUbiInvalida by remember { mutableStateOf(false) }
     var ubiInvalidaTexto by remember { mutableStateOf("") }
+
+    val cid = clienteIdActual.trim().uppercase()
+    val loc = item.localidad.trim().uppercase()
 
 
     val datePickerDialog = DatePickerDialog(
