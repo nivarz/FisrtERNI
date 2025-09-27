@@ -45,6 +45,46 @@ import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.firestore.DocumentSnapshot
+
+private fun validarUbicacionEnMaestro(
+    clienteId: String,
+    localidadCodigo: String,
+    codigoUbi: String,
+    onResult: (Boolean) -> Unit,
+    onError: (Exception) -> Unit = {}
+) {
+    val cid = clienteId.trim().uppercase()
+    val loc = localidadCodigo.trim().uppercase()
+    val code = codigoUbi.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
+
+    val db = Firebase.firestore
+
+    // 1) Maestro nuevo: /clientes/{cid}/localidades/{loc}/ubicaciones/{code}
+    db.collection("clientes").document(cid)
+        .collection("localidades").document(loc)
+        .collection("ubicaciones").document(code)
+        .get()
+        .addOnSuccessListener { snap ->
+            if (snap.exists()) {
+                onResult(true)
+            } else {
+                // 2) Legacy: /clientes/{cid}/ubicaciones  (campo 'codigo_ubi')
+                db.collection("clientes").document(cid)
+                    .collection("ubicaciones")
+                    .whereEqualTo("codigo_ubi", code)
+                    .limit(1)
+                    .get()
+                    .addOnSuccessListener { q ->
+                        onResult(!q.isEmpty)
+                    }
+                    .addOnFailureListener { onError(it) }
+            }
+        }
+        .addOnFailureListener { onError(it) }
+}
 
 @Composable
 fun InventoryReportItem(
@@ -52,7 +92,8 @@ fun InventoryReportItem(
     onDelete: (String) -> Unit,
     onEdit: (DataFields) -> Unit,
     puedeModificarRegistro: (String, String) -> Boolean,
-    tipoUsuarioActual: String
+    tipoUsuarioActual: String,
+    clienteIdActual: String
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -66,6 +107,11 @@ fun InventoryReportItem(
 
     val esInvitadoActual = tipoUsuarioActual.lowercase() == "invitado"
     val backgroundColor = if (expanded) Color(0xFFE3F2FD) else Color.White
+
+    var isSaving by remember { mutableStateOf(false) }
+    var showUbiInvalida by remember { mutableStateOf(false) }
+    var ubiInvalidaTexto by remember { mutableStateOf("") }
+
 
     val datePickerDialog = DatePickerDialog(
         context,
@@ -139,9 +185,12 @@ fun InventoryReportItem(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                Log.d("FotoDebug", "🟢 VER presionado en Reporte: ${item.fotoUrl}")
-                                showImageDialog = true
-                            }
+                                    Log.d(
+                                        "FotoDebug",
+                                        "🟢 VER presionado en Reporte: ${item.fotoUrl}"
+                                    )
+                                    showImageDialog = true
+                                }
                         )
                     }
 
@@ -247,12 +296,12 @@ fun InventoryReportItem(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        value = ubicacion,
+                        value = ubicacion.uppercase(),
                         singleLine = true,
                         onValueChange = { ubicacion = it },
                         label = { Text("Editar Ubicación") })
                     OutlinedTextField(
-                        value = lote,
+                        value = lote.uppercase(),
                         singleLine = true,
                         onValueChange = { lote = it },
                         label = { Text("Editar Lote") })
@@ -287,17 +336,54 @@ fun InventoryReportItem(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val actualizado = item.copy(
-                        lote = lote,
-                        quantity = cantidad.toDoubleOrNull() ?: item.quantity,
-                        expirationDate = fechaVencimiento,
-                        location = ubicacion
-                    )
-                    onEdit(actualizado)
-                    showEditDialog = false
-                }) {
-                    Text("Guardar")
+                TextButton(
+                    enabled = !isSaving,
+                    onClick = {
+                        if (isSaving) return@TextButton
+                        isSaving = true
+
+                        val cid  = clienteIdActual.trim().uppercase()
+                        val loc  = item.localidad.trim().uppercase()          // usa el campo correcto de tu DataFields
+                        val ubi  = ubicacion.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
+                        val loteEdit  = lote.trim().uppercase()
+                        val fechaEdit = fechaVencimiento.trim()
+                        val cantEdit  = cantidad.replace(",", ".").toDoubleOrNull() ?: item.quantity
+
+                        if (cid.isBlank() || loc.isBlank() || ubi.isBlank()) {
+                            isSaving = false
+                            return@TextButton
+                        }
+
+                        validarUbicacionEnMaestro(
+                            clienteId = cid,
+                            localidadCodigo = loc,
+                            codigoUbi = ubi,
+                            onResult = { existe ->
+                                if (existe) {
+                                    val actualizado = item.copy(
+                                        location = ubi,
+                                        lote = loteEdit,
+                                        expirationDate = fechaEdit,
+                                        quantity = cantEdit
+                                    )
+                                    onEdit(actualizado)         // tu lógica de persistencia afuera
+                                    isSaving = false
+                                    showEditDialog = false
+                                } else {
+                                    ubiInvalidaTexto = "“$ubi” no existe en el maestro para $loc."
+                                    showUbiInvalida = true
+                                    isSaving = false
+                                }
+                            },
+                            onError = {
+                                ubiInvalidaTexto = "No se pudo validar la ubicación."
+                                showUbiInvalida = true
+                                isSaving = false
+                            }
+                        )
+                    }
+                ) {
+                    Text(if (isSaving) "Validando…" else "Guardar")
                 }
             },
             dismissButton = {
@@ -306,5 +392,16 @@ fun InventoryReportItem(
                 }
             }
         )
+        if (showUbiInvalida) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showUbiInvalida = false },
+                title = { Text("Ubicación inválida") },
+                text  = { Text(ubiInvalidaTexto) },
+                confirmButton = {
+                    TextButton(onClick = { showUbiInvalida = false }) { Text("Entendido") }
+                }
+            )
+        }
+
     }
 }

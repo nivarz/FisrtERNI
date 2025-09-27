@@ -174,11 +174,11 @@ fun InventoryReportsFragment(
 
     LaunchedEffect(lastInteractionTime.longValue) {
         while (true) {
-            delay(60_000)
+            delay(600_000)
             val tiempoActual = System.currentTimeMillis()
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
-            if (tiempoInactivo >= 30 * 60_000) {
+            if (tiempoInactivo >= 30 * 600_000) {
                 val documentId = userViewModel.documentId.value ?: ""
                 Firebase.firestore.collection("usuarios")
                     .document(documentId)
