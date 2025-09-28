@@ -2,6 +2,7 @@ package com.eriknivar.firebasedatabase.view.settings.settingsmenu
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -78,6 +79,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.eriknivar.firebasedatabase.data.ClientesRepo
+import com.eriknivar.firebasedatabase.data.Ubicacion
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+
 
 @Composable
 fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewModel) {
@@ -132,8 +138,10 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     var ubicacionAEliminar by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
     // Estados para el Dropdown de Localidades
-    val localidadesList = remember { mutableStateListOf<String>() }
-    val selectedLocalidad = remember { mutableStateOf("") }
+    // Guardamos PAIR(codigo, nombre) para mostrar bonito en el menú
+    val localidadesList =
+        remember { mutableStateListOf<Pair<String, String>>() } // (codigo to nombre)
+    val selectedLocalidad = remember { mutableStateOf("") } // aquí solo el CÓDIGO seleccionado
     val expandedLocalidad = remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -161,11 +169,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     LaunchedEffect(lastInteractionTime.longValue) {
         while (true) {
-            delay(60_000)
+            delay(600_000)
             val tiempoActual = System.currentTimeMillis()
             val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
 
-            if (tiempoInactivo >= 30 * 60_000) {
+            if (tiempoInactivo >= 30 * 600_000) {
                 val documentId = userViewModel.documentId.value ?: ""
                 Firebase.firestore.collection("usuarios").document(documentId)
                     .update("sessionId", "")
@@ -186,6 +194,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val clienteIdAct by userViewModel.clienteId.observeAsState("")
     var clienteNombre by rememberSaveable { mutableStateOf("") }
 
+    /*
     // 1) Cargar nombre del cliente + localidades del cliente activo
     DisposableEffect(clienteIdAct) {
         // Nombre del cliente
@@ -219,27 +228,83 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         }
     }
 
+    */
 
-    // 2) Escuchar ubicaciones de la localidad seleccionada
-    DisposableEffect(clienteIdAct, selectedLocalidad.value) {
+    val ubisRaw = remember { mutableStateListOf<Ubicacion>() }
+
+    // CARGAR LOCALIDADES CUANDO SE ABRE EL DIÁLOGO "CREAR/EDITAR UBICACIÓN"
+    DisposableEffect(showDialog.value, clienteIdAct) {
+        var removeLocListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+        if (showDialog.value && clienteIdAct.isNotBlank()) {
+            localidadesList.clear()
+            selectedLocalidad.value = ""     // resetea selección al abrir
+
+            removeLocListener =
+                firestore.collection("clientes").document(clienteIdAct).collection("localidades")
+                    .orderBy("codigo").addSnapshotListener { snap, e ->
+                        if (e != null) {
+                            localidadesList.clear()
+                            return@addSnapshotListener
+                        }
+                        val items = snap?.documents?.map { d ->
+                            val cod = d.getString("codigo") ?: d.id
+                            val nom = d.getString("nombre") ?: ""
+                            cod to nom
+                        }.orEmpty()
+
+                        localidadesList.clear()
+                        localidadesList.addAll(items)
+
+                        // Si no hay selección aún, toma la primera disponible
+                        if (selectedLocalidad.value.isBlank() && localidadesList.isNotEmpty()) {
+                            selectedLocalidad.value = localidadesList.first().first
+                        }
+                    }
+        }
+
+        onDispose { removeLocListener?.remove() }
+    }
+
+
+    // 2) Escuchar TODAS las ubicaciones del cliente (todas las localidades)
+    DisposableEffect(clienteIdAct) {
         ubicaciones.clear()
 
-        if (clienteIdAct.isBlank() || selectedLocalidad.value.isBlank()) {
-            // Sin cliente o sin localidad -> nada que escuchar
+        if (clienteIdAct.isBlank()) {
             return@DisposableEffect onDispose { }
         }
 
-        val removeUbi = UbicacionesRepo.listen(
-            clienteId = clienteIdAct,
-            localidadCodigo = selectedLocalidad.value,
-            onData = { lista ->
+        // Importa Ubicacion si no lo tienes:
+        // import com.eriknivar.firebasedatabase.data.Ubicacion
+
+        val removeUbi =
+            UbicacionesRepo.listenAll(clienteId = clienteIdAct, onData = { lista: List<Ubicacion> ->
+                ubisRaw.clear()
+                ubisRaw.addAll(
+                    lista.sortedWith(
+                        compareBy<Ubicacion>(
+                            { (it.localidadCodigo.ifBlank { "—" }).uppercase() },
+                            { (it.codigo.ifBlank { it.id }).uppercase() })
+                    )
+                )
+
+                // (opcional) si aún usas el estado antiguo para otro componente:
                 ubicaciones.clear()
-                ubicaciones.addAll(lista)
-            },
-            onErr = { ubicaciones.clear() }
-        )
+                ubicaciones.addAll(
+                    ubisRaw.map { u ->
+                        val titulo =
+                            "${u.localidadCodigo.ifBlank { "—" }} · ${u.codigo.ifBlank { u.id }}"
+                        val subtitulo = u.nombre
+                        titulo to subtitulo
+                    })
+            }, onErr = {
+                ubicaciones.clear()
+                Log.e("UbicacionesScreen", "Error cargando ubicaciones (listenAll).")
+            })
 
         onDispose {
+            removeUbi.remove()
             UbicacionesRepo.stop()
         }
     }
@@ -338,59 +403,66 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 }
             }
 
-            LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
-                items(ubicaciones, key = { it.first }) { (codigo, nombre) ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(2.dp)
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text("Ubicación: $codigo", fontWeight = FontWeight.Bold)
-                                    if (nombre.isNotBlank()) Text("Nombre: $nombre")
-                                    Text("Localidad: ${selectedLocalidad.value}")
-                                }
-                                Row {
-                                    IconButton(
-                                        onClick = {
-                                            isEditing = true
-                                            docIdToEdit = codigo
-                                            codigoInput = codigo
-                                            zonaInput =
-                                                nombre                     // usamos 'zona' como 'nombre'
-                                            showDialog.value =
-                                                true                // 👈 era showDialog = true
-                                        }) {
-                                        Icon(
-                                            Icons.Filled.Edit, contentDescription = "Editar"
+            if (ubicaciones.isEmpty()) {
+                Text(
+                    "Sin ubicaciones para este cliente",
+                    color = Color.Gray,
+                    modifier = Modifier.padding(16.dp)
+                )
+            } else {
+                @OptIn(ExperimentalFoundationApi::class) LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (ubisRaw.isEmpty()) {
+                        item {
+                            Text(
+                                "Sin ubicaciones para este cliente.",
+                                color = Color.Gray,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    } else {
+                        val grupos = ubisRaw.groupBy { it.localidadCodigo.ifBlank { "—" } }
+                            .toSortedMap(String.CASE_INSENSITIVE_ORDER)
+
+                        grupos.forEach { (loc, itemsDeLoc) ->
+                            stickyHeader {
+                                Text(
+                                    text = loc,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFFEFEFEF))
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+
+                            items(itemsDeLoc, key = { it.codigo.ifBlank { it.id } }) { u ->
+                                // Tu fila existente: muestra código y nombre
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        "${u.codigo.ifBlank { u.id }}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    if (u.nombre.isNotBlank()) {
+                                        Text(
+                                            u.nombre,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray
                                         )
                                     }
-
-                                    IconButton(onClick = {
-                                        val cid = selectedCid.trim()
-                                        if (cid.isBlank()) {
-                                            Toast.makeText(
-                                                ctx, "Selecciona un cliente", Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@IconButton
-                                        }
-                                        // 'codigo' es el de la ubicación; 'locCodigo' es la localidad del item
-                                        pendingDelete = Triple(codigo, selectedLocalidad.value, cid)
-                                    }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar")
-                                    }
                                 }
+                                HorizontalDivider()
                             }
                         }
                     }
                 }
+
+
             }
 
             if (showClientePicker && tipo.equals("superuser", true)) {
@@ -499,8 +571,13 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             onValueChange = { zonaInput = it.uppercase() },
                             label = { Text("Zona (opcional)") })
 
+
+
                         Spacer(Modifier.height(8.dp))
-                        Text("Localidad*", fontWeight = FontWeight.Bold)
+                        Text("Almacén*", fontWeight = FontWeight.Bold)
+
+                        var expanded by remember { mutableStateOf(false) }
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -509,63 +586,74 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     color = if (showErrorLocalidad) Color.Red else Color.Gray,
                                     shape = RoundedCornerShape(4.dp)
                                 )
+                                .clickable(enabled = !isEditing) { expanded = true }
+                                .padding(12.dp)) {
+                            val etiqueta = when {
+                                selectedLocalidad.value.isNotBlank() -> {
+                                    val par =
+                                        localidadesList.firstOrNull { it.first == selectedLocalidad.value }
+                                    if (par != null && par.second.isNotBlank()) "${par.first} · ${par.second}" else par?.first
+                                        ?: ""
+                                }
 
-                                .clickable(
-                                    enabled = !isEditing,
-                                    onClick = { expandedLocalidad.value = true })
-                                .padding(12.dp)
-                        ) {
-
-                            // Dentro del Box del selector de localidad
-                            val labelLocalidad =
-                                selectedLocalidad.value.ifEmpty { "Seleccionar una localidad" }
+                                else -> "Seleccionar un Almacén"
+                            }
 
                             Text(
-                                text = if (showErrorLocalidad) "Debes seleccionar una localidad" else labelLocalidad,
-                                color = if (showErrorLocalidad) Color.Red else if (selectedLocalidad.value.isNotEmpty()) Color.Black else Color.Gray,
-                                fontSize = if (showErrorLocalidad) 12.sp else 16.sp,
-                                modifier = if (showErrorLocalidad) Modifier.padding(
-                                    start = 4.dp,
-                                    top = 4.dp
-                                ) else Modifier
+                                text = if (showErrorLocalidad) "Debes seleccionar un Almacén" else etiqueta,
+                                color = when {
+                                    showErrorLocalidad -> Color.Red
+                                    selectedLocalidad.value.isNotEmpty() -> Color.Black
+                                    else -> Color.Gray
+                                },
+                                fontSize = if (showErrorLocalidad) 12.sp else 16.sp
                             )
 
-
-                            // menú
                             DropdownMenu(
-                                expanded = expandedLocalidad.value,
-                                onDismissRequest = { expandedLocalidad.value = false }) {
-                                localidadesList.forEach { locCode ->
-                                    DropdownMenuItem(text = { Text(locCode) }, onClick = {
-                                        selectedLocalidad.value = locCode
-                                        expandedLocalidad.value = false
-                                    })
+                                expanded = expanded, onDismissRequest = { expanded = false }) {
+                                if (localidadesList.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("Sin localidades") },
+                                        onClick = { expanded = false },
+                                        enabled = false
+                                    )
+                                } else {
+                                    localidadesList.forEach { (cod, nom) ->
+                                        DropdownMenuItem(
+                                            text = { Text(if (nom.isBlank()) cod else "$cod · $nom") },
+                                            onClick = {
+                                                selectedLocalidad.value = cod
+                                                showErrorLocalidad = false
+                                                expanded = false
+                                            })
+                                    }
                                 }
                             }
                         }
                     }
-                }, confirmButton = {
+                },
+                confirmButton = {
                     Button(onClick = {
                         if (codigoInput.isBlank()) return@Button
 
                         if (selectedLocalidad.value.isBlank()) {
                             showErrorLocalidad = true
-                            coroutineScope.launch { snackbarHostState.showSnackbar("Debes seleccionar una localidad") }
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Debes seleccionar un Almacén")
+                            }
                             return@Button
-                        } else showErrorLocalidad = false
-
-                        val cid = clienteIdAct
-                        val loc = selectedLocalidad.value
+                        } else {
+                            showErrorLocalidad = false
+                        }
 
                         if (isEditing) {
-                            val nuevoNombre: String? = zonaInput
-                                .takeIf { it.isNotBlank() }     // -> String? (null si está en blanco)
-                                ?.uppercase()
+                            val nuevoNombre: String? =
+                                zonaInput.takeIf { it.isNotBlank() }?.uppercase()
 
                             UbicacionesRepo.updateUbicacion(
-                                codigo = docIdToEdit,                    // usa SIEMPRE el doc original
-                                nuevoNombre = nuevoNombre,               // String?
-                                nuevoActivo = null,                      // o true/false si quieres
+                                codigo = docIdToEdit,
+                                nuevoNombre = nuevoNombre,
+                                nuevoActivo = null,
                                 clienteIdDestino = clienteIdAct,
                                 localidadCodigoDestino = selectedLocalidad.value
                             ) { ok, msg ->
@@ -628,5 +716,3 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
             })
     }
 }
-
-
