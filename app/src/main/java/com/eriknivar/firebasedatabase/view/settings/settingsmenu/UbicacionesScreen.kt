@@ -81,8 +81,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.eriknivar.firebasedatabase.data.ClientesRepo
 import com.eriknivar.firebasedatabase.data.Ubicacion
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.tasks.await
 
 
 @Composable
@@ -120,7 +123,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     val firestore = Firebase.firestore
     val ubicaciones = remember { mutableStateListOf<Pair<String, String>>() }
-    val clienteId by userViewModel.clienteId.observeAsState("")
+
 
     val showDialog = remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
@@ -157,6 +160,40 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     val clientesActivos =
         remember { mutableStateListOf<Pair<String, String>>() } // (clienteId, nombre)
 
+    // Lista de clientes (codigo -> nombre)
+    val clientes = remember { mutableStateListOf<Pair<String, String>>() }
+    // Lo que guardas/mandas al back sigue siendo el CÓDIGO
+    val selectedCliente = remember { mutableStateOf("") }
+    val expandedClientes = remember { mutableStateOf(false) }
+
+    DisposableEffect(true) {
+        var reg: com.google.firebase.firestore.ListenerRegistration? = null
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+
+        reg = db.collection("clientes")
+            .orderBy("nombre") // 👈 ordenar por nombre para mostrar bonito
+            .addSnapshotListener { snap, e ->
+                if (e != null) {
+                    clientes.clear()
+                    return@addSnapshotListener
+                }
+                val lista = snap?.documents?.map { d ->
+                    val codigo = d.getString("codigo") ?: d.id
+                    val nombre = d.getString("nombre") ?: codigo
+                    codigo to nombre
+                }.orEmpty()
+
+                clientes.clear()
+                clientes.addAll(lista)
+
+                // Si no hay selección, elige el primero
+                if (selectedCliente.value.isBlank() && clientes.isNotEmpty()) {
+                    selectedCliente.value = clientes.first().first // guardamos el CÓDIGO
+                }
+            }
+
+        onDispose { reg.remove() }
+    }
 
     val lastInteractionTime =
         remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
@@ -192,43 +229,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     }
 
     val clienteIdAct by userViewModel.clienteId.observeAsState("")
-    var clienteNombre by rememberSaveable { mutableStateOf("") }
+    val clienteId by userViewModel.clienteId.observeAsState("")
+    val clienteNombre by userViewModel.clienteNombre.observeAsState("")  // 👈 observa el nombre también
 
-    /*
-    // 1) Cargar nombre del cliente + localidades del cliente activo
-    DisposableEffect(clienteIdAct) {
-        // Nombre del cliente
-        clienteNombre = ""
-        if (clienteIdAct.isBlank()) {
-            // No hay cliente: no registres listeners y devuelve un onDispose vacío
-            return@DisposableEffect onDispose { }
-        }
-
-        // Nombre del cliente
-        ClientesRepo.getNombreCliente(clienteIdAct) { nombre -> clienteNombre = nombre }
-
-        // Localidades del cliente
-        localidadesList.clear()
-        val removeLoc = LocalidadesRepo.listen(
-            clienteId = clienteIdAct,
-            onData = { lista ->
-                localidadesList.clear()
-                localidadesList.addAll(lista)
-                if (selectedLocalidad.value.isBlank() && lista.isNotEmpty()) {
-                    selectedLocalidad.value = lista.first()
-                }
-            },
-            onErr = { localidadesList.clear() }
-        )
-
-        // <- El último statement debe ser un onDispose { … }
-        onDispose {
-            // si tu repo devuelve algo removible, úsalo
-            LocalidadesRepo.stop()
-        }
-    }
-
-    */
 
     val ubisRaw = remember { mutableStateListOf<Ubicacion>() }
 
@@ -309,6 +312,16 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         }
     }
 
+    LaunchedEffect(clientesActivos, clienteId) {
+        // Si tenemos ID pero aún no el nombre, complétalo desde la lista
+        if (clienteNombre.isBlank() && clienteId.isNotBlank()) {
+            val nom = clientesActivos.firstOrNull { it.first == clienteId }?.second
+            if (!nom.isNullOrBlank()) {
+                userViewModel.setClienteNombre(nom)
+            }
+        }
+    }
+
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
     val dummyQuantity = remember { mutableStateOf("") }
@@ -320,6 +333,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     val codigoAEliminar = remember { mutableStateOf<String?>(null) }
     val isDeleting = remember { mutableStateOf(false) }
+
+    val showDelete = remember { mutableStateOf(false) }
+    val ubiToDelete = remember { mutableStateOf<Ubicacion?>(null) }
 
     val qrScanLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -340,6 +356,20 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
             wasScanned.value = false
         }
     }
+    LaunchedEffect(clienteId, clienteNombre) {
+        if (clienteNombre.isBlank() && clienteId.isNotBlank()) {
+            try {
+                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val snap = db.collection("clientes").document(clienteId).get().await()
+                val nom = snap.getString("nombre").orEmpty()
+                if (nom.isNotBlank()) {
+                    userViewModel.setClienteNombre(nom)
+                }
+            } catch (_: Exception) { /* ignora */ }
+        }
+    }
+
+
 
     NavigationDrawer(
         navController = navController,
@@ -361,26 +391,36 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Chip que muestra el cliente activo
+                // Chip que muestra el cliente activo
                 Box(
                     modifier = Modifier
                         .border(1.dp, Color.Gray, RoundedCornerShape(12.dp))
                         .clickable {
-                            // Solo superuser puede cambiarlo
+                            // Solo superuser puede cambiarlo -> abre el picker
                             if (tipo.equals("superuser", true)) {
                                 showClientePicker = true
                             } else {
-                                Toast.makeText(ctx, "Cliente fijo para admin", Toast.LENGTH_SHORT)
-                                    .show()
+                                Toast.makeText(ctx, "Cliente fijo para admin", Toast.LENGTH_SHORT).show()
                             }
                         }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Log.d("DBG", "nombre=${clienteNombre}")
                     val label = when {
-                        clienteId.isBlank() -> "Selecciona un cliente"
-                        clienteNombre.isNotBlank() -> "$clienteNombre ($clienteId)"
-                        else -> clienteId
+                        clienteId.isNotBlank() && clienteNombre.isNotBlank() ->  "$clienteNombre"
+                        //clienteId.isNotBlank() && clienteNombre.isNotBlank() -> "$clienteId · $clienteNombre"
+                        //clienteId.isNotBlank() -> clienteId
+                        else -> "Selecciona un cliente"
                     }
-                    Text(label, fontSize = 14.sp)
+
+                    Text(
+                        text = label,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+
 
                 // Botón crear (lo deshabilitamos si no hay cliente activo)
                 ElevatedButton(
@@ -438,21 +478,46 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             }
 
                             items(itemsDeLoc, key = { it.codigo.ifBlank { it.id } }) { u ->
-                                // Tu fila existente: muestra código y nombre
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .combinedClickable(
+                                            onClick = {
+                                                // Abrir edición
+                                                isEditing = true
+                                                showDialog.value = true
+                                                docIdToEdit = u.codigo.ifBlank { u.id }
+                                                zonaInput = u.nombre
+                                                selectedLocalidad.value = u.localidadCodigo
+                                            },
+                                            onLongClick = {
+                                                ubiToDelete.value = u
+                                                showDelete.value = true
+                                            }
+                                        )
                                         .padding(horizontal = 16.dp, vertical = 10.dp)
                                 ) {
-                                    Text(
-                                        "${u.codigo.ifBlank { u.id }}",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    if (u.nombre.isNotBlank()) {
+                                    Column(Modifier.weight(1f)) {
                                         Text(
-                                            u.nombre,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.Gray
+                                            u.codigo.ifBlank { u.id },
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        if (u.nombre.isNotBlank())
+                                            Text(
+                                                u.nombre,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color.Gray
+                                            )
+                                    }
+                                    // Ícono borrar (tap corto)
+                                    IconButton(onClick = {
+                                        ubiToDelete.value = u
+                                        showDelete.value = true
+                                    }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Borrar",
+                                            tint = Color.Red
                                         )
                                     }
                                 }
@@ -461,8 +526,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         }
                     }
                 }
-
-
             }
 
             if (showClientePicker && tipo.equals("superuser", true)) {
@@ -486,8 +549,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            // Cambiar cliente activo en el VM
+                                            // Guardar selección (ID + Nombre) en el VM
                                             userViewModel.setClienteId(cid)
+                                            userViewModel.setClienteNombre(nombre)
                                             // Resetear localidad para forzar recarga
                                             selectedLocalidad.value = ""
                                             showClientePicker = false
@@ -532,12 +596,35 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     },
                     dismissButton = {
                         TextButton(onClick = { pendingDelete = null }) { Text("Cancelar") }
-                    })
+                    }
+                )
             }
-
-
         }
 
+        if (showDelete.value && ubiToDelete.value != null) {
+            val u = ubiToDelete.value!!
+            AlertDialog(
+                onDismissRequest = { showDelete.value = false },
+                title = { Text("Borrar ubicación") },
+                text = { Text("¿Seguro que deseas borrar ${u.codigo.ifBlank { u.id }} de ${u.localidadCodigo}?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        UbicacionesRepo.borrarUbicacion(
+                            codigo = u.codigo.ifBlank { u.id },
+                            clienteIdDestino = clienteIdAct,
+                            localidadCodigoDestino = u.localidadCodigo
+                        ) { ok, msg ->
+                            showDelete.value = false
+                            if (!ok) Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                        }
+                    }) { Text("Borrar") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showDelete.value = false }) { Text("Cancelar") }
+                }
+            )
+        }
 
         var showUbicacionExistenteDialog by remember { mutableStateOf(false) }
 

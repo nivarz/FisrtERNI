@@ -275,7 +275,10 @@ object UbicacionesRepo {
 
     // Ajusta stop() para remover ambos
     fun stop() {
-        try { regAll?.remove() } catch (_: Exception) {}
+        try {
+            regAll?.remove()
+        } catch (_: Exception) {
+        }
         regAll = null
         // (y si ya tenías regNueva/regLegacy*, también los remueves aquí)
     }
@@ -358,7 +361,7 @@ object UbicacionesRepo {
             }
     }
 
-    // --- Update (solo nombre/activo; acorde a reglas) ---
+// --- UPDATE: intenta NUEVA y si no existe, cae a LEGACY --------------------
     fun updateUbicacion(
         codigo: String,
         nuevoNombre: String? = null,
@@ -374,23 +377,85 @@ object UbicacionesRepo {
             onResult(false, "Parámetros incompletos."); return
         }
 
-        val updates = mutableMapOf<String, Any>()
-        if (!nuevoNombre.isNullOrBlank()) updates["nombre"] = nuevoNombre.trim()
-        if (nuevoActivo != null) updates["activo"] = nuevoActivo
-        if (updates.isEmpty()) {
+        val updatesNueva = mutableMapOf<String, Any>()
+        if (!nuevoNombre.isNullOrBlank()) updatesNueva["nombre"] = nuevoNombre.trim()
+        if (nuevoActivo != null) updatesNueva["activo"] = nuevoActivo
+
+        if (updatesNueva.isEmpty()) {
             onResult(false, "Nada para actualizar."); return
         }
 
-        val ref = db.collection("clientes").document(cid)
+        val refNueva = db.collection("clientes").document(cid)
             .collection("localidades").document(loc)
             .collection("ubicaciones").document(cod)
 
-        ref.update(updates as Map<String, Any>)
-            .addOnSuccessListener { onResult(true, "Ubicación $cod actualizada.") }
-            .addOnFailureListener { e -> onResult(false, e.message ?: "Error actualizando $cod") }
+        val refLegacy = db.collection("clientes").document(cid)
+            .collection("ubicaciones").document(cod)
+
+        // 1) Probar NUEVA
+        refNueva.get()
+            .addOnSuccessListener { snap ->
+                if (snap.exists()) {
+                    refNueva.update(updatesNueva as Map<String, Any>)
+                        .addOnSuccessListener {
+                            onResult(
+                                true,
+                                "Ubicación $cod actualizada (nueva)."
+                            )
+                        }
+                        .addOnFailureListener { e ->
+                            onResult(
+                                false,
+                                e.message ?: "Error actualizando $cod (nueva)."
+                            )
+                        }
+                } else {
+                    // 2) LEGACY: mapear 'nombre' -> 'descripcion'
+                    val updatesLegacy = mutableMapOf<String, Any>()
+                    if (!nuevoNombre.isNullOrBlank()) updatesLegacy["descripcion"] =
+                        nuevoNombre.trim()
+                    if (nuevoActivo != null) updatesLegacy["activo"] = nuevoActivo
+
+                    refLegacy.get()
+                        .addOnSuccessListener { snapLeg ->
+                            if (!snapLeg.exists()) {
+                                onResult(
+                                    false,
+                                    "Ubicación $cod no existe en nueva ni legacy."
+                                ); return@addOnSuccessListener
+                            }
+                            if (updatesLegacy.isEmpty()) {
+                                onResult(
+                                    false,
+                                    "Nada para actualizar."
+                                ); return@addOnSuccessListener
+                            }
+                            refLegacy.update(updatesLegacy as Map<String, Any>)
+                                .addOnSuccessListener {
+                                    onResult(
+                                        true,
+                                        "Ubicación $cod actualizada (legacy)."
+                                    )
+                                }
+                                .addOnFailureListener { e ->
+                                    onResult(
+                                        false,
+                                        e.message ?: "Error actualizando $cod (legacy)."
+                                    )
+                                }
+                        }
+                        .addOnFailureListener { e ->
+                            onResult(
+                                false,
+                                e.message ?: "Error consultando legacy."
+                            )
+                        }
+                }
+            }
+            .addOnFailureListener { e -> onResult(false, e.message ?: "Error consultando nueva.") }
     }
 
-    // --- Delete duro (solo superuser por reglas) ---
+    // --- DELETE: intenta NUEVA y si no existe, cae a LEGACY --------------------
     fun borrarUbicacion(
         codigo: String,
         clienteIdDestino: String,
@@ -404,20 +469,63 @@ object UbicacionesRepo {
             onResult(false, "Parámetros incompletos."); return
         }
 
-        val ref = db.collection("clientes").document(cid)
+        val refNueva = db.collection("clientes").document(cid)
             .collection("localidades").document(loc)
             .collection("ubicaciones").document(cod)
 
-        ref.delete()
-            .addOnSuccessListener { onResult(true, "Ubicación $cod eliminada.") }
-            .addOnFailureListener { e -> onResult(false, e.message ?: "No se pudo eliminar $cod") }
+        val refLegacy = db.collection("clientes").document(cid)
+            .collection("ubicaciones").document(cod)
+
+        refNueva.get()
+            .addOnSuccessListener { snap ->
+                if (snap.exists()) {
+                    refNueva.delete()
+                        .addOnSuccessListener {
+                            onResult(
+                                true,
+                                "Ubicación $cod eliminada (nueva)."
+                            )
+                        }
+                        .addOnFailureListener { e ->
+                            onResult(
+                                false,
+                                e.message ?: "No se pudo eliminar $cod (nueva)."
+                            )
+                        }
+                } else {
+                    refLegacy.get()
+                        .addOnSuccessListener { snapLeg ->
+                            if (!snapLeg.exists()) {
+                                onResult(
+                                    false,
+                                    "Ubicación $cod no existe en nueva ni legacy."
+                                ); return@addOnSuccessListener
+                            }
+                            refLegacy.delete()
+                                .addOnSuccessListener {
+                                    onResult(
+                                        true,
+                                        "Ubicación $cod eliminada (legacy)."
+                                    )
+                                }
+                                .addOnFailureListener { e ->
+                                    onResult(
+                                        false,
+                                        e.message ?: "No se pudo eliminar $cod (legacy)."
+                                    )
+                                }
+                        }
+                        .addOnFailureListener { e ->
+                            onResult(
+                                false,
+                                e.message ?: "Error consultando legacy."
+                            )
+                        }
+                }
+            }
+            .addOnFailureListener { e -> onResult(false, e.message ?: "Error consultando nueva.") }
     }
 
-    // --- Verificar si una ubicación existe (cliente + localidad + código) ---
-    // imports necesarios arriba del archivo:
-// import android.util.Log
-// import java.util.Locale
-// import kotlinx.coroutines.tasks.await
 
     // --- Verificar si una ubicación existe (cliente + localidad + código) ---
     suspend fun existeUbicacion(

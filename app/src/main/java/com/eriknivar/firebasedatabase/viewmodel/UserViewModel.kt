@@ -40,6 +40,11 @@ class UserViewModel : ViewModel() {
         _isInitialized.value = true
     }
 
+    // en UserViewModel
+    private val _clienteNombre = MutableLiveData("")
+    val clienteNombre: LiveData<String> = _clienteNombre
+
+    fun setClienteNombre(n: String) { _clienteNombre.value = n }
 
 
     fun cargarFotoUrl(documentId: String) {
