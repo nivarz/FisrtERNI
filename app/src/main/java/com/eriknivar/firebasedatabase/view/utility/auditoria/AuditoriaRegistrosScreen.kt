@@ -7,9 +7,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -34,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBar
@@ -41,12 +46,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.ListenerRegistration
+import java.text.Normalizer.normalize
 
 data class ClienteLite(val id: String, val nombre: String)
 
@@ -128,7 +137,6 @@ fun AuditoriaRegistrosScreen(
                 .orderBy("fecha", Query.Direction.DESCENDING)
                 .limit(200)
 
-
             auditListener = q.addSnapshotListener { qs, e ->
                 if (e != null) {
                     Log.e("Auditoria", "Error escuchando auditorías", e)
@@ -145,6 +153,28 @@ fun AuditoriaRegistrosScreen(
         onDispose {
             auditListener?.remove()
             auditListener = null
+        }
+    }
+
+    // ===== Buscador por usuario (nombre/email/uid) =====
+    val keyboard = LocalSoftwareKeyboardController.current
+    var query by rememberSaveable { mutableStateOf("") }
+
+    // Normalizador (acentos y mayúsculas) local al composable
+    fun norm(s: String?): String =
+        java.text.Normalizer.normalize(s.orEmpty(), java.text.Normalizer.Form.NFD)
+            .replace("\\p{Mn}+".toRegex(), "")
+            .lowercase()
+            .trim()
+
+    // Lista filtrada derivada
+    val filtered = remember(query, auditorias) {
+        val q = norm(query)
+        if (q.isBlank()) auditorias else auditorias.filter { audit ->
+            val nombre = norm(audit["usuarioNombre"] as? String)
+            val email  = norm(audit["usuarioEmail"] as? String)
+            val uid    = norm(audit["usuarioUid"] as? String)
+            nombre.contains(q) || email.contains(q) || uid.contains(q)
         }
     }
 
@@ -182,6 +212,27 @@ fun AuditoriaRegistrosScreen(
             Spacer(Modifier.height(16.dp))
         }
 
+        // 🔎 Barra de búsqueda (debajo del selector de cliente)
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            singleLine = true,
+            label = { Text("Buscar por usuario") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotBlank()) {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Limpiar")
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() })
+        )
+
         if (loading) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
             Spacer(Modifier.height(16.dp))
@@ -192,9 +243,19 @@ fun AuditoriaRegistrosScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        // Lista de auditorías
+        // (opcional) Conteo cuando hay filtro activo
+        if (query.isNotBlank()) {
+            Text(
+                text = "Resultados: ${filtered.size}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
+
+        // Lista de auditorías (usa la lista filtrada)
         LazyColumn(Modifier.fillMaxSize()) {
-            items(auditorias) { audit ->
+            items(filtered) { audit ->
                 val tipoAccion = (audit["tipo_accion"] as? String).orEmpty()
                 val registroId = (audit["registro_id"] as? String).orEmpty()
                 val fechaTs = audit["fecha"] as? Timestamp
@@ -236,6 +297,9 @@ private fun ClienteSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var buttonWidth by remember { mutableStateOf(0) }
+
+    val keyboard = LocalSoftwareKeyboardController.current
+    var query by rememberSaveable { mutableStateOf("") }
 
     Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
         OutlinedButton(

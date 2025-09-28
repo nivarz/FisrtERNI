@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.google.firebase.Timestamp
+import java.text.Normalizer
 
 
 @Composable
@@ -60,7 +61,8 @@ fun AuditoriaCard(
     valoresDespues: Map<String, Any?> = emptyMap(),
     tipoUsuario: String,
     usuarioEmail: String? = null,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    usuarioUid: String? = null
 
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -69,6 +71,22 @@ fun AuditoriaCard(
     val fechaFormateada = fecha?.toDate()?.let { sdf.format(it) } ?: "-"
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    val style = resolveActionStyle(tipoAccion)
+
+    // ====== LÍNEA "Usuario:" (corrige usuarioNombre/usuarioEmail/usuarioUid) ======
+    val userLine = buildString {
+        append("Usuario: ")
+        append(usuario.ifBlank { "-" })
+        val mail = usuarioEmail?.takeIf { it.isNotBlank() }
+        val uid  = usuarioUid?.takeIf { it.isNotBlank() }
+        if (mail != null) append(" ($mail)")
+        else if (uid != null) append(" ($uid)")
+    }
+
+    Text(
+        text = userLine,
+        style = MaterialTheme.typography.bodyMedium
+    )
 
     Card(
         modifier = Modifier
@@ -187,9 +205,9 @@ fun AuditoriaCard(
                         val stackForThisField = label.equals("Descripcion", ignoreCase = true)
 
                         DiffLine(
-                            label   = label,
-                            before  = antes,
-                            after   = despues,
+                            label = label,
+                            before = antes,
+                            after = despues,
                             stacked = stackForThisField
                         )
                     }
@@ -280,7 +298,7 @@ private fun DiffLine(
     stacked: Boolean = false,
 ) {
     val beforeText = before.orEmpty()
-    val afterText  = after.orEmpty()
+    val afterText = after.orEmpty()
     val changed = beforeText != afterText
     val isDescripcion = label.equals("Descripcion", ignoreCase = true)
 
@@ -290,8 +308,8 @@ private fun DiffLine(
 
     // Colores de énfasis cuando hay cambio
     val colorBefore = if (changed) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface
-    val colorAfter  = if (changed) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface
-    val arrowTint   = if (changed)
+    val colorAfter = if (changed) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface
+    val arrowTint = if (changed)
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
     else
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
@@ -364,3 +382,8 @@ private fun DiffLine(
 }
 
 
+private fun normalize(s: String?): String =
+    Normalizer.normalize(s.orEmpty(), Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "") // quita acentos
+        .lowercase()
+        .trim()

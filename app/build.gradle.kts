@@ -99,6 +99,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation(libs.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.ui.text)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
