@@ -88,6 +88,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.view.utility.auditoria.registrarAuditoriaConteo
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 
 
@@ -156,6 +157,8 @@ fun InventoryReportFiltersScreen(
     // Cambia estos nombres si tus estados se llaman distinto
     val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
     val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
+
+    val cidLocal = (userViewModel.clienteId.value ?: "").trim().uppercase()
 
     LaunchedEffect(cid) {
         firestore.collection("clientes").document(cid)
@@ -711,25 +714,39 @@ fun InventoryReportFiltersScreen(
                                     .collection("inventario").document(documentId)
 
                                 // 1) Leer ANTES para auditar
-                                docRef.get()
-                                    .addOnSuccessListener { snap ->
-                                        val antes =
-                                            snap.data?.let { mapParaAuditoria(it) } ?: emptyMap()
+                                docRef.delete()
+                                    .addOnSuccessListener {
+                                        // === Resolver nombre + email del usuario que elimina ===
+                                        val auth = FirebaseAuth.getInstance().currentUser
+                                        val usuarioUid = userViewModel.documentId.value ?: auth?.uid ?: ""
+                                        val emailAuth = auth?.email
 
-                                        // 2) Borrar
-                                        docRef.delete()
-                                            .addOnSuccessListener {
-                                                // 3) Registrar auditoría de eliminación
+                                        Firebase.firestore.collection("usuarios").document(usuarioUid).get()
+                                            .addOnSuccessListener { udoc ->
+                                                val nombreDoc = udoc.getString("nombre")?.takeIf { it.isNotBlank() }
+                                                val emailDoc  = udoc.getString("email")?.takeIf { it.isNotBlank() }
+
+                                                val usuarioNombreFinal =
+                                                    nombreDoc ?: auth?.displayName
+                                                    ?: (emailAuth ?: emailDoc)?.substringBefore("@")
+                                                    ?: usuarioUid
+
+                                                val usuarioEmailFinal = emailAuth ?: emailDoc
+
                                                 registrarAuditoriaConteo(
-                                                    clienteId = cid,
-                                                    registroId = documentId,
-                                                    tipoAccion = "eliminación",
-                                                    usuarioNombre = (userViewModel.nombre.value
-                                                        ?: ""),
-                                                    usuarioUid = (userViewModel.documentId.value
-                                                        ?: ""),
-                                                    valoresAntes = antes,
-                                                    valoresDespues = emptyMap()
+                                                    clienteId      = cidLocal,              // tu cliente (en mayúsculas)
+                                                    registroId     = item.documentId,       // id del doc borrado
+                                                    tipoAccion     = "eliminar",
+                                                    usuarioNombre  = usuarioNombreFinal,
+                                                    usuarioUid     = usuarioUid,
+                                                    valoresAntes   = mapOf(
+                                                        "ubicacion"        to item.location,
+                                                        "lote"             to item.lote,
+                                                        "fechaVencimiento" to item.expirationDate,
+                                                        "cantidad"         to item.quantity
+                                                    ),
+                                                    valoresDespues = emptyMap(),
+                                                    usuarioEmail   = usuarioEmailFinal
                                                 )
 
                                                 Toast.makeText(

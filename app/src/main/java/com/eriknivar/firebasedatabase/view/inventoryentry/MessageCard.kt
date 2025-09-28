@@ -231,40 +231,59 @@ fun MessageCard(
                             }
 
                             // 2) Borrar
-                            docRef.delete().addOnSuccessListener {
-                                // Optimistic UI
-                                val idx = allData.indexOfFirst { it.documentId == item.documentId }
-                                if (idx >= 0) allData.removeAt(idx)
+                            docRef.delete()
+                                .addOnSuccessListener {
+                                    // === Resolver nombre + email del usuario que elimina ===
+                                    val auth = FirebaseAuth.getInstance().currentUser
+                                    val usuarioUid =
+                                        userViewModel.documentId.value ?: auth?.uid ?: ""
+                                    val emailAuth = auth?.email
 
-                                // Auditoría (antes de cerrar)
-                                registrarAuditoriaConteo(
-                                    clienteId = cidLocal,
-                                    registroId = item.documentId,
-                                    tipoAccion = "eliminación",
-                                    usuarioNombre = (FirebaseAuth.getInstance().currentUser?.email?.substringBefore(
-                                        "@"
-                                    ) ?: userViewModel.documentId.value ?: "Desconocido"),
-                                    usuarioUid = uid,
-                                    valoresAntes = mapOf(
-                                        "ubicacion" to item.location,
-                                        "sku" to item.sku,
-                                        "lote" to item.lote,
-                                        "fecha_vencimiento" to item.expirationDate,
-                                        "cantidad" to item.quantity.toString(),
-                                        "unidad_medida" to item.unidadMedida,
-                                        "descripcion" to item.description
-                                    )
-                                )
+                                    Firebase.firestore.collection("usuarios").document(usuarioUid)
+                                        .get()
+                                        .addOnSuccessListener { udoc ->
+                                            val nombreDoc =
+                                                udoc.getString("nombre")?.takeIf { it.isNotBlank() }
+                                            val emailDoc =
+                                                udoc.getString("email")?.takeIf { it.isNotBlank() }
 
-                                Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT)
-                                    .show()
-                                showDialog = false
-                            }.addOnFailureListener { e ->
-                                Log.e("DeleteInv", "❌ Error al borrar", e)
-                                Toast.makeText(
-                                    context, "No se pudo borrar (permisos).", Toast.LENGTH_LONG
-                                ).show()
-                            }
+                                            val usuarioNombreFinal =
+                                                nombreDoc ?: auth?.displayName
+                                                ?: (emailAuth ?: emailDoc)?.substringBefore("@")
+                                                ?: usuarioUid
+
+                                            val usuarioEmailFinal = emailAuth ?: emailDoc
+
+                                            registrarAuditoriaConteo(
+                                                clienteId = cidLocal,              // tu cliente (en mayúsculas)
+                                                registroId = item.documentId,       // id del doc borrado
+                                                tipoAccion = "eliminar",
+                                                usuarioNombre = usuarioNombreFinal,
+                                                usuarioUid = usuarioUid,
+                                                valoresAntes = mapOf(
+                                                    "ubicacion" to item.location,
+                                                    "lote" to item.lote,
+                                                    "fechaVencimiento" to item.expirationDate,
+                                                    "cantidad" to item.quantity
+                                                ),
+                                                valoresDespues = emptyMap(),
+                                                usuarioEmail = usuarioEmailFinal
+                                            )
+
+                                            Toast.makeText(
+                                                context,
+                                                "Registro eliminado",
+                                                Toast.LENGTH_SHORT
+                                            )
+                                                .show()
+                                            showDialog = false
+                                        }
+                                }.addOnFailureListener { e ->
+                                    Log.e("DeleteInv", "❌ Error al borrar", e)
+                                    Toast.makeText(
+                                        context, "No se pudo borrar (permisos).", Toast.LENGTH_LONG
+                                    ).show()
+                                }
                         }.addOnFailureListener { e ->
                             Log.e("DeleteInv", "❌ No se pudo leer doc antes de borrar", e)
                             Toast.makeText(
@@ -275,7 +294,13 @@ fun MessageCard(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showDialog = false }) { Text("No", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
+                    onClick = { showDialog = false }) {
+                    Text(
+                        "No",
+                        color = Color(0xFF003366),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             })
     }
 
@@ -604,7 +629,10 @@ fun MessageCard(
                                             enabled = canEditLoteYVenc,
                                             modifier = Modifier.alpha(if (canEditLoteYVenc) 1f else 0.3f)
                                         ) {
-                                            Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                                            Icon(
+                                                Icons.Default.CalendarMonth,
+                                                contentDescription = "Seleccionar fecha"
+                                            )
                                         }
                                     }
                                 )
@@ -690,7 +718,8 @@ fun MessageCard(
                                     val valoresDespues: Map<String, Any?> = mapOf(
                                         "ubicacion" to nuevaUbi,
                                         "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
-                                        "fechaVencimiento" to editedExpirationDate.trim().ifBlank { "-" },
+                                        "fechaVencimiento" to editedExpirationDate.trim()
+                                            .ifBlank { "-" },
                                         "cantidad" to qty
                                     )
                                     val cambiosClaves =
