@@ -80,8 +80,13 @@ import com.eriknivar.firebasedatabase.data.ClientesRepo
 import com.eriknivar.firebasedatabase.data.Ubicacion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.tasks.await
 
@@ -121,7 +126,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
 
     val firestore = Firebase.firestore
     val ubicaciones = remember { mutableStateListOf<Pair<String, String>>() }
-
 
     val showDialog = remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
@@ -233,7 +237,6 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         onDispose { removeLocListener?.remove() }
     }
 
-
     // 2) Escuchar TODAS las ubicaciones del cliente (todas las localidades)
     DisposableEffect(clienteIdAct) {
         ubicaciones.clear()
@@ -334,6 +337,45 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         }
     }
 
+    // --- Auditoría (uid, nombre y tipo actual) ---
+    val uidAud    = userViewModel.documentId.observeAsState("").value
+    val nomAud    = userViewModel.nombre.observeAsState("").value
+    val tipoAud   = userViewModel.tipo.observeAsState("").value
+    val auditInfo = remember(uidAud, nomAud, tipoAud) {
+        com.eriknivar.firebasedatabase.data.UbicacionesRepo.AuditInfo(
+            usuarioUid = uidAud,
+            usuarioNombre = nomAud,
+            tipoUsuario = tipoAud
+        )
+    }
+
+    // --- SEARCH ---
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    /** Normaliza para buscar sin tildes y case-insensitive */
+    fun norm(s: String?): String =
+        java.text.Normalizer.normalize(s.orEmpty(), java.text.Normalizer.Form.NFD)
+            .replace("\\p{Mn}+".toRegex(), "")
+            .lowercase()
+            .trim()
+
+// IMPORTANTE: usar derivedStateOf + base = ubisRaw.toList() para observar contenido
+    val ubisFiltradas by remember(searchQuery) {
+        derivedStateOf {
+            val base = ubisRaw.toList() // leer snapshot del contenido
+            if (searchQuery.isBlank()) base
+            else {
+                val q = norm(searchQuery)
+                base.filter { u ->
+                    val cod = norm(u.codigo.ifBlank { u.id })
+                    val nom = norm(u.nombre)
+                    val loc = norm(u.localidadCodigo)
+                    cod.contains(q) || nom.contains(q) || loc.contains(q)
+                }
+            }
+        }
+    }
+
     NavigationDrawer(
         navController = navController,
         storageType = "Ubicaciones",
@@ -405,6 +447,25 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 }
             }
 
+            // --- Search box ---
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it.uppercase() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                label = { Text("Buscar...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Limpiar búsqueda")
+                        }
+                    }
+                },
+                singleLine = true
+            )
+
             if (ubicaciones.isEmpty()) {
                 Text(
                     "Sin ubicaciones para este cliente",
@@ -412,40 +473,52 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     modifier = Modifier.padding(16.dp)
                 )
             } else {
-                @OptIn(ExperimentalFoundationApi::class) LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                @OptIn(ExperimentalFoundationApi::class)
+                // ===== LISTA AGRUPADA =====
+                val grupos: Map<String, List<Ubicacion>> = ubisFiltradas.groupBy { it.localidadCodigo.ifBlank { "—" } }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 4.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    if (ubisRaw.isEmpty()) {
+                    if (ubisFiltradas.isEmpty()) {
                         item {
                             Text(
-                                "Sin ubicaciones para este cliente.",
-                                color = Color.Gray,
-                                modifier = Modifier.padding(16.dp)
+                                text = if (searchQuery.isBlank())
+                                    "Sin ubicaciones para este cliente."
+                                else
+                                    "Sin resultados para “$searchQuery”.",
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .fillMaxWidth(),
+                                color = Color.Gray
                             )
                         }
                     } else {
-                        val grupos = ubisRaw.groupBy { it.localidadCodigo.ifBlank { "—" } }
-                            .toSortedMap(String.CASE_INSENSITIVE_ORDER)
-
-                        grupos.forEach { (loc, itemsDeLoc) ->
-                            stickyHeader {
-                                Text(
-                                    text = loc,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color(0xFFEFEFEF))
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
+                        grupos.toSortedMap(compareBy<String> { it.uppercase() }).forEach { (loc, itemsDeLoc) ->
+                            // Header de localidad
+                            item(key = "header_$loc") {
+                                Surface(
+                                    color = Color(0xFFF1F3F5),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = loc,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                                    )
+                                }
                             }
 
                             items(itemsDeLoc, key = { it.codigo.ifBlank { it.id } }) { u ->
+                                // Fila con click para editar y longClick/botón para borrar (como lo tenías)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .combinedClickable(
                                             onClick = {
-                                                // Abrir edición
                                                 isEditing = true
                                                 showDialog.value = true
                                                 docIdToEdit = u.codigo.ifBlank { u.id }
@@ -471,15 +544,14 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                                 color = Color.Gray
                                             )
                                     }
-                                    // Ícono borrar (tap corto)
                                     IconButton(onClick = {
                                         ubiToDelete.value = u
                                         showDelete.value = true
                                     }) {
                                         Icon(
-                                            Icons.Default.Delete,
+                                            imageVector = Icons.Default.Delete,
                                             contentDescription = "Borrar",
-                                            tint = Color.Red
+                                            tint = Color(0xFFD32F2F) // rojo
                                         )
                                     }
                                 }
@@ -544,7 +616,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             UbicacionesRepo.borrarUbicacion(
                                 codigo = codigoUbi,
                                 clienteIdDestino = cid,
-                                localidadCodigoDestino = locCodigo
+                                localidadCodigoDestino = locCodigo,
+                                audit = auditInfo
                             ) { ok, msg ->
                                 pendingDelete = null
                                 if (ok) {
@@ -575,7 +648,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                         UbicacionesRepo.borrarUbicacion(
                             codigo = u.codigo.ifBlank { u.id },
                             clienteIdDestino = clienteIdAct,
-                            localidadCodigoDestino = u.localidadCodigo
+                            localidadCodigoDestino = u.localidadCodigo,
+                            audit = auditInfo
                         ) { ok, msg ->
                             showDelete.value = false
                             if (!ok) Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
@@ -712,7 +786,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                                 nuevoNombre = nuevoNombre,
                                 nuevoActivo = null,
                                 clienteIdDestino = clienteIdAct,
-                                localidadCodigoDestino = selectedLocalidad.value
+                                localidadCodigoDestino = selectedLocalidad.value,
+                                audit = auditInfo
                             ) { ok, msg ->
                                 if (ok) {
                                     successMessage.value = "Ubicación actualizada exitosamente"

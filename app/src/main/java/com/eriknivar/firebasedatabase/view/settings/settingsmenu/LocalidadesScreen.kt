@@ -209,9 +209,6 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
         if (selectedCid.isNotBlank()) cargarLocalidades(selectedCid, ctx)
     }
 
-
-
-
     val auth = FirebaseAuth.getInstance()
     val db = Firebase.firestore
     val uid = auth.currentUser?.uid
@@ -229,6 +226,19 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
             }
             .addOnFailureListener { e -> Log.e("AUTH", "No pude leer /usuarios/$uid", e) }
     }
+
+    // --- Auditoría (uid, nombre y tipo actual)
+    val uidAud  by userViewModel.documentId.observeAsState("")
+    val nomAud  by userViewModel.nombre.observeAsState("")
+    val tipoAud by userViewModel.tipo.observeAsState("")
+    val auditInfo = remember(uidAud, nomAud, tipoAud) {
+        com.eriknivar.firebasedatabase.data.LocalidadesRepo.AuditInfo(   // ajusta el paquete si lo pusiste en otro
+            usuarioUid = uidAud,
+            usuarioNombre = nomAud,
+            tipoUsuario = tipoAud
+        )
+    }
+
 
     // --- UI ---
     NavigationDrawer(
@@ -531,7 +541,8 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                         codigo = codigo,                 // docId (== código)
                                         nuevoNombre = nuevoNombre,       // cambia nombre
                                         nuevoActivo = null,              // o true/false si quieres tocar "activo"
-                                        clienteIdDestino = cid           // {cid} del path
+                                        clienteIdDestino = cid,           // {cid} del path
+                                        audit = auditInfo
                                     ) { ok, msg ->
                                         isSaving = false
                                         if (ok) {
@@ -650,7 +661,8 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                 isDeleting = true
                                 LocalidadesRepo.borrarLocalidad(
                                     codigo = codeToDelete!!,
-                                    clienteIdDestino = cid
+                                    clienteIdDestino = cid,
+                                    audit = auditInfo
                                 ) { ok, msg ->
                                     isDeleting = false
                                     if (ok) {

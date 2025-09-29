@@ -253,34 +253,47 @@ fun AuditoriaRegistrosScreen(
             )
         }
 
-        // Lista de auditorías (usa la lista filtrada)
-        LazyColumn(Modifier.fillMaxSize()) {
+        // ===== LISTA =====
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // ¡Iteramos sobre 'filtered', que es List<Map<String, Any?>>!
             items(filtered) { audit ->
-                val tipoAccion = (audit["tipo_accion"] as? String).orEmpty()
-                val registroId = (audit["registro_id"] as? String).orEmpty()
-                val fechaTs = audit["fecha"] as? Timestamp
-                val usuarioTexto = (audit["usuarioNombre"] as? String)
-                    ?: (audit["usuarioUid"] as? String).orEmpty()
+                // Compat: soporta nuevo y legacy
+                val accionEs = (audit["accion"] as? String)
+                    ?: (audit["tipo_accion"] as? String)
+                    ?: "editar"
 
-                val valoresAntesMap =
-                    (audit["valores_antes"] as? Map<String, Any?>).orEmpty()
-                val valoresDespuesMap =
-                    (audit["valores_despues"] as? Map<String, Any?>).orEmpty()
+                val registroId     = (audit["registro_id"] as? String).orEmpty()
+                val usuario        = (audit["usuarioNombre"] as? String)
+                    ?: (audit["byNombre"] as? String)
+                    ?: "—"
+                val usuarioUid     = (audit["usuarioUid"] as? String) ?: (audit["byUid"] as? String)
+                val usuarioEmail   = (audit["usuarioEmail"] as? String)
 
-                val usuarioEmail = audit["usuarioEmail"] as? String
+                // Timestamp? (puede venir null o como serverTimestamp pendiente)
+                val fecha = audit["fecha"] as? com.google.firebase.Timestamp
+
+                @Suppress("UNCHECKED_CAST")
+                val before = (audit["before"] ?: audit["valores_antes"]) as? Map<String, Any?> ?: emptyMap()
+                @Suppress("UNCHECKED_CAST")
+                val after  = (audit["after"]  ?: audit["valores_despues"]) as? Map<String, Any?> ?: emptyMap()
 
                 AuditoriaCard(
-                    tipoAccion = tipoAccion,
-                    registroId = registroId,
-                    fecha = fechaTs,
-                    usuario = usuarioTexto,
-                    tipoUsuario = tipoUsuario,
-                    onDelete = { /* handler real opcional aquí */ },
-                    valoresAntes = valoresAntesMap,
-                    valoresDespues = valoresDespuesMap,
-                    usuarioEmail = usuarioEmail
+                    tipoAccion     = accionEs,
+                    registroId     = registroId.ifBlank { "—" },
+                    usuario        = usuario,
+                    fecha          = fecha,
+                    valoresAntes   = before,
+                    valoresDespues = after,
+                    tipoUsuario    = tipoUsuario,      // ← ya lo tienes arriba
+                    usuarioEmail   = usuarioEmail,
+                    usuarioUid     = usuarioUid,
+                    onDelete       = { /* si luego quieres borrar desde UI, lo añadimos */ }
                 )
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
@@ -305,13 +318,14 @@ private fun ClienteSelector(
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier
-                .fillMaxWidth(0.9f)             // ⬅️ ocupa el 90% del ancho disponible
-                .widthIn(min = 320.dp, max = 560.dp) // ⬅️ límites razonables
-                .onGloballyPositioned { coords ->
-                    buttonWidth = coords.size.width
-                },
+                .fillMaxWidth(0.9f)
+                .widthIn(min = 320.dp, max = 560.dp)
+                .onGloballyPositioned { coords -> buttonWidth = coords.size.width },
             shape = RoundedCornerShape(50),
-            border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp),
+            border = androidx.compose.foundation.BorderStroke( // 👈 usa BorderStroke simple
+                1.dp,
+                MaterialTheme.colorScheme.outline
+            ),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
         ) {
             Text(
@@ -319,11 +333,9 @@ private fun ClienteSelector(
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
             )
             Spacer(Modifier.width(6.dp))
-            Icon(
-                imageVector = Icons.Filled.ArrowDropDown,
-                contentDescription = null
-            )
+            Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = null)
         }
+
 
         DropdownMenu(
             expanded = expanded,

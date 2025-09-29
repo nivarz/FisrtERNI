@@ -74,7 +74,9 @@ object LocalidadesRepo {
         onResult: (Boolean, String) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser
-        if (user == null) { onResult(false, "No hay sesión activa."); return }
+        if (user == null) {
+            onResult(false, "No hay sesión activa."); return
+        }
 
         user.getIdToken(false)
             .addOnSuccessListener { res ->
@@ -104,7 +106,9 @@ object LocalidadesRepo {
                 }
 
                 val codigo = sanitizeCodigo(codigoRaw)
-                if (codigo.isBlank()) { onResult(false, "Código vacío o inválido."); return@addOnSuccessListener }
+                if (codigo.isBlank()) {
+                    onResult(false, "Código vacío o inválido."); return@addOnSuccessListener
+                }
                 val nombre = nombreRaw.trim().ifEmpty { codigo }
 
                 val ref = db.collection("clientes")
@@ -120,7 +124,10 @@ object LocalidadesRepo {
                     "activo" to true
                 )
 
-                Log.d("LOCALIDADES", "CREATE preflight tipo=$tipoTok targetCid=$targetCid codigo=$codigo nombre='$nombre'")
+                Log.d(
+                    "LOCALIDADES",
+                    "CREATE preflight tipo=$tipoTok targetCid=$targetCid codigo=$codigo nombre='$nombre'"
+                )
                 Log.d("LOCALIDADES", "path=/clientes/$targetCid/localidades/$codigo data=$data")
 
                 ref.set(data)
@@ -147,59 +154,60 @@ object LocalidadesRepo {
         codigo: String,
         nuevoNombre: String? = null,
         nuevoActivo: Boolean? = null,
-        clienteIdDestino: String? = null,
-        onResult: (ok: Boolean, msg: String) -> Unit
+        clienteIdDestino: String,
+        audit: AuditInfo? = null,                  // 👈 NUEVO (opcional)
+        onResult: (Boolean, String) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser
-        if (user == null) { onResult(false, "No hay sesión activa."); return }
+        val cid = clienteIdDestino.trim().uppercase(java.util.Locale.ROOT)
+        val loc = codigo.trim().uppercase(java.util.Locale.ROOT)
+        if (cid.isBlank() || loc.isBlank()) {
+            onResult(false, "Parámetros incompletos."); return
+        }
 
-        user.getIdToken(false)
-            .addOnSuccessListener { res ->
-                val tipoTok = lower(res.claims["tipo"] as? String)
-                val clienteIdTok = upper(res.claims["clienteId"] as? String)
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        val ref = db.collection("clientes").document(cid)
+            .collection("localidades").document(loc)
 
-                val isSuper = (tipoTok == "superuser")
-                val isAdmin = (tipoTok == "admin")
-
-                if (!isSuper && !isAdmin) {
-                    onResult(false, "Tu rol ($tipoTok) no puede actualizar localidades.")
-                    return@addOnSuccessListener
+        ref.get()
+            .addOnSuccessListener { snap ->
+                if (!snap.exists()) {
+                    onResult(false, "La localidad $loc no existe."); return@addOnSuccessListener
                 }
 
-                val targetCid = when {
-                    isSuper && !clienteIdDestino.isNullOrBlank() -> upper(clienteIdDestino)
-                    else -> clienteIdTok
-                }
-                if (targetCid.isBlank()) {
-                    onResult(false, "clienteId destino vacío.")
-                    return@addOnSuccessListener
-                }
-                if (isAdmin && targetCid != clienteIdTok) {
-                    onResult(false, "Admin solo puede escribir en su cliente ($clienteIdTok).")
-                    return@addOnSuccessListener
-                }
-
-                val cod = sanitizeCodigo(codigo)
-                if (cod.isBlank()) { onResult(false, "Código inválido."); return@addOnSuccessListener }
-
+                val before = snap.data ?: emptyMap<String, Any?>()
                 val updates = mutableMapOf<String, Any>()
                 if (!nuevoNombre.isNullOrBlank()) updates["nombre"] = nuevoNombre.trim()
                 if (nuevoActivo != null) updates["activo"] = nuevoActivo
-                if (updates.isEmpty()) { onResult(false, "Nada para actualizar."); return@addOnSuccessListener }
+                if (updates.isEmpty()) {
+                    onResult(false, "Nada para actualizar."); return@addOnSuccessListener
+                }
 
-                val ref = db.collection("clientes").document(targetCid)
-                    .collection("localidades").document(cod)
-
-                // Reglas solo permiten tocar nombre/activo; no mandamos otros campos
                 ref.update(updates as Map<String, Any>)
-                    .addOnSuccessListener { onResult(true, "Localidad $cod actualizada.") }
-                    .addOnFailureListener { e ->
-                        Log.e("LOCALIDADES", "Update $cod falló", e)
-                        onResult(false, e.message ?: "Error actualizando $cod")
+                    .addOnSuccessListener {
+                        onResult(true, "Localidad $loc actualizada.")
+                        try {
+                            writeAuditRegistro(
+                                db = db,
+                                clienteId = cid,
+                                accionEs = "editar",
+                                codigo = loc,
+                                entidad = "localidad",
+                                localidadCodigo = null,
+                                audit = audit,
+                                detalle = mapOf(
+                                    "before" to before,
+                                    "after" to updates
+                                )
+                            )
+                        } catch (_: Exception) { /* no romper flujo si falla auditoría */
+                        }
+
+                    }.addOnFailureListener { e ->
+                        onResult(false, e.message ?: "Error actualizando $loc")
                     }
             }
             .addOnFailureListener { e ->
-                onResult(false, "No pude leer claims del token: ${e.message}")
+                onResult(false, e.message ?: "Error leyendo $loc")
             }
     }
 
@@ -209,50 +217,109 @@ object LocalidadesRepo {
      */
     fun borrarLocalidad(
         codigo: String,
-        clienteIdDestino: String? = null,
-        onResult: (ok: Boolean, msg: String) -> Unit
+        clienteIdDestino: String,
+        audit: AuditInfo? = null,                 // 👈 NUEVO (opcional)
+        onResult: (Boolean, String) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser
-        if (user == null) { onResult(false, "No hay sesión activa."); return }
+        val cid = clienteIdDestino.trim().uppercase(java.util.Locale.ROOT)
+        val loc = codigo.trim().uppercase(java.util.Locale.ROOT)
+        if (cid.isBlank() || loc.isBlank()) {
+            onResult(false, "Parámetros incompletos."); return
+        }
 
-        user.getIdToken(false)
-            .addOnSuccessListener { res ->
-                val tipoTok = lower(res.claims["tipo"] as? String)
-                val clienteIdTok = upper(res.claims["clienteId"] as? String)
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        val ref = db.collection("clientes").document(cid)
+            .collection("localidades").document(loc)
 
-                val isSuper = (tipoTok == "superuser")
-                val isAdmin = (tipoTok == "admin")
-
-                if (!isSuper && !isAdmin) {
-                    onResult(false, "Tu rol ($tipoTok) no puede borrar localidades.")
-                    return@addOnSuccessListener
+        ref.get()
+            .addOnSuccessListener { snap ->
+                if (!snap.exists()) {
+                    onResult(false, "La localidad $loc no existe."); return@addOnSuccessListener
                 }
 
-                val targetCid = when {
-                    isSuper && !clienteIdDestino.isNullOrBlank() -> upper(clienteIdDestino)
-                    else -> clienteIdTok
-                }
-                if (targetCid.isBlank()) {
-                    onResult(false, "clienteId destino vacío.")
-                    return@addOnSuccessListener
-                }
-                if (isAdmin && targetCid != clienteIdTok) {
-                    onResult(false, "Admin solo puede borrar en su cliente ($clienteIdTok).")
-                    return@addOnSuccessListener
-                }
-
-                val cod = sanitizeCodigo(codigo)
-                if (cod.isBlank()) { onResult(false, "Código inválido."); return@addOnSuccessListener }
-
-                val ref = db.collection("clientes").document(targetCid)
-                    .collection("localidades").document(cod)
-
+                val before = snap.data ?: mapOf("codigo" to loc)
                 ref.delete()
-                    .addOnSuccessListener { onResult(true, "Localidad $cod eliminada.") }
-                    .addOnFailureListener { e -> onResult(false, e.message ?: "No se pudo eliminar $cod") }
-            }
-            .addOnFailureListener { e ->
-                onResult(false, "No pude leer claims del token: ${e.message}")
+                    .addOnSuccessListener {
+                        onResult(true, "Localidad $loc eliminada.")
+                        try {
+                            writeAuditRegistro(
+                                db = db,
+                                clienteId = cid,
+                                accionEs = "eliminar",
+                                codigo = loc,
+                                entidad = "localidad",
+                                localidadCodigo = null,
+                                audit = audit,
+                                detalle = mapOf("before" to before)   // en delete no hay "after"
+                            )
+                        } catch (_: Exception) { /* no romper flujo si falla auditoría */
+                        }
+
+                    }
+                    .addOnFailureListener { e ->
+                        onResult(false, e.message ?: "No se pudo eliminar $loc")
+                    }
+            }.addOnFailureListener { e ->
+                onResult(false, e.message ?: "Error leyendo $loc")
             }
     }
+
+    // ===== Auditar acciones =====
+    // ===== Auditar acciones =====
+    data class AuditInfo(
+        val usuarioUid: String,
+        val usuarioNombre: String,
+        val tipoUsuario: String,
+    )
+
+    /**
+     * Helper unificado para auditoría (llaves compatibles con tu visor).
+     * accionEs: "editar" | "eliminar"
+     * entidad : "localidad" (por defecto) u otra si reutilizas
+     */
+    private fun writeAuditRegistro(
+        db: com.google.firebase.firestore.FirebaseFirestore,
+        clienteId: String,
+        accionEs: String,                  // "editar" | "eliminar"
+        codigo: String,
+        entidad: String = "localidad",
+        localidadCodigo: String? = null,
+        audit: AuditInfo? = null,
+        detalle: Map<String, Any?> = emptyMap(),
+    ) {
+        val payload = mutableMapOf<String, Any?>(
+            "clienteId" to clienteId,
+            "entidad" to entidad,
+            "accion" to accionEs,                           // 👈 en español para tu visor
+            "codigo" to codigo,
+            "fecha" to com.google.firebase.Timestamp.now(),
+
+            // Llaves que tu pantalla de auditoría espera:
+            "usuarioUid" to audit?.usuarioUid,
+            "usuarioNombre" to audit?.usuarioNombre,
+            "tipoUsuario" to audit?.tipoUsuario,
+
+            // Alias de compatibilidad (por si alguna pantalla antigua los lee):
+            "byUid" to audit?.usuarioUid,
+            "byNombre" to audit?.usuarioNombre,
+            "byTipo" to audit?.tipoUsuario
+        )
+
+        if (!localidadCodigo.isNullOrBlank()) {
+            payload["localidadCodigo"] = localidadCodigo
+        }
+
+        // Mezcla datos extra (before/after/legacy, etc.)
+        payload.putAll(detalle)
+
+        db.collection("clientes")
+            .document(clienteId)
+            .collection("auditoria_registros")
+            .add(payload)
+            .addOnFailureListener { e ->
+                android.util.Log.w("AUDITORIA_LOC", "No se pudo escribir auditoría: ${e.message}")
+            }
+    }
+
+
 }

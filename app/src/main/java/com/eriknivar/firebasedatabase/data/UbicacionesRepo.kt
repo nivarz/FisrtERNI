@@ -362,109 +362,139 @@ object UbicacionesRepo {
     }
 
 // --- UPDATE: intenta NUEVA y si no existe, cae a LEGACY --------------------
-    fun updateUbicacion(
-        codigo: String,
-        nuevoNombre: String? = null,
-        nuevoActivo: Boolean? = null,
-        clienteIdDestino: String,
-        localidadCodigoDestino: String,
-        onResult: (Boolean, String) -> Unit
-    ) {
-        val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
-        val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
-        val cod = codigo.trim().uppercase(Locale.ROOT)
-        if (cid.isBlank() || loc.isBlank() || cod.isBlank()) {
-            onResult(false, "Parámetros incompletos."); return
-        }
-
-        val updatesNueva = mutableMapOf<String, Any>()
-        if (!nuevoNombre.isNullOrBlank()) updatesNueva["nombre"] = nuevoNombre.trim()
-        if (nuevoActivo != null) updatesNueva["activo"] = nuevoActivo
-
-        if (updatesNueva.isEmpty()) {
-            onResult(false, "Nada para actualizar."); return
-        }
-
-        val refNueva = db.collection("clientes").document(cid)
-            .collection("localidades").document(loc)
-            .collection("ubicaciones").document(cod)
-
-        val refLegacy = db.collection("clientes").document(cid)
-            .collection("ubicaciones").document(cod)
-
-        // 1) Probar NUEVA
-        refNueva.get()
-            .addOnSuccessListener { snap ->
-                if (snap.exists()) {
-                    refNueva.update(updatesNueva as Map<String, Any>)
-                        .addOnSuccessListener {
-                            onResult(
-                                true,
-                                "Ubicación $cod actualizada (nueva)."
-                            )
-                        }
-                        .addOnFailureListener { e ->
-                            onResult(
-                                false,
-                                e.message ?: "Error actualizando $cod (nueva)."
-                            )
-                        }
-                } else {
-                    // 2) LEGACY: mapear 'nombre' -> 'descripcion'
-                    val updatesLegacy = mutableMapOf<String, Any>()
-                    if (!nuevoNombre.isNullOrBlank()) updatesLegacy["descripcion"] =
-                        nuevoNombre.trim()
-                    if (nuevoActivo != null) updatesLegacy["activo"] = nuevoActivo
-
-                    refLegacy.get()
-                        .addOnSuccessListener { snapLeg ->
-                            if (!snapLeg.exists()) {
-                                onResult(
-                                    false,
-                                    "Ubicación $cod no existe en nueva ni legacy."
-                                ); return@addOnSuccessListener
-                            }
-                            if (updatesLegacy.isEmpty()) {
-                                onResult(
-                                    false,
-                                    "Nada para actualizar."
-                                ); return@addOnSuccessListener
-                            }
-                            refLegacy.update(updatesLegacy as Map<String, Any>)
-                                .addOnSuccessListener {
-                                    onResult(
-                                        true,
-                                        "Ubicación $cod actualizada (legacy)."
-                                    )
-                                }
-                                .addOnFailureListener { e ->
-                                    onResult(
-                                        false,
-                                        e.message ?: "Error actualizando $cod (legacy)."
-                                    )
-                                }
-                        }
-                        .addOnFailureListener { e ->
-                            onResult(
-                                false,
-                                e.message ?: "Error consultando legacy."
-                            )
-                        }
-                }
-            }
-            .addOnFailureListener { e -> onResult(false, e.message ?: "Error consultando nueva.") }
+fun updateUbicacion(
+    codigo: String,
+    nuevoNombre: String? = null,
+    nuevoActivo: Boolean? = null,
+    clienteIdDestino: String,
+    localidadCodigoDestino: String,
+    audit: AuditInfo? = null,               // 👈 NUEVO (opcional)
+    onResult: (Boolean, String) -> Unit
+) {
+    val cid = clienteIdDestino.trim().uppercase(java.util.Locale.ROOT)
+    val loc = localidadCodigoDestino.trim().uppercase(java.util.Locale.ROOT)
+    val cod = codigo.trim().uppercase(java.util.Locale.ROOT)
+    if (cid.isBlank() || loc.isBlank() || cod.isBlank()) {
+        onResult(false, "Parámetros incompletos."); return
     }
+
+    val refNueva = db.collection("clientes").document(cid)
+        .collection("localidades").document(loc)
+        .collection("ubicaciones").document(cod)
+
+    val refLegacy = db.collection("clientes").document(cid)
+        .collection("ubicaciones").document(cod)
+
+    // 1) Intentar en NUEVA
+    refNueva.get()
+        .addOnSuccessListener { snapNueva ->
+            if (snapNueva.exists()) {
+                val before = snapNueva.data ?: emptyMap<String, Any?>()
+                val updates = mutableMapOf<String, Any>()
+                if (!nuevoNombre.isNullOrBlank()) updates["nombre"] = nuevoNombre.trim()
+                if (nuevoActivo != null) updates["activo"] = nuevoActivo
+
+                if (updates.isEmpty()) { onResult(false, "Nada para actualizar."); return@addOnSuccessListener }
+
+                refNueva.update(updates as Map<String, Any>)
+                    .addOnSuccessListener {
+                        onResult(true, "Ubicación $cod actualizada (nueva).")
+                        // Auditoría (no bloquea UI)
+                        try {
+                            val detalle = mapOf(
+                                "byUid" to audit?.usuarioUid,
+                                "byNombre" to audit?.usuarioNombre,
+                                "byTipo" to audit?.tipoUsuario,
+                                "before" to before,
+                                "after" to updates
+                            )
+                            writeAuditRegistro(
+                                db = db,
+                                clienteId = cid,
+                                accionEs = "editar",                  // 👈 español
+                                codigo = cod,
+                                localidadCodigo = loc,
+                                entidad = "ubicacion",
+                                audit = audit,
+                                detalle = mapOf(
+                                    "before" to before,
+                                    "after" to updates
+                                )
+                            )
+
+                        } catch (_: Exception) {}
+                    }
+                    .addOnFailureListener { e ->
+                        onResult(false, e.message ?: "Error actualizando $cod (nueva).")
+                    }
+            } else {
+                // 2) Intentar en LEGACY (mapeo nombre -> descripcion)
+                refLegacy.get()
+                    .addOnSuccessListener { snapLeg ->
+                        if (!snapLeg.exists()) {
+                            onResult(false, "Ubicación $cod no existe en nueva ni legacy."); return@addOnSuccessListener
+                        }
+                        val before = snapLeg.data ?: emptyMap<String, Any?>()
+
+                        val updatesLegacy = mutableMapOf<String, Any>()
+                        if (!nuevoNombre.isNullOrBlank()) updatesLegacy["descripcion"] = nuevoNombre.trim()
+                        if (nuevoActivo != null) updatesLegacy["activo"] = nuevoActivo
+
+                        if (updatesLegacy.isEmpty()) { onResult(false, "Nada para actualizar."); return@addOnSuccessListener }
+
+                        refLegacy.update(updatesLegacy as Map<String, Any>)
+                            .addOnSuccessListener {
+                                onResult(true, "Ubicación $cod actualizada (legacy).")
+                                try {
+                                    val detalle = mapOf(
+                                        "byUid" to audit?.usuarioUid,
+                                        "byNombre" to audit?.usuarioNombre,
+                                        "byTipo" to audit?.tipoUsuario,
+                                        "before" to before,
+                                        "after" to updatesLegacy,
+                                        "legacy" to true
+                                    )
+                                    writeAuditRegistro(
+                                        db = db,
+                                        clienteId = cid,
+                                        accionEs = "editar",                  // 👈 español
+                                        codigo = cod,
+                                        localidadCodigo = loc,
+                                        entidad = "ubicacion",
+                                        audit = audit,
+                                        detalle = mapOf(
+                                            "before" to before,
+                                            "after" to updatesLegacy,     // 👈 usa updatesLegacy
+                                            "legacy" to true
+                                        )
+                                    )
+
+                                } catch (_: Exception) {}
+                            }
+                            .addOnFailureListener { e ->
+                                onResult(false, e.message ?: "Error actualizando $cod (legacy).")
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        onResult(false, e.message ?: "Error consultando legacy.")
+                    }
+            }
+        }
+        .addOnFailureListener { e -> onResult(false, e.message ?: "Error consultando nueva.") }
+}
+
 
     // --- DELETE: intenta NUEVA y si no existe, cae a LEGACY --------------------
     fun borrarUbicacion(
         codigo: String,
         clienteIdDestino: String,
         localidadCodigoDestino: String,
+        audit: AuditInfo? = null,               // 👈 NUEVO (opcional)
         onResult: (Boolean, String) -> Unit
     ) {
-        val cid = clienteIdDestino.trim().uppercase(Locale.ROOT)
-        val loc = localidadCodigoDestino.trim().uppercase(Locale.ROOT)
-        val cod = codigo.trim().uppercase(Locale.ROOT)
+        val cid = clienteIdDestino.trim().uppercase(java.util.Locale.ROOT)
+        val loc = localidadCodigoDestino.trim().uppercase(java.util.Locale.ROOT)
+        val cod = codigo.trim().uppercase(java.util.Locale.ROOT)
         if (cid.isBlank() || loc.isBlank() || cod.isBlank()) {
             onResult(false, "Parámetros incompletos."); return
         }
@@ -477,54 +507,78 @@ object UbicacionesRepo {
             .collection("ubicaciones").document(cod)
 
         refNueva.get()
-            .addOnSuccessListener { snap ->
-                if (snap.exists()) {
+            .addOnSuccessListener { snapNueva ->
+                if (snapNueva.exists()) {
+                    val before = snapNueva.data ?: mapOf("codigo" to cod, "localidadCodigo" to loc)
                     refNueva.delete()
                         .addOnSuccessListener {
-                            onResult(
-                                true,
-                                "Ubicación $cod eliminada (nueva)."
-                            )
+                            onResult(true, "Ubicación $cod eliminada (nueva).")
+                            try {
+                                val detalle = mapOf(
+                                    "byUid" to audit?.usuarioUid,
+                                    "byNombre" to audit?.usuarioNombre,
+                                    "byTipo" to audit?.tipoUsuario,
+                                    "before" to before
+                                )
+                                writeAuditRegistro(
+                                    db = db,
+                                    clienteId = cid,
+                                    accionEs = "eliminar",               // 👈 español
+                                    codigo = cod,
+                                    localidadCodigo = loc,
+                                    entidad = "ubicacion",
+                                    audit = audit,
+                                    detalle = mapOf("before" to before)
+                                )
+
+                            } catch (_: Exception) {}
                         }
                         .addOnFailureListener { e ->
-                            onResult(
-                                false,
-                                e.message ?: "No se pudo eliminar $cod (nueva)."
-                            )
+                            onResult(false, e.message ?: "No se pudo eliminar $cod (nueva).")
                         }
                 } else {
                     refLegacy.get()
                         .addOnSuccessListener { snapLeg ->
                             if (!snapLeg.exists()) {
-                                onResult(
-                                    false,
-                                    "Ubicación $cod no existe en nueva ni legacy."
-                                ); return@addOnSuccessListener
+                                onResult(false, "Ubicación $cod no existe en nueva ni legacy."); return@addOnSuccessListener
                             }
+                            val before = snapLeg.data ?: mapOf("codigo" to cod, "localidadCodigo" to loc)
                             refLegacy.delete()
                                 .addOnSuccessListener {
-                                    onResult(
-                                        true,
-                                        "Ubicación $cod eliminada (legacy)."
-                                    )
+                                    onResult(true, "Ubicación $cod eliminada (legacy).")
+                                    try {
+                                        val detalle = mapOf(
+                                            "byUid" to audit?.usuarioUid,
+                                            "byNombre" to audit?.usuarioNombre,
+                                            "byTipo" to audit?.tipoUsuario,
+                                            "before" to before,
+                                            "legacy" to true
+                                        )
+                                        writeAuditRegistro(
+                                            db = db,
+                                            clienteId = cid,
+                                            accionEs = "eliminar",               // 👈 español
+                                            codigo = cod,
+                                            localidadCodigo = loc,
+                                            entidad = "ubicacion",
+                                            audit = audit,
+                                            detalle = mapOf("before" to before)
+                                        )
+
+                                    } catch (_: Exception) {}
                                 }
                                 .addOnFailureListener { e ->
-                                    onResult(
-                                        false,
-                                        e.message ?: "No se pudo eliminar $cod (legacy)."
-                                    )
+                                    onResult(false, e.message ?: "No se pudo eliminar $cod (legacy).")
                                 }
                         }
                         .addOnFailureListener { e ->
-                            onResult(
-                                false,
-                                e.message ?: "Error consultando legacy."
-                            )
+                            onResult(false, e.message ?: "Error consultando legacy.")
                         }
                 }
             }
             .addOnFailureListener { e -> onResult(false, e.message ?: "Error consultando nueva.") }
     }
+
 
 
     // --- Verificar si una ubicación existe (cliente + localidad + código) ---
@@ -617,4 +671,52 @@ object UbicacionesRepo {
             false
         }
     }
+
+    // ===== Auditar acciones sobre Ubicaciones =====
+    data class AuditInfo(
+        val usuarioUid: String,
+        val usuarioNombre: String,
+        val tipoUsuario: String,
+    )
+
+    // Guarda SIEMPRE las llaves que tu visor espera: usuarioUid/usuarioNombre/tipoUsuario
+// y además deja alias byUid/byNombre/byTipo por compatibilidad.
+    private fun writeAuditRegistro(
+        db: com.google.firebase.firestore.FirebaseFirestore,
+        clienteId: String,
+        accionEs: String,            // usar "editar" | "eliminar"
+        codigo: String,
+        localidadCodigo: String?,
+        entidad: String,             // "ubicacion" | "localidad"
+        audit: AuditInfo?,
+        detalle: Map<String, Any?> = emptyMap(),
+    ) {
+        val base = mutableMapOf<String, Any?>(
+            "clienteId" to clienteId,
+            "entidad" to entidad,
+            "accion" to accionEs,                    // 👈 español para tu visor
+            "codigo" to codigo,
+            "fecha" to com.google.firebase.Timestamp.now(),
+            // usuario (llaves que tu pantalla espera):
+            "usuarioUid" to audit?.usuarioUid,
+            "usuarioNombre" to audit?.usuarioNombre,
+            "tipoUsuario" to audit?.tipoUsuario,
+            // alias de compatibilidad:
+            "byUid" to audit?.usuarioUid,
+            "byNombre" to audit?.usuarioNombre,
+            "byTipo" to audit?.tipoUsuario
+        )
+        if (!localidadCodigo.isNullOrBlank()) base["localidadCodigo"] = localidadCodigo
+        base.putAll(detalle)
+
+        db.collection("clientes")
+            .document(clienteId)
+            .collection("auditoria_registros")
+            .add(base)
+            .addOnFailureListener { e ->
+                android.util.Log.w("AUDITORIA", "No se pudo escribir auditoría: ${e.message}")
+            }
+    }
+
+
 }
