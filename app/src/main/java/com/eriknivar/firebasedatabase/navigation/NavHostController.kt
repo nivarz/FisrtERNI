@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -13,6 +14,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -123,115 +126,146 @@ fun NetworkAwareNavGraph(
         onCloseDisconnected = { showDisconnectedBanner = false },
         onCloseRestored = { showRestoredBanner = false }
     ) {
-        NavHost(navController = navController, startDestination = "splash") {
-            composable("splash") { SplashScreen(navController, userViewModel) }
-            composable("login") { LoginScreen(navController, userViewModel) }
-            composable("storagetype") { SelectStorageFragment(navController, userViewModel) }
-            composable("inventoryentry/{storageType}") { backStackEntry ->
-                val storageType = backStackEntry.arguments?.getString("storageType")
-                FirestoreApp(navController, storageType = storageType.orEmpty(), userViewModel)
-            }
-            composable("inventoryreports") {
-                InventoryReportsFragment(
-                    navController,
-                    userViewModel
-                )
-            }
-            composable("settings") { SettingsFragment(navController, userViewModel) }
-            composable("masterdata") { MasterDataFragment(navController, userViewModel) }
-            composable("cambiarPassword") { CambiarPasswordScreen(navController, userViewModel) }
-            composable("usuarios") {
-                UsuariosScreen(
-                    navController = navController,
-                    userViewModel = userViewModel
-                )
-            }
-            composable("ubicaciones") {
-                UbicacionesScreen(
-                    navController = navController,
-                    userViewModel = userViewModel
-                )
-            }
-            composable("localidades") {
-                LocalidadesScreen(
-                    navController = navController,
-                    userViewModel = userViewModel
-                )
-            }
-            composable("auditoria") {
-                AuditoriaRegistrosScreen(
-                    navController = navController,
-                    userViewModel = userViewModel
-                )
-            }
-            composable("reconteoAsignado") {
-                ReconteoAsignadoScreen(
-                    navController = navController,
-                    userViewModel = userViewModel
-                )
-            }
 
-            composable(Rutas.CLIENTES) {
-                ClientesScreen(navController, userViewModel)
-            }
+        // 1) Watcher global (idle + absolute)
+        com.eriknivar.firebasedatabase.view.common.SessionGuard(
+            userViewModel = userViewModel,
+            navController = navController
+        )
 
-            composable(Rutas.USUARIO_FORM) {
-                UsuarioFormRoute(
-                    onBack = { navController.popBackStack() },
-                    onSaved = {
-                        // Marca un flag para refrescar al volver
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set("usuarios_needs_refresh", true)
-                        navController.popBackStack()
+        // 2) Interceptor de interacción global
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.material3.Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent() // Cualquier toque/gesto
+                            userViewModel.onUserInteracted?.invoke()
+                        }
                     }
-                )
+                }
+        ) { padding ->
+            // 3) Tu navegación normal
+            NavHost(navController = navController, startDestination = "splash") {
+                composable("splash") { SplashScreen(navController, userViewModel) }
+                composable("login") { LoginScreen(navController, userViewModel) }
+                composable("storagetype") { SelectStorageFragment(navController, userViewModel) }
+                composable("inventoryentry/{storageType}") { backStackEntry ->
+                    val storageType = backStackEntry.arguments?.getString("storageType")
+                    FirestoreApp(navController, storageType = storageType.orEmpty(), userViewModel)
+                }
+                composable("inventoryreports") {
+                    InventoryReportsFragment(
+                        navController,
+                        userViewModel
+                    )
+                }
+                composable("settings") { SettingsFragment(navController, userViewModel) }
+                composable("masterdata") { MasterDataFragment(navController, userViewModel) }
+                composable("cambiarPassword") {
+                    CambiarPasswordScreen(
+                        navController,
+                        userViewModel
+                    )
+                }
+                composable("usuarios") {
+                    UsuariosScreen(
+                        navController = navController,
+                        userViewModel = userViewModel
+                    )
+                }
+                composable("ubicaciones") {
+                    UbicacionesScreen(
+                        navController = navController,
+                        userViewModel = userViewModel
+                    )
+                }
+                composable("localidades") {
+                    LocalidadesScreen(
+                        navController = navController,
+                        userViewModel = userViewModel
+                    )
+                }
+                composable("auditoria") {
+                    AuditoriaRegistrosScreen(
+                        navController = navController,
+                        userViewModel = userViewModel
+                    )
+                }
+                composable("reconteoAsignado") {
+                    ReconteoAsignadoScreen(
+                        navController = navController,
+                        userViewModel = userViewModel
+                    )
+                }
+
+                composable(Rutas.CLIENTES) {
+                    ClientesScreen(navController, userViewModel)
+                }
+
+                composable(Rutas.USUARIO_FORM) {
+                    UsuarioFormRoute(
+                        onBack = { navController.popBackStack() },
+                        onSaved = {
+                            // Marca un flag para refrescar al volver
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("usuarios_needs_refresh", true)
+                            navController.popBackStack()
+                        }
+                    )
+                }
+
+                composable(
+                    route = Rutas.CLIENTE_FORM_ROUTE,
+                    arguments = listOf(
+                        navArgument(Rutas.ARG_CLIENTE_ID) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        }
+                    )
+                ) {
+                    ClienteFormRoute(
+                        onBack = { navController.popBackStack() },
+                        onSaved = {
+                            // ✳️ avisa a la pantalla anterior (Clientes) que recargue
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("clientes_refresh", true)
+
+                            navController.popBackStack()
+                        }
+                    )
+                }
+                composable(
+                    route = RUTA_APP_ENTRADA,
+                    arguments = listOf(
+                        navArgument("loc") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("mode") {
+                            type = NavType.StringType; defaultValue = ConteoMode.CON_LOTE.name
+                        }
+                    )
+                ) { backStackEntry ->
+                    val loc = backStackEntry.arguments?.getString("loc").orEmpty()
+                    val modeStr =
+                        backStackEntry.arguments?.getString("mode") ?: ConteoMode.CON_LOTE.name
+                    val conteoMode =
+                        runCatching { ConteoMode.valueOf(modeStr) }.getOrElse { ConteoMode.CON_LOTE }
+
+                    // ⬇️ ¡Aquí renderizamos FirestoreApp para que NO se pierda el Drawer!
+                    FirestoreApp(
+                        navController = navController,
+                        storageType = loc,          // si usas loc como “localidad/almacén”
+                        userViewModel = userViewModel,
+                        conteoMode = conteoMode     // <-- lo añadiste en FirestoreApp.kt
+                    )
+                }
+
+
             }
-
-            composable(
-                route = Rutas.CLIENTE_FORM_ROUTE,
-                arguments = listOf(
-                    navArgument(Rutas.ARG_CLIENTE_ID) {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    }
-                )
-            ) {
-                ClienteFormRoute(
-                    onBack = { navController.popBackStack() },
-                    onSaved = {
-                        // ✳️ avisa a la pantalla anterior (Clientes) que recargue
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set("clientes_refresh", true)
-
-                        navController.popBackStack()
-                    }
-                )
-            }
-            composable(
-                route = RUTA_APP_ENTRADA,
-                arguments = listOf(
-                    navArgument("loc")  { type = NavType.StringType; defaultValue = "" },
-                    navArgument("mode") { type = NavType.StringType; defaultValue = ConteoMode.CON_LOTE.name }
-                )
-            ) { backStackEntry ->
-                val loc = backStackEntry.arguments?.getString("loc").orEmpty()
-                val modeStr = backStackEntry.arguments?.getString("mode") ?: ConteoMode.CON_LOTE.name
-                val conteoMode = runCatching { ConteoMode.valueOf(modeStr) }.getOrElse { ConteoMode.CON_LOTE }
-
-                // ⬇️ ¡Aquí renderizamos FirestoreApp para que NO se pierda el Drawer!
-                FirestoreApp(
-                    navController = navController,
-                    storageType = loc,          // si usas loc como “localidad/almacén”
-                    userViewModel = userViewModel,
-                    conteoMode = conteoMode     // <-- lo añadiste en FirestoreApp.kt
-                )
-            }
-
-
         }
     }
 }
-

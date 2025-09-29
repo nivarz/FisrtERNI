@@ -8,10 +8,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,30 +28,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
-import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
-import kotlinx.coroutines.delay
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextOverflow
 import com.google.firebase.auth.FirebaseAuth
 import com.eriknivar.firebasedatabase.data.LocalidadesRepo
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewModel) {
-
-    // --- Sesión / gating ---
-    val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
-    val isInitialized = userViewModel.isInitialized.observeAsState(false).value
-    if (isInitialized && isLoggedOut) return
 
     val tipo by userViewModel.tipo.observeAsState("")
     val isSuper = tipo.equals("superuser", ignoreCase = true)
@@ -77,7 +68,6 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                 android.util.Log.e("AUTH/CLAIMS", "No pude leer claims", e)
             }
     }
-
 
     var isSaving by remember { mutableStateOf(false) }
 
@@ -219,34 +209,8 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
         if (selectedCid.isNotBlank()) cargarLocalidades(selectedCid, ctx)
     }
 
-    // --- Inactividad (igual que en otras pantallas) ---
-    val context = LocalContext.current
-    val lastInteractionTime =
-        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
-    }
-    LaunchedEffect(lastInteractionTime.longValue) {
-        while (true) {
-            delay(60_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-            if (tiempoInactivo >= 30 * 60_000) {
-                val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios")
-                    .document(documentId)
-                    .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
-                    .show()
-                userViewModel.clearUser()
-                navController.navigate("login") { popUpTo(0) { inclusive = true } }
-                break
-            }
-        }
-    }
+
 
     val auth = FirebaseAuth.getInstance()
     val db = Firebase.firestore
@@ -413,7 +377,6 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
             ElevatedButton(
                 enabled = selectedCid.isNotBlank(),
                 onClick = {
-                    actualizarActividad(context)
                     codigoInput = ""
                     nombreInput = ""
                     docIdToEdit = ""
@@ -446,63 +409,78 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
                         elevation = CardDefaults.cardElevation(2.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Texto con peso: ocupa el ancho disponible y no empuja a los íconos
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Código: ") }
+                                        append(codigo)
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Nombre: ") }
+                                        append(nombre)
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
 
+                            // Botonera con ancho/tamaño controlado y separación constante
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(
-                                        buildAnnotatedString {
-                                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                                                append(
-                                                    "Código: "
-                                                )
-                                            }
-                                            append(codigo)
-                                            append("   ")
-                                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                                                append(
-                                                    "Nombre: "
-                                                )
-                                            }
-                                            append(nombre)
-                                        }
-                                    )
-                                }
-
-                                Row {
-                                    IconButton(onClick = {
+                                IconButton(
+                                    onClick = {
                                         // Editar
                                         isEditing = true
                                         docIdToEdit = codigo
                                         codigoInput = codigo
                                         nombreInput = nombre
                                         showDialog = true
-                                    }) {
-                                        Icon(
-                                            Icons.Filled.Edit,
-                                            contentDescription = "Editar"
-                                        )
-                                    }
-                                    // Borrar
-                                    IconButton(
-                                        enabled = !isDeleting,                 // deshabilitado mientras borra
-                                        onClick = {
-                                            codeToDelete =
-                                                codigo              // ← viene del Pair (codigo, nombre)
-                                            showDeleteDialog = true            // ← abre el diálogo
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Eliminar"
-                                        )
-                                    }
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Editar",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    enabled = !isDeleting,
+                                    onClick = {
+                                        codeToDelete = codigo
+                                        showDeleteDialog = true
+                                    },
+                                    modifier = Modifier.size(40.dp),
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Eliminar",
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
                         }
@@ -514,7 +492,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = { showDialog = false },
-                    title = { Text(if (isEditing) "Editar Localidad" else "Crear Localidad") },
+                    title = { Text(if (isEditing) "Editar Almacen" else "Crear Almacen") },
                     text = {
                         Column {
                             OutlinedTextField(
@@ -528,7 +506,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                             )
                             OutlinedTextField(
                                 value = nombreInput,
-                                onValueChange = { nombreInput = it.trimStart() },
+                                onValueChange = { nombreInput = it.trimStart().uppercase() },
                                 label = { Text("Nombre del Almacen*") },
                                 singleLine = true
                             )
@@ -558,7 +536,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                         isSaving = false
                                         if (ok) {
                                             showDialog = false
-                                            successMessage = "Localidad $codigo actualizada"
+                                            successMessage = "Almacen $codigo actualizada"
                                             showSuccessDialog = true
                                             cargarLocalidades(cid, ctx)
 
@@ -594,7 +572,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                         isSaving = false
                                         if (ok) {
                                             showDialog = false
-                                            successMessage = "Localidad $codigo guardada"
+                                            successMessage = "Almacen $codigo guardada"
                                             showSuccessDialog = true
                                             cargarLocalidades(cid, ctx)
 
@@ -641,7 +619,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                 AlertDialog(
                     onDismissRequest = { showNombreExistenteDialog = false },
                     title = { Text("Dato duplicado") },
-                    text = { Text("Ya existe una localidad con ese código.") },
+                    text = { Text("Ya existe un almacen con ese código.") },
                     confirmButton = {
                         TextButton(onClick = {
                             showNombreExistenteDialog = false
@@ -655,7 +633,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                 AlertDialog(
                     onDismissRequest = { if (!isDeleting) showDeleteDialog = false },
                     title = { Text("Eliminar ${codeToDelete}") },
-                    text = { Text("¿Seguro que deseas eliminar esta localidad? Esta acción no se puede deshacer.") },
+                    text = { Text("¿Seguro que deseas eliminar este almacen? Esta acción no se puede deshacer.") },
                     confirmButton = {
                         TextButton(
                             enabled = !isDeleting,
@@ -714,4 +692,3 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
         }
     }
 }
-

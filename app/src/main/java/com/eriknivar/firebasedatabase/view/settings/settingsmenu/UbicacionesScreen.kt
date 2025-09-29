@@ -67,7 +67,6 @@ import com.eriknivar.firebasedatabase.data.LocalidadesRepo
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.inventoryentry.QRCodeScanner
-import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
@@ -75,7 +74,6 @@ import com.google.firebase.firestore.firestore
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.eriknivar.firebasedatabase.data.ClientesRepo
@@ -195,43 +193,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
         onDispose { reg.remove() }
     }
 
-    val lastInteractionTime =
-        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
-
-    fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
-    }
-
-    LaunchedEffect(lastInteractionTime.longValue) {
-        while (true) {
-            delay(600_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-
-            if (tiempoInactivo >= 30 * 600_000) {
-                val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios").document(documentId)
-                    .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
-                    .show()
-
-                userViewModel.clearUser()
-
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
-                }
-
-                break
-            }
-        }
-    }
-
     val clienteIdAct by userViewModel.clienteId.observeAsState("")
     val clienteId by userViewModel.clienteId.observeAsState("")
     val clienteNombre by userViewModel.clienteNombre.observeAsState("")  // 👈 observa el nombre también
-
 
     val ubisRaw = remember { mutableStateListOf<Ubicacion>() }
 
@@ -365,11 +329,10 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 if (nom.isNotBlank()) {
                     userViewModel.setClienteNombre(nom)
                 }
-            } catch (_: Exception) { /* ignora */ }
+            } catch (_: Exception) { /* ignora */
+            }
         }
     }
-
-
 
     NavigationDrawer(
         navController = navController,
@@ -400,16 +363,17 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             if (tipo.equals("superuser", true)) {
                                 showClientePicker = true
                             } else {
-                                Toast.makeText(ctx, "Cliente fijo para admin", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, "Cliente fijo para admin", Toast.LENGTH_SHORT)
+                                    .show()
                             }
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Log.d("DBG", "nombre=${clienteNombre}")
                     val label = when {
-                        clienteId.isNotBlank() && clienteNombre.isNotBlank() ->  "$clienteNombre"
+                        clienteId.isNotBlank() && clienteNombre.isNotBlank() -> "$clienteNombre"
                         //clienteId.isNotBlank() && clienteNombre.isNotBlank() -> "$clienteId · $clienteNombre"
-                        //clienteId.isNotBlank() -> clienteId
+                        clienteId.isNotBlank() -> clienteId
                         else -> "Selecciona un cliente"
                     }
 
@@ -421,13 +385,11 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     )
                 }
 
-
                 // Botón crear (lo deshabilitamos si no hay cliente activo)
                 ElevatedButton(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = navyBlue, contentColor = Color.White
                     ), enabled = selectedCid.isNotBlank(), onClick = {
-                        actualizarActividad(context)
                         if (selectedCid.isBlank()) {
                             showClientePicker = true
                             return@ElevatedButton
@@ -543,6 +505,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     onDismissRequest = { showClientePicker = false },
                     title = { Text("Selecciona un cliente") },
                     text = {
+                        @OptIn(ExperimentalFoundationApi::class)
                         LazyColumn(modifier = Modifier.height(300.dp)) {
                             items(clientesActivos) { (cid, nombre) ->
                                 Row(
@@ -617,7 +580,15 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             showDelete.value = false
                             if (!ok) Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
                         }
-                    }) { Text("Borrar") }
+                    }) {
+                        Text("Borrar")
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Borrar",
+                            tint = MaterialTheme.colorScheme.error   // rojo del tema
+                        )
+
+                    }
                 },
                 dismissButton = {
                     TextButton(
@@ -658,9 +629,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             onValueChange = { zonaInput = it.uppercase() },
                             label = { Text("Zona (opcional)") })
 
-
-
                         Spacer(Modifier.height(8.dp))
+
                         Text("Almacén*", fontWeight = FontWeight.Bold)
 
                         var expanded by remember { mutableStateOf(false) }

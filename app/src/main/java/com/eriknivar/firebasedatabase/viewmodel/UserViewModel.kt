@@ -14,12 +14,15 @@ class UserViewModel : ViewModel() {
 
     private val _nombre = MutableLiveData("")
     val nombre: LiveData<String> = _nombre
-    fun setNombre(v: String) { _nombre.postValue(v) }
+    fun setNombre(v: String) {
+        _nombre.postValue(v)
+    }
 
     private val _tipo = MutableLiveData("")
     val tipo: LiveData<String> = _tipo
-    fun setTipo(v: String) { _tipo.postValue(v) }
-
+    fun setTipo(v: String) {
+        _tipo.postValue(v)
+    }
 
     private val _isInitialized = MutableLiveData(false)
     val isInitialized: LiveData<Boolean> = _isInitialized
@@ -31,9 +34,11 @@ class UserViewModel : ViewModel() {
 
     private val _clienteId = MutableLiveData("")
     val clienteId: LiveData<String> = _clienteId
-    fun setClienteId(v: String) { _clienteId.postValue(v) }
+    fun setClienteId(v: String) {
+        _clienteId.postValue(v)
+    }
 
-     fun setUser(nombre: String, tipo: String, documentId: String) {
+    fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
         _tipo.value = tipo
         _documentId.value = documentId
@@ -44,8 +49,9 @@ class UserViewModel : ViewModel() {
     private val _clienteNombre = MutableLiveData("")
     val clienteNombre: LiveData<String> = _clienteNombre
 
-    fun setClienteNombre(n: String) { _clienteNombre.value = n }
-
+    fun setClienteNombre(n: String) {
+        _clienteNombre.value = n
+    }
 
     fun cargarFotoUrl(documentId: String) {
         Firebase.firestore.collection("usuarios")
@@ -82,7 +88,6 @@ class UserViewModel : ViewModel() {
     var tempCantidad = ""
     var tempUbicacion = ""
     var tempFecha = ""
-
 
     fun clearUser() {
         _nombre.value = ""
@@ -125,7 +130,6 @@ class UserViewModel : ViewModel() {
         tempFecha = ""
     }
 
-
     fun puedeModificarRegistro(registroUsuario: String, registroTipo: String): Boolean {
         val actualTipo = tipo.value?.lowercase()?.trim() ?: ""
         val actualNombre = nombre.value?.trim() ?: ""
@@ -138,9 +142,15 @@ class UserViewModel : ViewModel() {
         }
     }
 
+    // UserViewModel
+    var onUserInteracted: (() -> Unit)? = null
 
+    // === Session (Absolute Timeout) - GLOBAL en el VM ===
+    private val _sessionStartMs = MutableLiveData<Long>(System.currentTimeMillis())
+    val sessionStartMs: LiveData<Long> = _sessionStartMs
+
+    /** Llama esto al iniciar sesión / cuando el usuario queda listo en pantalla */
+    fun resetSessionStart() {
+        _sessionStartMs.value = System.currentTimeMillis()
+    }
 }
-
-
-
-
