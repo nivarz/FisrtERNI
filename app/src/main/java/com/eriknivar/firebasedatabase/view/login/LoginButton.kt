@@ -50,6 +50,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.ktx.app
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
+import com.eriknivar.firebasedatabase.navigation.Rutas
 
 
 @Composable
@@ -57,7 +58,8 @@ fun LoginButton(
     navController: NavHostController,
     username: MutableState<String>,
     password: MutableState<String>,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+    onLoginClick: () -> Unit
 ) {
     val context = LocalContext.current
     val navyBlue = Color(0xFF001F5B)
@@ -125,7 +127,8 @@ fun LoginButton(
 
     ElevatedButton(
         onClick = {
-            if (!isButtonEnabled) return@ElevatedButton
+            if (isLoading || !isButtonEnabled) return@ElevatedButton
+            onLoginClick()
 
             val usuarioInput = username.value.trim()
             val passwordInput = password.value.trim()
@@ -203,9 +206,10 @@ fun LoginButton(
                                             // Navegamos SIN tocar sessionId; se setea tras cambiar la contraseña
                                             isLoading = false
                                             isButtonEnabled = true
-                                            navController.navigate("cambiarPassword") {
+                                            navController.navigate(Rutas.CAMBIAR_PASSWORD) {
                                                 popUpTo(0) { inclusive = true }
                                             }
+
                                         } else {
                                             // Flujo normal: persistir sessionId y seguir
                                             Firebase.firestore.collection("usuarios").document(uid)
@@ -243,19 +247,22 @@ fun LoginButton(
                     Toast.makeText(context, "Login inválido: ${e.message}", Toast.LENGTH_LONG).show()
                 }
         },
-        enabled = isButtonEnabled,
+        enabled = !isLoading && isButtonEnabled,
         colors = ButtonDefaults.buttonColors(
             containerColor = navyBlue,
             contentColor = Color.White
         ),
-        modifier = Modifier.width(200.dp)
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()                                             // ⬅️ ancho completo
+            .height(52.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text(if (isLoading) "Ingresando..." else "Iniciar Sesión")
-
+            Text(if (isLoading) "Ingresando..." else "Iniciar sesión")
             if (isLoading) {
                 Spacer(modifier = Modifier.width(8.dp))
                 CircularProgressIndicator(
@@ -266,8 +273,6 @@ fun LoginButton(
             }
         }
     }
-
-
 }
 
 

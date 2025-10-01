@@ -28,16 +28,104 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.wear.compose.material3.TextButton
 import com.google.firebase.auth.FirebaseAuth
-import androidx.wear.compose.material3.TextButtonDefaults
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+
+@Composable
+fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) {
+    val customColorBackGroundScreenLogin = Color(0xFF527782)
+
+    // 🔹 Estado elevado para compartir entre campos y botón
+    val username = remember { mutableStateOf("") }
+    val password = remember { mutableStateOf("") }
+
+    // === Handler compartido para iniciar sesión (usado por Enter y por el botón) ===
+    val handleLogin: () -> Unit = {
+        // 1) CORTA el contenido actual del onClick que hoy pasas a LoginButton
+        // 2) PÉGALO aquí adentro, sin cambiar nada más
+    }
+
+    Scaffold(
+        containerColor = customColorBackGroundScreenLogin,   // ⬅️ nuevo
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(customColorBackGroundScreenLogin) // ⬅️ nuevo
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+            ) {
+
+            }
+        }) { innerPadding ->
+
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.logoernilupatransparente),
+                    contentDescription = "Logo ERNI",
+                    modifier = Modifier
+                        .height(180.dp)
+                        .padding(bottom = 4.dp)
+                )
+
+                ElevatedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 520.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Campos
+                        TextFieldsLogin(
+                            username = username,
+                            password = password,
+                            onLogin = handleLogin // ⏎ en contraseña llama lo mismo que el botón
+                        )
+
+                        LoginButton(
+                            navController = navController,
+                            username = username,
+                            password = password,
+                            userViewModel = userViewModel,
+                            onLoginClick = handleLogin
+                        )
+
+                        // Enlace "¿Olvidaste tu contraseña?"
+                        ForgotPasswordLink(username = username)
+                    }
+                }
+            }
+        }
+    }
+}
 
 
 @Composable
@@ -65,21 +153,21 @@ fun ForgotPasswordLink(username: MutableState<String>) {
     // Enlace en NEGRO
     TextButton(
         onClick = { input = username.value.trim(); show = true },
-        colors = TextButtonDefaults.textButtonColors(contentColor = Color.Black),
         modifier = Modifier
-            .fillMaxWidth()           // 👈 ocupa todo el ancho
-            .padding(top = 16.dp)     // 👈 separación del botón de “Iniciar sesión”
+            .fillMaxWidth()
+            .padding(top = 16.dp)
     ) {
         Text(
             "¿Olvidaste tu contraseña?",
-            color = Color.White,
+            color = Color.Black,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.fillMaxWidth(), // 👈 el texto también ocupa todo el ancho
-            textAlign = TextAlign.Center,       // 👈 centrado
-            maxLines = 1                        // 👈 evita saltos raros
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+
         )
     }
-
 
     if (show) {
         AlertDialog(
@@ -133,9 +221,8 @@ fun ForgotPasswordLink(username: MutableState<String>) {
                 ) {
                     // Cancelar
                     TextButton(
-                        onClick = { if (!loading) show = false },
-                        enabled = !loading,
-                        colors = TextButtonDefaults.textButtonColors(contentColor = Color.Black),
+                        onClick = { if (!loading) show = false }, enabled = !loading,
+                        //colors = TextButtonDefaults.textButtonColors(contentColor = Color.Black),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
@@ -154,20 +241,18 @@ fun ForgotPasswordLink(username: MutableState<String>) {
                             val email =
                                 if (input.contains("@")) input else "${input.lowercase()}@erni.local"
                             loading = true
-                            FirebaseAuth.getInstance()
-                                .sendPasswordResetEmail(email)
+                            FirebaseAuth.getInstance().sendPasswordResetEmail(email)
                                 .addOnCompleteListener { task ->
                                     loading = false
                                     show = false
-                                    val msg = if (task.isSuccessful)
-                                        "Si existe una cuenta con ese correo, te enviamos un enlace para restablecerla."
-                                    else task.exception?.localizedMessage
-                                        ?: "No se pudo enviar el correo."
+                                    val msg =
+                                        if (task.isSuccessful) "Si existe una cuenta con ese correo, te enviamos un enlace para restablecerla."
+                                        else task.exception?.localizedMessage
+                                            ?: "No se pudo enviar el correo."
                                     Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                 }
-                        },
-                        enabled = !loading && isInputValid,
-                        colors = TextButtonDefaults.textButtonColors(contentColor = Color.Black),
+                        }, enabled = !loading && isInputValid,
+                        //colors = TextButtonDefaults.textButtonColors(contentColor = Color.Black),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
@@ -181,52 +266,6 @@ fun ForgotPasswordLink(username: MutableState<String>) {
                     }
                 }
             },
-            dismissButton = {}
-        )
+            dismissButton = {})
     }
 }
-
-
-@Composable
-fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) {
-    val customColorBackGroundScreenLogin = Color(0xFF527782)
-
-    // 🔹 Estado elevado para compartir entre campos y botón
-    val username = remember { mutableStateOf("") }
-    val password = remember { mutableStateOf("") }
-
-    Scaffold { innerPadding ->
-        Box(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .background(customColorBackGroundScreenLogin),
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.logoernilupatransparente),
-                    contentDescription = "Logo ERNI",
-                    modifier = Modifier
-                        .height(180.dp) //Controla el tamaño de la imagen
-                        .padding(bottom = 4.dp)
-                )
-
-                // 🔹 Pasa los estados aquí
-                TextFieldsLogin(username, password)
-
-                // 🔹 Pasa los estados al botón
-                LoginButton(navController, username, password, userViewModel)
-                //Spacer(Modifier.height(8.dp))
-                ForgotPasswordLink(username = username) // 👈 nuevo
-
-            }
-        }
-    }
-}
-
-

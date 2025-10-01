@@ -32,31 +32,37 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun TextFieldsLogin(
     username: MutableState<String>,
-    password: MutableState<String>
+    password: MutableState<String>,
+    onLogin: () -> Unit = {}   // ← callback para Enter en contraseña
 ) {
-
     val focusRequesterUser = remember { FocusRequester() }
     val focusRequesterPassword = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp, 0.dp, 16.dp, 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // Usuario / Email
         OutlinedTextField(
             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = "User") },
-            label = { Text("Usuario", color = Color.White, fontWeight = FontWeight.Thin) },
+            label = { Text("Usuario", color = Color.Black, fontWeight = FontWeight.Thin) },
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+            placeholder = { Text("usuario@example.com", fontSize = 14.sp) },
             value = username.value,
             onValueChange = { username.value = it.trim() },
             singleLine = true,
@@ -64,30 +70,38 @@ fun TextFieldsLogin(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequesterUser),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            keyboardActions = KeyboardActions(onNext = {
-                try {
-                    keyboardController?.hide()
-                    focusRequesterPassword.requestFocus()
-                } catch (e: Exception) {
-                    Log.e("KeyboardFocus", "Error pasando foco a contraseña: ${e.message}")
+            shape = RoundedCornerShape(14.dp),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = {
+                    try {
+                        focusRequesterPassword.requestFocus()
+                    } catch (e: Exception) {
+                        Log.e("KeyboardFocus", "Error pasando foco a contraseña: ${e.message}")
+                    }
                 }
-            })
+            )
         )
 
+        // Estado local para mostrar/ocultar contraseña
         var showPassword by remember { mutableStateOf(false) }
 
+        // Contraseña
         OutlinedTextField(
             leadingIcon = { Icon(Icons.Filled.Key, contentDescription = "Password") },
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
                     Icon(
-                        imageVector = if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        imageVector = if (showPassword) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                         contentDescription = "Toggle Password Visibility"
                     )
                 }
             },
-            label = { Text("Contraseña", color = Color.White, fontWeight = FontWeight.Thin) },
+            label = { Text("Contraseña", color = Color.Black, fontWeight = FontWeight.Thin) },
+            placeholder = { Text("••••••••") },
             value = password.value,
             onValueChange = { password.value = it.trim() },
             singleLine = true,
@@ -96,14 +110,22 @@ fun TextFieldsLogin(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequesterPassword),
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = {
-                keyboardController?.hide()
-                Log.d("Login", "⏎ Enter presionado en contraseña")
-            })
+            shape = RoundedCornerShape(14.dp),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    keyboardController?.hide()
+                    Log.d("Login", "⏎ Enter presionado en contraseña → onLogin()")
+                    onLogin()
+                }
+            )
         )
     }
 }
+
 
 
 
