@@ -244,7 +244,7 @@ fun LoginButton(
                 .addOnFailureListener { e ->
                     isLoading = false
                     isButtonEnabled = true
-                    Toast.makeText(context, "Login inválido: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Usuario o contraseña incorrectos!! (${e.message})", Toast.LENGTH_LONG).show()
                 }
         },
         enabled = !isLoading && isButtonEnabled,

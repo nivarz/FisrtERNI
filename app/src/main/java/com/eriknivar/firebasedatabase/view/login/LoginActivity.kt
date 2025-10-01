@@ -84,8 +84,8 @@ fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) 
                     painter = painterResource(id = R.drawable.logoernilupatransparente),
                     contentDescription = "Logo ERNI",
                     modifier = Modifier
-                        .height(180.dp)
-                        .padding(bottom = 4.dp)
+                        .height(140.dp)
+                        .padding(bottom = 0.dp)
                 )
 
                 ElevatedCard(
