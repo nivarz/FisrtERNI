@@ -59,6 +59,8 @@ fun LoginButton(
     username: MutableState<String>,
     password: MutableState<String>,
     userViewModel: UserViewModel,
+    isButtonEnabled: Boolean = true,   // ← NUEVO
+    isLoading: Boolean = false,
     onLoginClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -274,7 +276,3 @@ fun LoginButton(
         }
     }
 }
-
-
-
-

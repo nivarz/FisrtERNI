@@ -37,20 +37,54 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) {
     val customColorBackGroundScreenLogin = Color(0xFF527782)
 
+    val emailError = remember { mutableStateOf<String?>(null) }
+    val passError  = remember { mutableStateOf<String?>(null) }
+    val globalError = remember { mutableStateOf<String?>(null) }
+
     // 🔹 Estado elevado para compartir entre campos y botón
     val username = remember { mutableStateOf("") }
     val password = remember { mutableStateOf("") }
 
-    // === Handler compartido para iniciar sesión (usado por Enter y por el botón) ===
-    val handleLogin: () -> Unit = {
-        // 1) CORTA el contenido actual del onClick que hoy pasas a LoginButton
-        // 2) PÉGALO aquí adentro, sin cambiar nada más
+    fun validate(): Boolean {
+        var ok = true
+        emailError.value = null
+        passError.value = null
+        globalError.value = null
+
+        val u = username.value.trim()
+        val p = password.value.trim()
+
+        if (u.isEmpty()) {
+            emailError.value = "Escribe tu usuario/correo."
+            ok = false
+        } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(u).matches()) {
+            // Si tu “usuario” NO es email, comenta esta línea.
+            emailError.value = "Formato de correo no válido."
+            ok = false
+        }
+        if (p.isEmpty()) {
+            passError.value = "Escribe tu contraseña."
+            ok = false
+        }
+        return ok
     }
+
+    // === Handler compartido para iniciar sesión (usado por Enter y por el botón) ===
+    val handleLogin: () -> Unit = login@ {     // ⬅️ etiqueta del lambda:  login@
+        globalError.value = null               // ← limpia global
+        emailError.value = null                // opcional
+        passError.value = null                 // opcional
+        if (!validate()) return@login          // ⬅️ usa la etiqueta, no el nombre de la variable
+        // aquí va tu lógica de login (la misma del botón)
+    }
+
+    val clearGlobalError: () -> Unit = { globalError.value = null }
 
     Scaffold(
         containerColor = customColorBackGroundScreenLogin,   // ⬅️ nuevo
@@ -107,17 +141,39 @@ fun LoginScreen(navController: NavHostController, userViewModel: UserViewModel) 
                         TextFieldsLogin(
                             username = username,
                             password = password,
-                            onLogin = handleLogin // ⏎ en contraseña llama lo mismo que el botón
+                            onLogin = handleLogin, // ⏎ en contraseña llama lo mismo que el botón
+                            emailError = emailError.value,
+                            passError = passError.value,
+                            onAnyEdit = {
+                                globalError.value = null
+                                if (emailError.value != null) emailError.value = null
+                                if (passError.value != null)  passError.value  = null
+                            }
                         )
+
+                        val isFormOk =
+                            username.value.isNotBlank() &&
+                                    password.value.isNotBlank() &&
+                                    emailError.value == null &&
+                                    passError.value == null
 
                         LoginButton(
                             navController = navController,
                             username = username,
                             password = password,
                             userViewModel = userViewModel,
+                            isButtonEnabled = isFormOk,
                             onLoginClick = handleLogin
                         )
 
+                        if (globalError.value != null) {
+                            Text(
+                                text = globalError.value!!,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 13.sp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                         // Enlace "¿Olvidaste tu contraseña?"
                         ForgotPasswordLink(username = username)
                     }

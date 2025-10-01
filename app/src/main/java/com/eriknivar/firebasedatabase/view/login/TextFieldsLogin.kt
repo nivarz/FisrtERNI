@@ -37,17 +37,30 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.sp
 
 @Composable
 fun TextFieldsLogin(
     username: MutableState<String>,
     password: MutableState<String>,
-    onLogin: () -> Unit = {}   // ← callback para Enter en contraseña
+    onLogin: () -> Unit = {},  // ← callback para Enter en contraseña
+    emailError: String? = null,
+    passError: String? = null,
+    onAnyEdit: () -> Unit = {}
 ) {
     val focusRequesterUser = remember { FocusRequester() }
     val focusRequesterPassword = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        try {
+            focusRequesterUser.requestFocus()
+        } catch (_: Exception) {
+        }
+    }
+
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -59,12 +72,22 @@ fun TextFieldsLogin(
     ) {
         // Usuario / Email
         OutlinedTextField(
+            isError = emailError != null,
+            supportingText = {
+                if (emailError != null) {
+                    Text(
+                        text = emailError,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp
+                    )
+                }
+            },
             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = "User") },
             label = { Text("Usuario", color = Color.Black, fontWeight = FontWeight.Thin) },
             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
             placeholder = { Text("usuario@example.com", fontSize = 14.sp) },
             value = username.value,
-            onValueChange = { username.value = it.trim() },
+            onValueChange = { username.value = it.trim() ; onAnyEdit() },
             singleLine = true,
             maxLines = 1,
             modifier = Modifier
@@ -91,6 +114,16 @@ fun TextFieldsLogin(
 
         // Contraseña
         OutlinedTextField(
+            isError = passError != null,
+            supportingText = {
+                if (passError != null) {
+                    Text(
+                        text = passError,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp
+                    )
+                }
+            },
             leadingIcon = { Icon(Icons.Filled.Key, contentDescription = "Password") },
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
@@ -103,7 +136,7 @@ fun TextFieldsLogin(
             label = { Text("Contraseña", color = Color.Black, fontWeight = FontWeight.Thin) },
             placeholder = { Text("••••••••") },
             value = password.value,
-            onValueChange = { password.value = it.trim() },
+            onValueChange = { password.value = it.trim() ; onAnyEdit() },
             singleLine = true,
             maxLines = 1,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
