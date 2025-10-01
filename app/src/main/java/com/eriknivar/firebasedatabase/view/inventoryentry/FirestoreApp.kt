@@ -261,16 +261,6 @@ fun FirestoreApp(
 
                 )
             }
-/*
-            val filtrados = if (tipoActual.equals("admin", ignoreCase = true)) {
-                // admin NO ve movimientos creados por “superuser”, pero SÍ ve los de admin e invitado
-                nuevos.filter { it.tipoUsuarioCreador.lowercase() != "superuser" }
-            } else {
-                nuevos
-
-
-            allData.clear()
-            allData.addAll(filtrados)  }*/
 
             allData.clear()
             allData.addAll(nuevos)
@@ -279,51 +269,6 @@ fun FirestoreApp(
         }
 
         onDispose { reg.remove() }
-    }
-
-
-    val lastInteractionTime =
-        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
-
-    fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
-    }
-
-    LaunchedEffect(lastInteractionTime.longValue) {
-        while (true) {
-            delay(60_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-
-            if (tiempoInactivo >= 30 * 60_000) {
-                val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios")
-                    .document(documentId)
-                    .update("sessionId", "")
-
-                // 🧹 Limpiar los campos ANTES de salir
-                sku.value = ""
-                location.value = ""
-                lot.value = ""
-                dateText.value = ""
-                quantity.value = ""
-                productoDescripcion.value = ""
-                unidadMedida.value = ""
-
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
-                    .show()
-
-                userViewModel.clearUser()
-
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
-                }
-
-                break
-            }
-        }
     }
 
     NavigationDrawer(
@@ -453,7 +398,6 @@ fun FirestoreApp(
                         dateText = dateText,
                         quantity = quantity,
                         isVisible = expandedForm.value, // 🔵 Usamos esto para mostrar/ocultar internamente
-                        onUserInteraction = { actualizarActividad(context) },
                         conteoMode = conteoMode
 
                     )

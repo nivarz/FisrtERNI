@@ -20,6 +20,7 @@ runtimeLivedata = "1.9.0"
 ui = "1.9.1"
 composeMaterial3 = "1.5.1"
 uiText = "1.9.2"
+material3 = "1.4.0"
 
 
 [libraries]
@@ -52,6 +53,7 @@ zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", ve
 ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 androidx-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
 androidx-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

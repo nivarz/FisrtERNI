@@ -106,39 +106,6 @@ fun MasterDataFragment(
 
     val navyBlue = Color(0xFF001F5B)
 
-    val lastInteractionTime =
-        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
-
-    fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
-    }
-
-    LaunchedEffect(lastInteractionTime.longValue) {
-        while (true) {
-            delay(60_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-
-            if (tiempoInactivo >= 30 * 60_000) {
-                val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios").document(documentId)
-                    .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
-                    .show()
-
-                userViewModel.clearUser()
-
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
-                }
-
-                break
-            }
-        }
-    }
-
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
 
@@ -235,7 +202,6 @@ fun MasterDataFragment(
         if (esSuper) cargarClientes()
     }
 
-
     ScreenWithNetworkBanner(
         showDisconnectedBanner = false,
         showRestoredBanner = false,
@@ -310,7 +276,6 @@ fun MasterDataFragment(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = navyBlue, contentColor = Color.White
                         ), onClick = {
-                            actualizarActividad(context)
                             selectedProduct = null          // ← modo creación
                             codigoInput = ""
                             descripcionInput = ""
@@ -337,7 +302,6 @@ fun MasterDataFragment(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = navyBlue, contentColor = Color.White
                     ), onClick = {
-                        actualizarActividad(context)
                         // [ROLE:LOAD]
                         val tipoUser = userViewModel.tipo.value
                         val userCid = userViewModel.clienteId.value

@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
-
 @Composable
 fun ConfiguracionMenuScreen(navController: NavHostController) {
     val opciones = listOf(

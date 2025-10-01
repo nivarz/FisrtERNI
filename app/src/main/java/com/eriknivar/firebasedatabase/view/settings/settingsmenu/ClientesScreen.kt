@@ -64,7 +64,6 @@ private fun ClientesListScreen(
         ui.error?.let { snackbarHost.showSnackbar(it, withDismissAction = true) }
     }
 
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHost) },
         floatingActionButton = {
@@ -195,7 +194,6 @@ private fun ClientesListScreen(
                             )
                         }
 
-
                         if (ui.loading && ui.items.isNotEmpty()) {
                             item {
                                 Box(
@@ -294,7 +292,6 @@ private fun ClienteCard(
         }
     }
 }
-
 
 @Composable
 private fun EstadoChip(activo: Boolean) {
@@ -435,7 +432,6 @@ fun ClientesScreen(
     }
 }
 
-
 @Composable
 private fun MotivoDialog(
     visible: Boolean,
@@ -466,4 +462,3 @@ private fun MotivoDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
-

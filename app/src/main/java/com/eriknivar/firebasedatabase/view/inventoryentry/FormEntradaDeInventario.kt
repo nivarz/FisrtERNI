@@ -96,7 +96,6 @@ fun FormEntradaDeInventario(
     allData: SnapshotStateList<DataFields>,
     listState: LazyListState,
     isVisible: Boolean,
-    onUserInteraction: () -> Unit,
     conteoMode: ConteoMode
 
 ) {
@@ -187,13 +186,13 @@ fun FormEntradaDeInventario(
 
     // 👇 Detecta si hay cambios que NO se han grabado
     val hasDirtyForm: Boolean = run {
-        val locDirty  = location.value.trim().isNotBlank()
-        val skuDirty  = sku.value.trim().isNotBlank()
-        val qtyDirty  = quantity.value.trim().isNotBlank()
+        val locDirty = location.value.trim().isNotBlank()
+        val skuDirty = sku.value.trim().isNotBlank()
+        val qtyDirty = quantity.value.trim().isNotBlank()
 
         // En SIN_LOTE: ignora los "-" automáticos
-        val loteVal   = lot.value.trim()
-        val vencVal   = dateText.value.trim()
+        val loteVal = lot.value.trim()
+        val vencVal = dateText.value.trim()
 
         val loteDirty = if (conLote) loteVal.isNotBlank() else false
         val vencDirty = if (conLote) (vencVal.isNotBlank() && vencVal != "-") else false
@@ -212,12 +211,13 @@ fun FormEntradaDeInventario(
                 showDialogValueQuantityCero = false
                 openUbicacionInvalidaDialog.value = false
                 showDialogRegistroDuplicado.value = false
-                // showSuccessDialog: déjalo si NO quieres cerrarlo con back
-                // showSavingDialog: lo cierra el flujo de guardado
+
             }
+
             hasDirtyForm -> {
                 showExitDialog = true
             }
+
             else -> {
                 pendingExit = true
             }
@@ -332,7 +332,6 @@ fun FormEntradaDeInventario(
                 showErrorLocation,
                 focusRequester = focusRequesterLocation,
                 nextFocusRequester = focusRequesterSku,
-                onUserInteraction = onUserInteraction,
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
                 tempLocationInput = tempLocationInput,
                 clienteIdActual = clienteIdActual,        // ← antes: userViewModel.clienteId.value
@@ -540,7 +539,6 @@ fun FormEntradaDeInventario(
                         if (isSaving) return@Button     // doble-tap guard
                         isSaving = true
 
-                        onUserInteraction()
                         keyboardController?.hide()
 
                         coroutineScope.launch {
@@ -653,7 +651,6 @@ fun FormEntradaDeInventario(
                 // 🔘 Botón Limpiar
                 Button(
                     onClick = {
-                        onUserInteraction()
                         //focusManager.clearFocus()
 
                         location.value = ""

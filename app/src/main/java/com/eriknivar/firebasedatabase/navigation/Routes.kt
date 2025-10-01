@@ -2,6 +2,12 @@ package com.eriknivar.firebasedatabase.navigation
 
 
 object Rutas {
+    // === Núcleo de navegación ===
+    const val SPLASH = "splash"
+    const val LOGIN = "login"
+    const val CAMBIAR_PASSWORD = "cambiarPassword"
+
+    // === Rutas que ya tenías ===
     const val CLIENTES = "clientes"
     const val CLIENTE_FORM = "clienteForm"
     const val ARG_CLIENTE_ID = "clienteId"
@@ -9,3 +15,4 @@ object Rutas {
 
     const val USUARIO_FORM = "usuarioForm"
 }
+

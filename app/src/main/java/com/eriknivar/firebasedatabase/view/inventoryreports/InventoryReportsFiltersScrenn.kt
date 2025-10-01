@@ -124,7 +124,6 @@ fun InventoryReportFiltersScreen(
     allData: List<DataFields>,
     tipoUsuario: String,
     puedeModificarRegistro: (String, String) -> Boolean,
-    onUserInteraction: () -> Unit,
     onSuccess: () -> Unit // 👈 este es nuevo
 
 ) {
@@ -427,8 +426,6 @@ fun InventoryReportFiltersScreen(
                     Button(
                         onClick = {
 
-                            onUserInteraction()
-
                             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                             isLoading.value = true
 
@@ -537,8 +534,6 @@ fun InventoryReportFiltersScreen(
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
-
-
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
@@ -565,7 +560,6 @@ fun InventoryReportFiltersScreen(
 
                             isExportEnabled = false
                             isLoadingExport = true
-                            onUserInteraction()
 
                             coroutineScope.launch {
                                 Log.d("EXPORT_DEBUG", "Ejecutando exportación y share...")

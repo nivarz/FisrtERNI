@@ -44,6 +44,7 @@ import com.eriknivar.firebasedatabase.viewmodel.SplashScreen
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.delay
 
+
 // Fuera de cualquier función/clase:
 private const val RUTA_APP_ENTRADA = "appEntrada?loc={loc}&mode={mode}"
 
@@ -66,7 +67,7 @@ fun NetworkAwareNavGraph(
 
     LaunchedEffect(isLoggedOut, isInitialized) {
         if (isInitialized && isLoggedOut) {
-            navController.navigate("login") {
+            navController.navigate(Rutas.LOGIN) {
                 popUpTo(0) { inclusive = true }
             }
         }
@@ -148,9 +149,9 @@ fun NetworkAwareNavGraph(
                 }
         ) { padding ->
             // 3) Tu navegación normal
-            NavHost(navController = navController, startDestination = "splash") {
-                composable("splash") { SplashScreen(navController, userViewModel) }
-                composable("login") { LoginScreen(navController, userViewModel) }
+            NavHost(navController = navController, startDestination = Rutas.SPLASH) {
+                composable(Rutas.SPLASH) { SplashScreen(navController, userViewModel) }
+                composable(Rutas.LOGIN) { LoginScreen(navController, userViewModel) }
                 composable("storagetype") { SelectStorageFragment(navController, userViewModel) }
                 composable("inventoryentry/{storageType}") { backStackEntry ->
                     val storageType = backStackEntry.arguments?.getString("storageType")
@@ -164,12 +165,13 @@ fun NetworkAwareNavGraph(
                 }
                 composable("settings") { SettingsFragment(navController, userViewModel) }
                 composable("masterdata") { MasterDataFragment(navController, userViewModel) }
-                composable("cambiarPassword") {
-                    CambiarPasswordScreen(
-                        navController,
-                        userViewModel
+                composable(Rutas.CAMBIAR_PASSWORD) {
+                CambiarPasswordScreen(
+                        navController = navController,
+                        userViewModel = userViewModel
                     )
                 }
+
                 composable("usuarios") {
                     UsuariosScreen(
                         navController = navController,

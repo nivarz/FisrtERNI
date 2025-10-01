@@ -100,6 +100,7 @@ dependencies {
     implementation(libs.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.ui.text)
+    implementation(libs.androidx.material3)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

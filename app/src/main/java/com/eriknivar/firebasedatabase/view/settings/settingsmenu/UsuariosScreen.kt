@@ -41,7 +41,6 @@ fun UsuariosScreen(
 
     var refreshKey by remember { mutableIntStateOf(0) }
 
-
     val refreshFlag = navController.currentBackStackEntry
         ?.savedStateHandle
         ?.getLiveData<Boolean>("usuarios_needs_refresh")
@@ -55,8 +54,6 @@ fun UsuariosScreen(
                 ?.set("usuarios_needs_refresh", false)
         }
     }
-
-
 
     val tipo = userViewModel.tipo.value ?: ""
 
@@ -100,8 +97,3 @@ fun UsuariosScreen(
         )
     }
 }
-
-
-
-
-

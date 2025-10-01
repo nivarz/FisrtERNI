@@ -134,39 +134,7 @@ fun SelectStorageFragment(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    val lastInteractionTime =
-        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
 
-    fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
-    }
-
-    LaunchedEffect(lastInteractionTime.longValue) {
-        while (true) {
-            delay(60_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-
-            if (tiempoInactivo >= 30 * 60_000) {
-                val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios")
-                    .document(documentId)
-                    .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
-                    .show()
-
-                userViewModel.clearUser()
-
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
-                }
-
-                break
-            }
-        }
-    }
 
     LaunchedEffect(tipo, cidActual) {
         if (tipo == "superuser" && cidActual.isBlank()) {
@@ -309,7 +277,6 @@ fun SelectStorageFragment(
                     // ⬇️ Aquí el selector real
                     DropDownUpScreen(
                         navController,
-                        onUserInteraction = { actualizarActividad(context) },
                         userViewModel = userViewModel,
                         localidades = localidades,
                         isLocalidadesLoading = isLocalidadesLoading,

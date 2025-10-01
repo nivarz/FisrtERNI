@@ -229,7 +229,6 @@ fun DropDownUpScreen(
                                 localidadElegida = loc
                                 pendingDialog = true        // pedir abrir diálogo
                                 expandedDropdown = false     // ⬅️ abre el diálogo
-
                             }
                         )
                     }
@@ -288,7 +287,6 @@ fun DropDownUpScreen(
             }
         )
 
-
         ClientePickerDialog(
             open = showClientePicker,
             clientes = clientes
@@ -305,7 +303,5 @@ fun DropDownUpScreen(
 
             showClientePicker.value = false
         }
-
     }
-
 }

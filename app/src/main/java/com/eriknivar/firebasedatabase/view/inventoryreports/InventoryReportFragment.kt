@@ -129,7 +129,6 @@ fun InventoryReportsFragment(
 
                 val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }
 
-
                 allData.clear()
                 allData.addAll(nuevos)
                 Log.d("Reportes", "Cargados reporte=${allData.size} (tipo=$tipoUsuario, cid=$cid)")
@@ -140,7 +139,6 @@ fun InventoryReportsFragment(
             }
         }
     }
-
 
     var showSuccessDialog by remember { mutableStateOf(false) }
 
@@ -163,40 +161,6 @@ fun InventoryReportsFragment(
         }
     }
 
-    val lastInteractionTime =
-        remember { mutableLongStateOf(SessionUtils.obtenerUltimaInteraccion(context)) }
-
-    fun actualizarActividad(context: Context) {
-        val tiempoActual = System.currentTimeMillis()
-        lastInteractionTime.longValue = tiempoActual
-        SessionUtils.guardarUltimaInteraccion(context, tiempoActual)
-    }
-
-    LaunchedEffect(lastInteractionTime.longValue) {
-        while (true) {
-            delay(600_000)
-            val tiempoActual = System.currentTimeMillis()
-            val tiempoInactivo = tiempoActual - lastInteractionTime.longValue
-
-            if (tiempoInactivo >= 30 * 600_000) {
-                val documentId = userViewModel.documentId.value ?: ""
-                Firebase.firestore.collection("usuarios")
-                    .document(documentId)
-                    .update("sessionId", "")
-                Toast.makeText(context, "Sesión finalizada por inactividad", Toast.LENGTH_LONG)
-                    .show()
-
-                userViewModel.clearUser()
-
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
-                }
-
-                break
-            }
-        }
-    }
-
     NavigationDrawer(
         navController,
         "Reportes del Inventario",
@@ -215,7 +179,6 @@ fun InventoryReportsFragment(
             puedeModificarRegistro = { usuario, tipoCreador ->
                 userViewModel.puedeModificarRegistro(usuario, tipoCreador)
             },
-            onUserInteraction = { actualizarActividad(context) }
         )
     }
 }
