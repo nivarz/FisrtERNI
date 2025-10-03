@@ -35,10 +35,12 @@ import androidx.compose.ui.unit.dp
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
-import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.MutableState
 import com.google.firebase.firestore.ktx.firestore
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 
 @Composable
@@ -53,47 +55,42 @@ fun OutlinedTextFieldsInputsLocation(
     clienteIdActual: String?,            // 👈 NUEVO: quién es el cliente
     localidadActual: String?             // 👈 NUEVO: (opcional) filtrar por localidad
 ) {
-    val qrCodeContentLocation = remember { mutableStateOf("") }
-    val wasScanned = remember { mutableStateOf(false) }
+
     val isZebraScan = remember { mutableStateOf(false) }
     val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
     val focusRequesterLocation = remember { FocusRequester() }
-
-    val qrScanLauncherLocation =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val data = result.data
-            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
-            if (intentResult != null) {
-                qrCodeContentLocation.value = intentResult.contents ?: "Código No Encontrado"
-                wasScanned.value = true
-                Log.d("ScanDebug", "Escaneo recibido: ${qrCodeContentLocation.value}")
-            }
-        }
-
-    val qrCodeScannerLocation = remember { QRCodeScanner(qrScanLauncherLocation) }
-    val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // ✅ Escaneo desde launcher (cámara)
-    LaunchedEffect(qrCodeContentLocation.value, wasScanned.value) {
-        if (wasScanned.value) {
-            val scannedValue = qrCodeContentLocation.value.trim().uppercase()
-            if (scannedValue.isNotBlank()) {
-                tempLocationInput.value = scannedValue
-                validarUbicacionEnMaestro(
-                    codigo = scannedValue,
-                    clienteIdActual = clienteIdActual,
-                    localidadActual = localidadActual,
-                    location = location,
-                    showErrorLocation = showErrorLocation,
-                    showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
-                    nextFocusRequester = nextFocusRequester,
-                    keyboardController = keyboardController
-                )
-            }
-            wasScanned.value = false
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (contents != null) {
+            val scanned = contents.trim().uppercase()
+
+            // 1) Mostrar el código en el campo
+            tempLocationInput.value = scanned
+
+            // 2) Validar inmediatamente contra el maestro
+            validarUbicacionEnMaestro(
+                codigo = scanned,
+                clienteIdActual = clienteIdActual,
+                localidadActual = localidadActual,
+                location = location,
+                showErrorLocation = showErrorLocation,
+                showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
+                nextFocusRequester = nextFocusRequester,
+                keyboardController = keyboardController,
+                ocultarTeclado = true
+            )
+
+            Log.d("ScanDebug", "Escaneo recibido: $scanned")
+        } else {
+            Log.d("ScanDebug", "Escaneo cancelado / sin contenido")
         }
     }
+
+
+    //val qrCodeScannerLocation = remember { QRCodeScanner(qrScanLauncherLocation) }
+    val context = LocalContext.current
 
     // 2) Zebra: además de pasar foco, valida ANTES
     LaunchedEffect(isZebraScan.value) {
@@ -170,7 +167,6 @@ fun OutlinedTextFieldsInputsLocation(
                     isZebraScan.value = true
                 }
 
-                wasScanned.value = false
                 showErrorLocation.value = false
             },
             isError = showErrorLocation.value && (location.value.isEmpty() || location.value == "UBICACIÓN NO EXISTE"),
@@ -195,7 +191,16 @@ fun OutlinedTextFieldsInputsLocation(
             }),
             trailingIcon = {
                 IconButton(
-                    onClick = { qrCodeScannerLocation.startQRCodeScanner(context as android.app.Activity) },
+                    onClick = {
+                        val options = ScanOptions().apply {
+                            setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                            setPrompt("Escanea el código")
+                            setBeepEnabled(false)
+                            setOrientationLocked(true) // 👈 bloquea rotación
+                            setCaptureActivity(com.eriknivar.firebasedatabase.scan.CapturePortraitActivity::class.java) // 👈 portrait
+                        }
+                        scanLauncher.launch(options)
+                    },
                     modifier = Modifier.size(60.dp)
                 ) {
                     Icon(
@@ -211,7 +216,6 @@ fun OutlinedTextFieldsInputsLocation(
             IconButton(
                 onClick = {
                     location.value = ""
-                    qrCodeContentLocation.value = ""
                     tempLocationInput.value = ""
                 },
                 modifier = Modifier
@@ -244,7 +248,6 @@ fun OutlinedTextFieldsInputsLocation(
 }
 
 
-
 fun validarUbicacionEnMaestro(
     codigo: String,
     clienteIdActual: String?,
@@ -260,8 +263,8 @@ fun validarUbicacionEnMaestro(
 ) {
     val TAG = "UBI_VALID"
     val code = codigo.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
-    val cid  = clienteIdActual?.trim()?.uppercase()
-    val loc  = localidadActual?.trim()?.uppercase()
+    val cid = clienteIdActual?.trim()?.uppercase()
+    val loc = localidadActual?.trim()?.uppercase()
 
     Log.d(TAG, "-> cid=$cid  loc=$loc  code='$code'")
 
@@ -282,13 +285,19 @@ fun validarUbicacionEnMaestro(
 
     docNueva.get()
         .addOnSuccessListener { snap ->
-            Log.d(TAG, "exists=${snap.exists()} path=clientes/$cid/localidades/$loc/ubicaciones/$code")
+            Log.d(
+                TAG,
+                "exists=${snap.exists()} path=clientes/$cid/localidades/$loc/ubicaciones/$code"
+            )
             if (snap.exists()) {
                 // ✅ éxito (nueva)
                 location.value = code
                 showErrorLocation.value = false
                 if (ocultarTeclado) keyboardController?.hide()
-                try { nextFocusRequester?.requestFocus() } catch (_: Exception) {}
+                try {
+                    nextFocusRequester?.requestFocus()
+                } catch (_: Exception) {
+                }
                 onValid?.invoke()                                  // ⬅️ DISPARA GUARDADO
             } else {
                 // LEGACY por id
@@ -297,13 +306,19 @@ fun validarUbicacionEnMaestro(
 
                 docLegacy.get()
                     .addOnSuccessListener { legacySnap ->
-                        Log.d(TAG, "LEGACY exists=${legacySnap.exists()} path=clientes/$cid/ubicaciones/$code")
+                        Log.d(
+                            TAG,
+                            "LEGACY exists=${legacySnap.exists()} path=clientes/$cid/ubicaciones/$code"
+                        )
                         if (legacySnap.exists()) {
                             // ✅ éxito (legacy)
                             location.value = code
                             showErrorLocation.value = false
                             if (ocultarTeclado) keyboardController?.hide()
-                            try { nextFocusRequester?.requestFocus() } catch (_: Exception) {}
+                            try {
+                                nextFocusRequester?.requestFocus()
+                            } catch (_: Exception) {
+                            }
                             onValid?.invoke()                      // ⬅️ DISPARA GUARDADO
                         } else {
                             // LEGACY por campo alterno (si lo usaste)
@@ -317,7 +332,10 @@ fun validarUbicacionEnMaestro(
                                         location.value = code
                                         showErrorLocation.value = false
                                         if (ocultarTeclado) keyboardController?.hide()
-                                        try { nextFocusRequester?.requestFocus() } catch (_: Exception) {}
+                                        try {
+                                            nextFocusRequester?.requestFocus()
+                                        } catch (_: Exception) {
+                                        }
                                         onValid?.invoke()          // ⬅️ DISPARA GUARDADO
                                     } else {
                                         showErrorLocation.value = true

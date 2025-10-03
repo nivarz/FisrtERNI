@@ -35,8 +35,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import com.eriknivar.firebasedatabase.scan.CapturePortraitActivity
+
 
 @Composable
 fun OutlinedTextFieldsInputsLot(
@@ -49,25 +52,29 @@ fun OutlinedTextFieldsInputsLot(
     enable: Boolean = true
 
 ) {
-    val qrCodeContentLot = remember { mutableStateOf("") }
-    val wasScanned = remember { mutableStateOf(false) }
     val zebraScanned = remember { mutableStateOf(false) }
 
-    val qrScanLauncherLot =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val data = result.data
-            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
-            val scanned = intentResult?.contents?.trim()?.uppercase()
+    val scanLauncherLot = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (contents != null) {
+            val scanned = contents.trim().uppercase()
+            lot.value = scanned
 
-            if (!scanned.isNullOrEmpty() && scanned != "CÓDIGO NO ENCONTRADO") {
-                qrCodeContentLot.value = scanned
-                wasScanned.value = true // ✅ Indicamos que vino del escáner
+            try {
+                keyboardController?.hide()
+                nextFocusRequester.requestFocus()
+            } catch (_: Exception) {
             }
+
+            Log.d("ScanLot", "Escaneo Lote: $scanned")
+        } else {
+            Log.d("ScanLot", "Escaneo cancelado / sin contenido")
         }
+    }
+
 
     // fuerza "-" cuando está deshabilitado
     LaunchedEffect(enable) { if (!enable) lot.value = "-" }
-
 
     // ✅ Foco automático después de limpiar
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
@@ -98,27 +105,11 @@ fun OutlinedTextFieldsInputsLot(
         }
     }
 
-    val qrCodeScannerLot = remember { QRCodeScanner(qrScanLauncherLot) }
     val context = LocalContext.current
-
-    LaunchedEffect(qrCodeContentLot.value, wasScanned.value) {
-        if (wasScanned.value && qrCodeContentLot.value.isNotBlank()) {
-            lot.value = qrCodeContentLot.value
-
-            try {
-                nextFocusRequester.requestFocus()
-            } catch (e: Exception) {
-                Log.e("FocusError", "Error al pasar foco a fecha: ${e.message}")
-            }
-
-            wasScanned.value = false // ✅ Reseteamos la bandera
-        }
-    }
 
     // detecta foco como en Location (si allí usas temp*, aquí no hace falta uno nuevo)
     val interaction = remember { MutableInteractionSource() }
     val isFocused by interaction.collectIsFocusedAsState()
-
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -142,7 +133,6 @@ fun OutlinedTextFieldsInputsLot(
                     zebraScanned.value = true
                 }
                 lot.value = upper
-
                 onUserInteraction()
             },
             // ⬇️ NUEVO
@@ -152,7 +142,14 @@ fun OutlinedTextFieldsInputsLot(
                 if (enable) {
                     IconButton(
                         onClick = {
-                            qrCodeScannerLot.startQRCodeScanner(context as android.app.Activity)
+                            val options = ScanOptions().apply {
+                                setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                                setPrompt("Escanea el código")
+                                setBeepEnabled(false)
+                                setOrientationLocked(true)                         // 👈 bloquea rotación
+                                setCaptureActivity(CapturePortraitActivity::class.java) // 👈 portrait
+                            }
+                            scanLauncherLot.launch(options)
                         },
                         modifier = Modifier.size(60.dp)
                     ) {
@@ -176,7 +173,6 @@ fun OutlinedTextFieldsInputsLot(
             IconButton(
                 onClick = {
                     lot.value = ""
-                    qrCodeContentLot.value = ""
                 },
                 modifier = Modifier
                     .size(48.dp)
@@ -190,8 +186,5 @@ fun OutlinedTextFieldsInputsLot(
                 )
             }
         }
-
-
-
     }
 }

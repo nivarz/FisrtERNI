@@ -3,22 +3,23 @@
 
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     <!-- Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <!-- Android 12 y anteriores -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
 
+        
 
     <application
         android:name=".MyApplication"
@@ -49,17 +50,18 @@
 
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"/>
+                android:resource="@xml/file_paths" />
 
         </provider>
 
 
         <activity
             android:name=".MainActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:exported="true"
             android:configChanges="orientation|screenSize"
-            android:theme="@style/Theme.FirebaseDatabase">
+            android:exported="true"
+            android:theme="@style/Theme.FirebaseDatabase"
+            android:windowSoftInputMode="adjustResize">
+
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -70,7 +72,15 @@
 
         <meta-data
             android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version"/>
+            android:value="@integer/google_play_services_version" />
+
+        <!-- ZXing capture en orientación vertical -->
+        <activity
+            android:name=".scan.CapturePortraitActivity"
+            android:screenOrientation="portrait"
+            android:stateNotNeeded="true"
+            android:exported="false" />
+
 
     </application>
 

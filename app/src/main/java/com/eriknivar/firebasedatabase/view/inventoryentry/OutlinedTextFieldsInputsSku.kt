@@ -33,8 +33,11 @@ import com.eriknivar.firebasedatabase.network.SelectedClientStore
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.delay
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import com.eriknivar.firebasedatabase.scan.CapturePortraitActivity
+
 
 @Composable
 fun OutlinedTextFieldsInputsSku(
@@ -52,8 +55,7 @@ fun OutlinedTextFieldsInputsSku(
     shouldRequestFocusAfterClear: MutableState<Boolean>,
     clienteIdActual: String?
 ) {
-    val qrCodeContentSku = remember { mutableStateOf("") }
-    val wasScanned = remember { mutableStateOf(false) }
+
     val context = LocalContext.current
     val db = remember { FirebaseFirestore.getInstance() }
     val isLoadingProductos = remember { mutableStateOf(false) }
@@ -101,48 +103,20 @@ fun OutlinedTextFieldsInputsSku(
     }
 
     // ===== escaneo con cámara (ZXing) =====
-    val qrScanLauncherSku =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val data = result.data
-            val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, data)
-            if (intentResult != null) {
-                qrCodeContentSku.value = intentResult.contents ?: "CODIGO NO ENCONTRADO"
-                wasScanned.value = true
+    val scanLauncherSku = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (contents != null) {
+            val scanned = contents.trim().uppercase()
+            sku.value =
+                scanned                   // ← disparará tu LaunchedEffect(sku.value, clienteIdActual)
+            try {
+                keyboardController?.hide(); nextFocusRequester.requestFocus()
+            } catch (_: Exception) {
             }
+            Log.d("ScanSku", "Escaneo SKU: $scanned")
+        } else {
+            Log.d("ScanSku", "Escaneo cancelado / sin contenido")
         }
-    val qrCodeScannerSku = remember { QRCodeScanner(qrScanLauncherSku) }
-
-    LaunchedEffect(qrCodeContentSku.value, wasScanned.value) {
-        if (wasScanned.value) {
-            val scanned = qrCodeContentSku.value.trim().uppercase()
-            val cid = clienteIdActual?.trim()?.uppercase()
-            sku.value = scanned
-
-            if (scanned.isNotEmpty() && scanned != "CODIGO NO ENCONTRADO" && !cid.isNullOrBlank()) {
-                lookupSkuForClient(
-                    db = db,
-                    clienteId = cid,
-                    code = scanned
-                ) { desc, um ->
-                    productoDescripcion.value = desc
-                    unidadMedida.value = um
-                    showErrorSku.value =
-                        desc.equals("Sin descripción", ignoreCase = true) ||
-                                desc.startsWith("Error", ignoreCase = true)
-                }
-
-                delay(200L)
-                try {
-                    keyboardController?.hide(); nextFocusRequester.requestFocus()
-                } catch (_: Exception) {
-                }
-            } else {
-                productoDescripcion.value = ""
-                unidadMedida.value = ""
-            }
-            wasScanned.value = false
-        }
-
     }
 
     // ===== escaneo Zebra (input masivo) → pasar foco =====
@@ -178,7 +152,6 @@ fun OutlinedTextFieldsInputsSku(
                 if (isZebra) zebraScanned.value = true
 
                 sku.value = cleanSku
-                qrCodeContentSku.value = cleanSku
                 showErrorSku.value = false
 
                 // si queda vacío limpia descripción/unidad; el lookup lo hará el LaunchedEffect
@@ -197,7 +170,16 @@ fun OutlinedTextFieldsInputsSku(
                             contentDescription = "Buscar productos"
                         )
                     }
-                    IconButton(onClick = { qrCodeScannerSku.startQRCodeScanner(context as android.app.Activity) }) {
+                    IconButton(onClick = {
+                        val options = ScanOptions().apply {
+                            setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                            setPrompt("Escanea el código")
+                            setBeepEnabled(false)
+                            setOrientationLocked(true)                         // ← bloquea rotación
+                            setCaptureActivity(CapturePortraitActivity::class.java) // ← portrait
+                        }
+                        scanLauncherSku.launch(options)
+                    }) {
                         Icon(
                             imageVector = Icons.Filled.QrCodeScanner,
                             contentDescription = "Escanear Código"
@@ -220,7 +202,6 @@ fun OutlinedTextFieldsInputsSku(
             IconButton(
                 onClick = {
                     sku.value = ""
-                    qrCodeContentSku.value = ""
                     productoDescripcion.value = ""
                     unidadMedida.value = ""
                     showErrorSku.value = false
