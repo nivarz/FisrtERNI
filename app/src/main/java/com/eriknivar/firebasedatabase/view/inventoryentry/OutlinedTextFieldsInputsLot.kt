@@ -101,6 +101,11 @@ fun OutlinedTextFieldsInputsLot(
                     Log.e("ZebraFocus", "Error al pasar foco Zebra: ${e.message}")
                 }
             }
+            if (lot.value.isNotEmpty() && lot.value != "CODIGO NO ENCONTRADO") {
+                keyboardController?.hide()
+                nextFocusRequester.requestFocus()
+            }
+
             zebraScanned.value = false
         }
     }
@@ -127,7 +132,9 @@ fun OutlinedTextFieldsInputsLot(
             interactionSource = interaction,
             onValueChange = {
                 val upper = it.trim().uppercase()
-                val isZebra = upper.length >= 5 && (upper.length - lot.value.length > 2)
+                val prev = lot.value
+                val wasEmpty = prev.isBlank() || prev == "-"
+                val isZebra = wasEmpty && upper.length >= 5 && (upper.length - prev.length) >= 5
 
                 if (isZebra) {
                     zebraScanned.value = true

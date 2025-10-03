@@ -689,7 +689,7 @@ fun MessageCard(
 
                                     // === 1) Validaciones ===
                                     if (isInv) {
-                                        if (!locationChanged && !quantityChanged) {
+                                        if (!locationChanged && !quantityChanged && !loteChanged && !fechaChanged) {
                                             Toast.makeText(
                                                 context,
                                                 "No hay cambios para guardar.",
@@ -737,10 +737,23 @@ fun MessageCard(
 
                                         // ✅ Siempre enviamos la nueva ubicación (aunque sea igual) para evitar “no-op”
                                         if (isInv) {
+                                            val zone = java.time.ZoneId.of("America/Santo_Domingo")
+                                            val hoy = com.google.firebase.Timestamp.now().toDate()
+                                            val tsItem = item.fechaRegistro?.toDate()
+                                            val esMismoDia = tsItem?.let { a -> a.toInstant().atZone(zone).toLocalDate() == hoy.toInstant().atZone(zone).toLocalDate() } ?: false
+
                                             val updatesInvitado = mutableMapOf<String, Any>(
                                                 "ubicacion" to nuevaUbi  // <<— siempre
                                             )
                                             if (quantityChanged) updatesInvitado["cantidad"] = qty
+
+                                            // ⬇️ NUEVO: solo si es “hoy”, permitir cambiar lote/fecha
+                                            if (esMismoDia) {
+                                                updatesInvitado["lote"] = editedLote.trim().ifBlank { "-" }.uppercase()
+                                                updatesInvitado["fechaVencimiento"] = editedExpirationDate.trim()
+                                                updatesInvitado["updatedAt"] = FieldValue.serverTimestamp()
+                                                updatesInvitado["updatedBy"] = (userViewModel.documentId.value ?: "")
+                                            }
 
                                             Log.d(
                                                 "EditarInv", "Invitado UPDATE -> $updatesInvitado"
@@ -752,55 +765,67 @@ fun MessageCard(
                                                 if (idx >= 0) {
                                                     val updatedItem = item.copy(
                                                         quantity = if (quantityChanged) qty else item.quantity,
-                                                        location = nuevaUbi,     // <<— forzamos nueva ubicación en UI
-                                                        lote = item.lote,        // invitados no cambian
-                                                        expirationDate = item.expirationDate
+                                                        location = nuevaUbi,
+                                                        lote = if (esMismoDia) editedLote.trim().ifBlank { "-" }.uppercase() else item.lote,
+                                                        expirationDate = if (esMismoDia) editedExpirationDate.trim() else item.expirationDate
                                                     )
+
                                                     allData[idx] = updatedItem
                                                 }
 
                                                 // === 5) Auditoría (solo si hubo cambios reales) ===
-                                                val huboCambios =
-                                                    (locationChanged || quantityChanged)
+                                                val nuevoLote   = editedLote.trim().ifBlank { "-" }.uppercase()
+                                                val nuevaFecha  = editedExpirationDate.trim()
+
+                                                val loteChanged  = esMismoDia && item.lote.ifBlank { "-" }.uppercase() != nuevoLote
+                                                val fechaChanged = esMismoDia && item.expirationDate.trim() != nuevaFecha
+
+                                                val huboCambios = (locationChanged || quantityChanged || loteChanged || fechaChanged)
                                                 if (huboCambios) {
-                                                    val auth =
-                                                        FirebaseAuth.getInstance().currentUser
-                                                    val usuarioUid =
-                                                        userViewModel.documentId.value ?: auth?.uid
-                                                        ?: ""
+                                                    val auth = FirebaseAuth.getInstance().currentUser
+                                                    val usuarioUid = userViewModel.documentId.value ?: auth?.uid ?: ""
                                                     val emailAuth = auth?.email
 
                                                     Firebase.firestore.collection("usuarios")
                                                         .document(usuarioUid).get()
                                                         .addOnSuccessListener { udoc ->
-                                                            val nombreDoc = udoc.getString("nombre")
-                                                                ?.takeIf { it.isNotBlank() }
-                                                            val emailDoc = udoc.getString("email")
-                                                                ?.takeIf { it.isNotBlank() }
+                                                            val nombreDoc = udoc.getString("nombre")?.takeIf { it.isNotBlank() }
+                                                            val emailDoc  = udoc.getString("email")?.takeIf { it.isNotBlank() }
                                                             val usuarioNombreFinal =
-                                                                nombreDoc ?: auth?.displayName
-                                                                ?: (emailAuth
-                                                                    ?: emailDoc)?.substringBefore(
-                                                                    "@"
-                                                                ) ?: usuarioUid
-                                                            val usuarioEmailFinal =
-                                                                emailAuth ?: emailDoc
+                                                                nombreDoc ?: auth?.displayName ?: (emailAuth ?: emailDoc)?.substringBefore("@") ?: usuarioUid
+                                                            val usuarioEmailFinal = emailAuth ?: emailDoc
+
+                                                            // Construimos los mapas Antes/Después solo con los campos que aplican
+                                                            val antes = mutableMapOf<String, Any?>(
+                                                                "ubicacion" to item.location,
+                                                                "cantidad"  to item.quantity
+                                                            )
+                                                            val despues = mutableMapOf<String, Any?>(
+                                                                "ubicacion" to nuevaUbi,
+                                                                "cantidad"  to (if (quantityChanged) qty else item.quantity)
+                                                            )
+
+                                                            if (esMismoDia) {
+                                                                // incluimos lote/fecha solo para el card del día
+                                                                if (loteChanged) {
+                                                                    antes["lote"] = item.lote.ifBlank { "-" }
+                                                                    despues["lote"] = nuevoLote
+                                                                }
+                                                                if (fechaChanged) {
+                                                                    antes["fechaVencimiento"] = item.expirationDate.ifBlank { "-" }
+                                                                    despues["fechaVencimiento"] = nuevaFecha
+                                                                }
+                                                            }
 
                                                             registrarAuditoriaConteo(
-                                                                clienteId = cidLocal,
-                                                                registroId = item.documentId,
-                                                                tipoAccion = "editar",
-                                                                usuarioNombre = usuarioNombreFinal,
-                                                                usuarioUid = usuarioUid,
-                                                                valoresAntes = mapOf(
-                                                                    "ubicacion" to item.location,
-                                                                    "cantidad" to item.quantity
-                                                                ),
-                                                                valoresDespues = mapOf(
-                                                                    "ubicacion" to nuevaUbi,
-                                                                    "cantidad" to (if (quantityChanged) qty else item.quantity)
-                                                                ),
-                                                                usuarioEmail = usuarioEmailFinal
+                                                                clienteId      = cidLocal,
+                                                                registroId     = item.documentId,
+                                                                tipoAccion     = "editar",
+                                                                usuarioNombre  = usuarioNombreFinal,
+                                                                usuarioUid     = usuarioUid,
+                                                                valoresAntes   = antes,
+                                                                valoresDespues = despues,
+                                                                usuarioEmail   = usuarioEmailFinal
                                                             )
                                                         }
                                                 }
@@ -851,6 +876,7 @@ fun MessageCard(
                                                         lote = editedLote.trim().ifBlank { "-" }
                                                             .uppercase(),
                                                         expirationDate = editedExpirationDate.trim())
+
                                                     allData[idx] = updatedItem
                                                 }
 
@@ -993,8 +1019,11 @@ fun MessageCard(
                                 onClick = {
                                     showUbicacionNoExisteDialog.value = false
                                     focusLoc.requestFocus()
-                                }) { Text("Aceptar") }
-                        })
+                                }
+                            )
+                            { Text("Aceptar") }
+                        }
+                    )
                 }
             }
         }
