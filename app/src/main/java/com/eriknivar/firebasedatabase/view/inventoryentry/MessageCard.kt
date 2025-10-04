@@ -99,18 +99,13 @@ fun MessageCard(
 
     var editedLocation by remember(item.documentId, item.location) { mutableStateOf(item.location) }
     var editedLote by remember(item.documentId, item.lote) { mutableStateOf(item.lote) }
-    var editedExpirationDate by remember(
-        item.documentId,
-        item.expirationForUi
-    ) { mutableStateOf(item.expirationForUi.ifBlank { "-" }) }
+    var editedExpirationDate by remember(item.documentId, item.expirationForUi) {
+        mutableStateOf(item.expirationForUi.ifBlank { "-" })
+    }
 
     var editedQuantity by remember(
         item.documentId, item.quantity
     ) { mutableStateOf(item.quantity.toString()) }
-
-    LaunchedEffect(item.documentId) {
-        editedExpirationDate = item.expirationForUi.ifBlank { "-" }
-    }
 
     // Estados para el campo de Ubicación en el diálogo de edición
     val editedLocationState = remember { mutableStateOf(editedLocation.uppercase()) }
@@ -131,22 +126,42 @@ fun MessageCard(
     // Para evitar reescrituras en recomposición
     var dialogInitialized by remember { mutableStateOf(false) }
 
+    /*
     LaunchedEffect(isEditing, item.documentId) {
         if (isEditing && !dialogInitialized) {
             // Carga los valores actuales del registro
             editedLocationState.value = item.location.trim().uppercase()
             editedLote = item.lote.trim().uppercase()
 
-            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
-
             editedQuantity = item.quantity.toString()
 
             dialogInitialized = true
         }
     }
+*/
 
-    LaunchedEffect(canEditLoteYVenc) {
-        if (!canEditLoteYVenc) editedExpirationDate = "-"    // SIN_LOTE -> “-”
+    LaunchedEffect(isEditing) {
+        if (isEditing) {
+            // 1) copiar valores actuales del item SIN forzar "-"
+            editedLote = item.lote
+            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
+
+            val src = editedExpirationDate.trim().ifBlank { "-" }
+            editedExpirationDate = when {
+                src == "-" -> "-"                                  // ← mantiene “-”
+                src.matches(Regex("""\d{4}-\d{2}-\d{2}""")) -> {   // ← solo formatea si es una fecha real
+                    try {
+                        val d = java.time.LocalDate.parse(
+                            src,
+                            java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
+                        )
+                        d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    } catch (_: Exception) { src }
+                }
+                else -> src
+            }
+
+        }
     }
 
 
@@ -155,7 +170,7 @@ fun MessageCard(
         if (!isEditing) {
             editedLocation = item.location
             editedLote = item.lote
-            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
+            editedExpirationDate = item.expirationForUi
             editedQuantity = item.quantity.toString()
             editedLocationState.value = item.location.trim().uppercase()
             showErrorLocation.value = false
@@ -301,9 +316,9 @@ fun MessageCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
-            })
+            }
+        )
     }
-
 
     val isExpanded = expandedStates[item.documentId] ?: false
     val rotationAngle by animateFloatAsState(
@@ -319,7 +334,6 @@ fun MessageCard(
     }
     val backgroundColorCard = if (isExpanded) Color(0xFFE3F2FD) else Color.White
 
-
     // saber si la fecha vino del date picker
     var justPicked by remember { mutableStateOf(false) }
 
@@ -328,7 +342,7 @@ fun MessageCard(
         if (isEditing) {
             val raw = item.expirationDate.trim()
             editedExpirationDate = when {
-                raw.isBlank() || raw == "-" -> ""
+                raw.isBlank() || raw == "-" -> "-"
                 raw.matches(Regex("""^\d{2}/\d{2}/\d{4}$""")) -> raw
                 raw.matches(Regex("""^\d{4}-\d{2}-\d{2}$""")) -> {
                     val y = raw.substring(0, 4)
@@ -336,12 +350,12 @@ fun MessageCard(
                     val d = raw.substring(8, 10)
                     "$d/$m/$y"
                 }
-
-                else -> raw // por si ya viene en otro formato conocido por ti
+                else -> raw
             }
             justPicked = false
         }
     }
+
 
     // construye el DatePicker con fecha inicial
     val cal = Calendar.getInstance().apply {
@@ -365,6 +379,7 @@ fun MessageCard(
         cal.get(Calendar.DAY_OF_MONTH)
     )
 
+    /*
     // si el campo está deshabilitado por modo, fuerza "-"
     LaunchedEffect(canEditLoteYVenc) { if (!canEditLoteYVenc) editedExpirationDate = "-" }
 
@@ -372,9 +387,17 @@ fun MessageCard(
     LaunchedEffect(editedExpirationDate) {
         if (editedExpirationDate.isBlank() || editedExpirationDate == "-") justPicked = false
     }
+*/
 
     val iconAlpha = if (canEditLoteYVenc) 1f else 0.3f
 
+    val loteParaGuardar  = editedLote.trim().ifEmpty { "-" }.uppercase()
+    val fechaParaGuardar = editedExpirationDate.trim()  // ya viene en dd/MM/yyyy si la formateaste arriba
+
+    val fechaISO = try {
+        val d = java.time.LocalDate.parse(fechaParaGuardar, java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        d.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+    } catch (_: Exception) { fechaParaGuardar } // deja tal cual si no parsea
 
     Card(
         modifier = Modifier
@@ -491,7 +514,8 @@ fun MessageCard(
                                                 "🟢 VER presionado en Reporte: ${item.fotoUrl}"
                                             )
                                             showImageDialog = true
-                                        })
+                                        }
+                                    )
                                 }
 
                                 if (showImageDialog) {
@@ -521,7 +545,8 @@ fun MessageCard(
                                                     .fillMaxWidth()
                                                     .height(300.dp)
                                             )
-                                        })
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -571,7 +596,7 @@ fun MessageCard(
                             isEditing = false
                             editedLocation = item.location
                             editedLote = item.lote
-                            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
+                            editedExpirationDate = item.expirationForUi
                             editedQuantity = item.quantity.toString()
                             editedLocationState.value = item.location.uppercase()
                             showErrorLocation.value = false
@@ -597,7 +622,6 @@ fun MessageCard(
                                     keyboardActions = KeyboardActions.Default
                                 )
 
-
                                 Spacer(modifier = Modifier.height(8.dp))
                                 SnackbarHost(hostState = snackbarHostState)
 
@@ -616,8 +640,9 @@ fun MessageCard(
 
                                 // === Fecha de Vencimiento ===
                                 OutlinedTextField(
-                                    value = editedExpirationDate.ifBlank { "-" },        // ← no uses ifBlank aquí; ya viene “-”
+                                    value = editedExpirationDate,        // ← no uses ifBlank aquí; ya viene “-”
                                     onValueChange = { editedExpirationDate = it },
+                                    placeholder = { Text("dd/MM/yyyy") }, // guía visual en vez de "-"
                                     label = { Text("Editar Fecha Vencimiento") },
                                     enabled = canEditLoteYVenc,
                                     readOnly = !canEditLoteYVenc,
@@ -673,7 +698,6 @@ fun MessageCard(
                                     // ✅ Normalizaciones y detección de cambios (ambos lados)
                                     val originalUbi = item.location.trim().uppercase()
                                     val nuevaUbi = editedLocationState.value.trim().uppercase()
-
 
                                     val qtyParsed =
                                         editedQuantity.replace(",", ".").toDoubleOrNull()
@@ -740,7 +764,11 @@ fun MessageCard(
                                             val zone = java.time.ZoneId.of("America/Santo_Domingo")
                                             val hoy = com.google.firebase.Timestamp.now().toDate()
                                             val tsItem = item.fechaRegistro?.toDate()
-                                            val esMismoDia = tsItem?.let { a -> a.toInstant().atZone(zone).toLocalDate() == hoy.toInstant().atZone(zone).toLocalDate() } ?: false
+                                            val esMismoDia = tsItem?.let { a ->
+                                                a.toInstant().atZone(zone)
+                                                    .toLocalDate() == hoy.toInstant().atZone(zone)
+                                                    .toLocalDate()
+                                            } ?: false
 
                                             val updatesInvitado = mutableMapOf<String, Any>(
                                                 "ubicacion" to nuevaUbi  // <<— siempre
@@ -749,10 +777,14 @@ fun MessageCard(
 
                                             // ⬇️ NUEVO: solo si es “hoy”, permitir cambiar lote/fecha
                                             if (esMismoDia) {
-                                                updatesInvitado["lote"] = editedLote.trim().ifBlank { "-" }.uppercase()
-                                                updatesInvitado["fechaVencimiento"] = editedExpirationDate.trim()
-                                                updatesInvitado["updatedAt"] = FieldValue.serverTimestamp()
-                                                updatesInvitado["updatedBy"] = (userViewModel.documentId.value ?: "")
+                                                updatesInvitado["lote"] =
+                                                    editedLote.trim().ifBlank { "-" }.uppercase()
+                                                updatesInvitado["fechaVencimiento"] =
+                                                    editedExpirationDate.trim()
+                                                updatesInvitado["updatedAt"] =
+                                                    FieldValue.serverTimestamp()
+                                                updatesInvitado["updatedBy"] =
+                                                    (userViewModel.documentId.value ?: "")
                                             }
 
                                             Log.d(
@@ -766,7 +798,9 @@ fun MessageCard(
                                                     val updatedItem = item.copy(
                                                         quantity = if (quantityChanged) qty else item.quantity,
                                                         location = nuevaUbi,
-                                                        lote = if (esMismoDia) editedLote.trim().ifBlank { "-" }.uppercase() else item.lote,
+                                                        lote = if (esMismoDia) editedLote.trim()
+                                                            .ifBlank { "-" }
+                                                            .uppercase() else item.lote,
                                                         expirationDate = if (esMismoDia) editedExpirationDate.trim() else item.expirationDate
                                                     )
 
@@ -774,58 +808,76 @@ fun MessageCard(
                                                 }
 
                                                 // === 5) Auditoría (solo si hubo cambios reales) ===
-                                                val nuevoLote   = editedLote.trim().ifBlank { "-" }.uppercase()
-                                                val nuevaFecha  = editedExpirationDate.trim()
+                                                val nuevoLote =
+                                                    editedLote.trim().ifBlank { "-" }.uppercase()
+                                                val nuevaFecha = editedExpirationDate.trim()
 
-                                                val loteChanged  = esMismoDia && item.lote.ifBlank { "-" }.uppercase() != nuevoLote
-                                                val fechaChanged = esMismoDia && item.expirationDate.trim() != nuevaFecha
+                                                val loteChanged =
+                                                    esMismoDia && item.lote.ifBlank { "-" }
+                                                        .uppercase() != nuevoLote
+                                                val fechaChanged =
+                                                    esMismoDia && item.expirationDate.trim() != nuevaFecha
 
-                                                val huboCambios = (locationChanged || quantityChanged || loteChanged || fechaChanged)
+                                                val huboCambios =
+                                                    (locationChanged || quantityChanged || loteChanged || fechaChanged)
                                                 if (huboCambios) {
-                                                    val auth = FirebaseAuth.getInstance().currentUser
-                                                    val usuarioUid = userViewModel.documentId.value ?: auth?.uid ?: ""
+                                                    val auth =
+                                                        FirebaseAuth.getInstance().currentUser
+                                                    val usuarioUid =
+                                                        userViewModel.documentId.value ?: auth?.uid
+                                                        ?: ""
                                                     val emailAuth = auth?.email
 
                                                     Firebase.firestore.collection("usuarios")
                                                         .document(usuarioUid).get()
                                                         .addOnSuccessListener { udoc ->
-                                                            val nombreDoc = udoc.getString("nombre")?.takeIf { it.isNotBlank() }
-                                                            val emailDoc  = udoc.getString("email")?.takeIf { it.isNotBlank() }
+                                                            val nombreDoc = udoc.getString("nombre")
+                                                                ?.takeIf { it.isNotBlank() }
+                                                            val emailDoc = udoc.getString("email")
+                                                                ?.takeIf { it.isNotBlank() }
                                                             val usuarioNombreFinal =
-                                                                nombreDoc ?: auth?.displayName ?: (emailAuth ?: emailDoc)?.substringBefore("@") ?: usuarioUid
-                                                            val usuarioEmailFinal = emailAuth ?: emailDoc
+                                                                nombreDoc ?: auth?.displayName
+                                                                ?: (emailAuth
+                                                                    ?: emailDoc)?.substringBefore("@")
+                                                                ?: usuarioUid
+                                                            val usuarioEmailFinal =
+                                                                emailAuth ?: emailDoc
 
                                                             // Construimos los mapas Antes/Después solo con los campos que aplican
                                                             val antes = mutableMapOf<String, Any?>(
                                                                 "ubicacion" to item.location,
-                                                                "cantidad"  to item.quantity
+                                                                "cantidad" to item.quantity
                                                             )
-                                                            val despues = mutableMapOf<String, Any?>(
-                                                                "ubicacion" to nuevaUbi,
-                                                                "cantidad"  to (if (quantityChanged) qty else item.quantity)
-                                                            )
+                                                            val despues =
+                                                                mutableMapOf<String, Any?>(
+                                                                    "ubicacion" to nuevaUbi,
+                                                                    "cantidad" to (if (quantityChanged) qty else item.quantity)
+                                                                )
 
                                                             if (esMismoDia) {
                                                                 // incluimos lote/fecha solo para el card del día
                                                                 if (loteChanged) {
-                                                                    antes["lote"] = item.lote.ifBlank { "-" }
+                                                                    antes["lote"] =
+                                                                        item.lote.ifBlank { "-" }
                                                                     despues["lote"] = nuevoLote
                                                                 }
                                                                 if (fechaChanged) {
-                                                                    antes["fechaVencimiento"] = item.expirationDate.ifBlank { "-" }
-                                                                    despues["fechaVencimiento"] = nuevaFecha
+                                                                    antes["fechaVencimiento"] =
+                                                                        item.expirationDate.ifBlank { "-" }
+                                                                    despues["fechaVencimiento"] =
+                                                                        nuevaFecha
                                                                 }
                                                             }
 
                                                             registrarAuditoriaConteo(
-                                                                clienteId      = cidLocal,
-                                                                registroId     = item.documentId,
-                                                                tipoAccion     = "editar",
-                                                                usuarioNombre  = usuarioNombreFinal,
-                                                                usuarioUid     = usuarioUid,
-                                                                valoresAntes   = antes,
+                                                                clienteId = cidLocal,
+                                                                registroId = item.documentId,
+                                                                tipoAccion = "editar",
+                                                                usuarioNombre = usuarioNombreFinal,
+                                                                usuarioUid = usuarioUid,
+                                                                valoresAntes = antes,
                                                                 valoresDespues = despues,
-                                                                usuarioEmail   = usuarioEmailFinal
+                                                                usuarioEmail = usuarioEmailFinal
                                                             )
                                                         }
                                                 }
@@ -1005,7 +1057,8 @@ fun MessageCard(
                             ) {
                                 Text("Cancelar")
                             }
-                        })
+                        }
+                        )
                     }
                 }
 
