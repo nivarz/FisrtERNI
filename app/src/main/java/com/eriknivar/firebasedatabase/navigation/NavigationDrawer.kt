@@ -45,9 +45,13 @@ import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.BarChart
@@ -65,8 +69,10 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -144,8 +150,6 @@ fun NavigationDrawer(
                         userName,
                         documentId
                     )
-
-
                 }
 
                 fun capitalizarNombreCompleto(nombre: String): String {
@@ -179,7 +183,7 @@ fun NavigationDrawer(
                 Text(
                     modifier = Modifier.padding(start = 16.dp, top = 0.dp, bottom = 8.dp),
                     text = userType.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() },
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Gray,
                     fontStyle = FontStyle.Italic
@@ -191,14 +195,20 @@ fun NavigationDrawer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(scrollState)
+                        .padding(horizontal = 12.dp)
+                        .background(
+                            color = Color(0xFFF7F8FC),                 // fondo suave
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .padding(vertical = 4.dp)                      // respiración interior
                 ) {
 
                     DrawerMenuItem(
                         icon = Icons.Default.Inventory, // Puedes usar otro si prefieres
-                        label = "Captura de Datos Inv.",
+                        label = "Captura de Inventarios",
                         isSubItem = false,
-                        trailingIcon = if (isConteoExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        onClick = { isConteoExpanded = !isConteoExpanded }
+                        //trailingIcon = if (isConteoExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        onClick = { isConteoExpanded = !isConteoExpanded },
                     )
 
                     if (isConteoExpanded) {
@@ -252,7 +262,7 @@ fun NavigationDrawer(
                         icon = Icons.Default.Settings,
                         label = "Configuración",
                         isSubItem = false,
-                        trailingIcon = if (isConfigExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        //trailingIcon = if (isConfigExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         onClick = { isConfigExpanded = !isConfigExpanded }
                     )
 
@@ -472,3 +482,37 @@ fun NavigationDrawer(
     }
 }
 
+@Composable
+fun DrawerMenuItem(
+    icon: ImageVector,
+    label: String,
+    isSubItem: Boolean,
+    trailingIcon: ImageVector? = null,
+    onClick: () -> Unit,
+    labelFontSize: TextUnit = TextUnit.Unspecified,        // opcional: si no lo pasas, decide según isSubItem
+    labelColor: Color = Color(0xFF0B2C5F),
+    labelWeight: FontWeight = FontWeight.SemiBold
+) {
+    val effectiveSize = if (labelFontSize == TextUnit.Unspecified) {
+        if (isSubItem) 12.sp else 14.sp                    // principal 18, sub 16
+    } else labelFontSize
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = if (isSubItem) 8.dp else 10.dp), // ↓ un poco el alto
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = labelColor)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = label,
+            fontSize = effectiveSize,
+            color = labelColor,
+            fontWeight = labelWeight
+        )
+        Spacer(Modifier.weight(1f))
+        trailingIcon?.let { Icon(it, contentDescription = null, tint = labelColor) }
+    }
+}

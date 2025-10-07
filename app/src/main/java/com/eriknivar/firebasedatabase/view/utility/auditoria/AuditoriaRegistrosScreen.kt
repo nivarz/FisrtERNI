@@ -220,7 +220,7 @@ fun AuditoriaRegistrosScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             singleLine = true,
-            label = { Text("Buscar por usuario") },
+            label = { Text("Buscar por usuario", color = Color.Gray) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (query.isNotBlank()) {

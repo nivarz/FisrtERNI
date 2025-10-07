@@ -392,7 +392,7 @@ fun MasterDataFragment(
 
                     // === Buscador con lupa y botón "X" para limpiar ===
                     OutlinedTextField(
-                        value = busqueda,
+                        value = busqueda.uppercase(),
                         onValueChange = { busqueda = it },
                         singleLine = true,
                         label = { Text("Buscar por descripción", color = Color.Gray) },

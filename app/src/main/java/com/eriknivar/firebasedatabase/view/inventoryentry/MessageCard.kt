@@ -305,7 +305,7 @@ fun MessageCard(
                                 context, "No se pudo verificar permisos.", Toast.LENGTH_LONG
                             ).show()
                         }
-                    }) { Text("Sí", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
+                    }) { Text("Sí, eliminar", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(
