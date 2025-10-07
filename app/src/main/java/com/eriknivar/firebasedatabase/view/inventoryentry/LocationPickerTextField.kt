@@ -155,7 +155,7 @@ fun OutlinedTextFieldsInputsLocation(
                     }
                 },
             singleLine = true,
-            label = { Text(text = "Ubicación") },
+            label = { Text(text = "Ubicación", color = Color.Gray) },
             value = tempLocationInput.value,
             onValueChange = { newValue ->
                 val clean = newValue.trim().uppercase()

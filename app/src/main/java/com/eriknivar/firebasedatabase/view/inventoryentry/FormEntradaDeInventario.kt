@@ -135,8 +135,7 @@ fun FormEntradaDeInventario(
     // El botón “Grabar” solo se habilita si NO está guardando y hay datos mínimos válidos
     val canSave =
         !isSaving && location.value.isNotBlank() && sku.value.isNotBlank() && (quantity.value.replace(
-            ",",
-            "."
+            ",", "."
         ).toDoubleOrNull()?.let { it > 0 } == true)
 
     val context = LocalContext.current
@@ -173,14 +172,7 @@ fun FormEntradaDeInventario(
 
     // 👇 Centraliza si hay algún diálogo modal abierto que deba cerrar primero con Back
     val anyBlockingDialogOpen =
-        showConfirmDialog.value ||
-                showDialog ||
-                showDialog1 ||
-                showDialog2 ||
-                showDialogValueQuantityCero ||
-                openUbicacionInvalidaDialog.value ||
-                showDialogRegistroDuplicado.value ||
-                showSavingDialog.value
+        showConfirmDialog.value || showDialog || showDialog1 || showDialog2 || showDialogValueQuantityCero || openUbicacionInvalidaDialog.value || showDialogRegistroDuplicado.value || showSavingDialog.value
     // Nota: normalmente NO cierres showSuccessDialog con back;
     // si quieres que Back lo cierre, añádelo aquí: || showSuccessDialog.value
 
@@ -224,7 +216,6 @@ fun FormEntradaDeInventario(
         }
     }
 
-
     val clienteIdFromUser by userViewModel.clienteId.observeAsState()
     val clienteIdActual: String? =
         if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId?.takeIf {
@@ -232,14 +223,11 @@ fun FormEntradaDeInventario(
         } ?: clienteIdFromUser
         else clienteIdFromUser
 
-
     val imagenBitmap = remember { mutableStateOf<Bitmap?>(null) }
     val tomarFotoLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
             imagenBitmap.value = bitmap
         }
-
-
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -325,8 +313,8 @@ fun FormEntradaDeInventario(
 
             val userVM: UserViewModel = viewModel()
 
-
             // Location
+
             OutlinedTextFieldsInputsLocation(
                 location,
                 showErrorLocation,
@@ -339,6 +327,7 @@ fun FormEntradaDeInventario(
             )
 
             // SKU
+
             OutlinedTextFieldsInputsSku(
                 sku,
                 showErrorSku,
@@ -513,7 +502,6 @@ fun FormEntradaDeInventario(
                 }
             }
 
-
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -522,7 +510,6 @@ fun FormEntradaDeInventario(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-
                 Button(
                     onClick = { tomarFotoLauncher.launch(null) },
                     //enabled = isSaving,
@@ -533,7 +520,6 @@ fun FormEntradaDeInventario(
                 ) {
                     Text("📷 Foto", fontSize = 13.sp, color = Color.White)
                 }
-
                 Button(
                     onClick = {
                         if (isSaving) return@Button     // doble-tap guard
@@ -558,7 +544,6 @@ fun FormEntradaDeInventario(
                                 isSaving = false
                                 return@launch
                             }
-
 
                             // 🟥 2. Validación general de campos vacíos
                             if (location.value.isEmpty() || sku.value.isEmpty() || quantity.value.isEmpty()) {
@@ -722,7 +707,7 @@ fun FormEntradaDeInventario(
                             showConfirmDialog.value = false
                             isSaving = false
                         }) {
-                            Text("Cancelar", color = Color(0xFF003366))
+                            Text("Cancelar", color = Color.Red)
                         }
                     })
             }
@@ -730,8 +715,8 @@ fun FormEntradaDeInventario(
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialog = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -743,8 +728,8 @@ fun FormEntradaDeInventario(
             if (showDialog1) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog1 = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialog1 = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -756,8 +741,8 @@ fun FormEntradaDeInventario(
             if (showDialog2) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog2 = true
-                    },
+                    showDialog2 = true
+                },
                     title = { Text("Codigo No Existe") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -769,8 +754,8 @@ fun FormEntradaDeInventario(
             if (showDialogValueQuantityCero) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialogValueQuantityCero = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialogValueQuantityCero = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -884,8 +869,7 @@ fun FormEntradaDeInventario(
                     },
                     dismissButton = {
                         TextButton(onClick = { showExitDialog = false }) { Text("Cancelar") }
-                    }
-                )
+                    })
             }
         }
     }

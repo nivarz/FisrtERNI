@@ -338,9 +338,9 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
     }
 
     // --- Auditoría (uid, nombre y tipo actual) ---
-    val uidAud    = userViewModel.documentId.observeAsState("").value
-    val nomAud    = userViewModel.nombre.observeAsState("").value
-    val tipoAud   = userViewModel.tipo.observeAsState("").value
+    val uidAud = userViewModel.documentId.observeAsState("").value
+    val nomAud = userViewModel.nombre.observeAsState("").value
+    val tipoAud = userViewModel.tipo.observeAsState("").value
     val auditInfo = remember(uidAud, nomAud, tipoAud) {
         com.eriknivar.firebasedatabase.data.UbicacionesRepo.AuditInfo(
             usuarioUid = uidAud,
@@ -454,7 +454,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                label = { Text("Buscar...") },
+                label = { Text("Buscar...", color = Color.Gray) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
@@ -475,7 +475,8 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
             } else {
                 @OptIn(ExperimentalFoundationApi::class)
                 // ===== LISTA AGRUPADA =====
-                val grupos: Map<String, List<Ubicacion>> = ubisFiltradas.groupBy { it.localidadCodigo.ifBlank { "—" } }
+                val grupos: Map<String, List<Ubicacion>> =
+                    ubisFiltradas.groupBy { it.localidadCodigo.ifBlank { "—" } }
 
                 LazyColumn(
                     modifier = Modifier
@@ -497,67 +498,73 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             )
                         }
                     } else {
-                        grupos.toSortedMap(compareBy<String> { it.uppercase() }).forEach { (loc, itemsDeLoc) ->
-                            // Header de localidad
-                            item(key = "header_$loc") {
-                                Surface(
-                                    color = Color(0xFFF1F3F5),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = loc,
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                                    )
-                                }
-                            }
-
-                            items(itemsDeLoc, key = { it.codigo.ifBlank { it.id } }) { u ->
-                                // Fila con click para editar y longClick/botón para borrar (como lo tenías)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = {
-                                                isEditing = true
-                                                showDialog.value = true
-                                                docIdToEdit = u.codigo.ifBlank { u.id }
-                                                zonaInput = u.nombre
-                                                selectedLocalidad.value = u.localidadCodigo
-                                            },
-                                            onLongClick = {
-                                                ubiToDelete.value = u
-                                                showDelete.value = true
-                                            }
-                                        )
-                                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                                ) {
-                                    Column(Modifier.weight(1f)) {
+                        grupos.toSortedMap(compareBy<String> { it.uppercase() })
+                            .forEach { (loc, itemsDeLoc) ->
+                                // Header de localidad
+                                item(key = "header_$loc") {
+                                    Surface(
+                                        color = Color(0xFFF1F3F5),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
                                         Text(
-                                            u.codigo.ifBlank { u.id },
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        if (u.nombre.isNotBlank())
-                                            Text(
-                                                u.nombre,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = Color.Gray
+                                            text = loc,
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            modifier = Modifier.padding(
+                                                horizontal = 16.dp,
+                                                vertical = 10.dp
                                             )
-                                    }
-                                    IconButton(onClick = {
-                                        ubiToDelete.value = u
-                                        showDelete.value = true
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Borrar",
-                                            tint = Color(0xFFD32F2F) // rojo
                                         )
                                     }
                                 }
-                                HorizontalDivider()
+
+                                items(itemsDeLoc, key = { it.codigo.ifBlank { it.id } }) { u ->
+                                    // Fila con click para editar y longClick/botón para borrar (como lo tenías)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .combinedClickable(
+                                                onClick = {
+                                                    isEditing = true
+                                                    showDialog.value = true
+                                                    docIdToEdit = u.codigo.ifBlank { u.id }
+                                                    zonaInput = u.nombre
+                                                    selectedLocalidad.value = u.localidadCodigo
+                                                },
+                                                onLongClick = {
+                                                    ubiToDelete.value = u
+                                                    showDelete.value = true
+                                                }
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                u.codigo.ifBlank { u.id },
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            if (u.nombre.isNotBlank())
+                                                Text(
+                                                    u.nombre,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.Gray
+                                                )
+                                        }
+                                        IconButton(onClick = {
+                                            ubiToDelete.value = u
+                                            showDelete.value = true
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Borrar",
+                                                tint = Color(0xFFD32F2F) // rojo
+                                            )
+                                        }
+                                    }
+                                    HorizontalDivider()
+                                }
                             }
-                        }
                     }
                 }
             }
@@ -602,7 +609,7 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     confirmButton = {
                         TextButton(onClick = {
                             showClientePicker = false
-                        }) { Text("Cerrar") }
+                        }) { Text("Cerrar", fontWeight = FontWeight.Bold, color = Color(0xFF003366)) }
                     })
             }
 
@@ -655,18 +662,20 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             if (!ok) Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
                         }
                     }) {
-                        Text("Borrar")
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Borrar",
-                            tint = MaterialTheme.colorScheme.error   // rojo del tema
+                        Text(
+                            "Sí, Borrar", fontWeight = FontWeight.Bold, color = Color(0xFF003366)
                         )
-
                     }
                 },
                 dismissButton = {
                     TextButton(
-                        onClick = { showDelete.value = false }) { Text("Cancelar") }
+                        onClick = { showDelete.value = false }) {
+                        Text(
+                            "Cancelar",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Red
+                        )
+                    }
                 }
             )
         }
@@ -764,15 +773,15 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        if (codigoInput.isBlank()) return@Button
+                    TextButton(onClick = {
+                        if (codigoInput.isBlank()) return@TextButton
 
                         if (selectedLocalidad.value.isBlank()) {
                             showErrorLocalidad = true
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar("Debes seleccionar un Almacén")
                             }
-                            return@Button
+                            return@TextButton
                         } else {
                             showErrorLocalidad = false
                         }
@@ -814,11 +823,15 @@ fun UbicacionesScreen(navController: NavHostController, userViewModel: UserViewM
                             }
                         }
                     }) {
-                        Text(if (isEditing) "Actualizar" else "Guardar")
+                        Text(
+                            if (isEditing) "Actualizar" else "Guardar",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF003366)
+                        )
                     }
                 }, dismissButton = {
                     TextButton(onClick = { showDialog.value = false }) {
-                        Text("Cancelar")
+                        Text("Cancelar", fontWeight = FontWeight.Bold, color = Color.Red)
                     }
                 })
         }

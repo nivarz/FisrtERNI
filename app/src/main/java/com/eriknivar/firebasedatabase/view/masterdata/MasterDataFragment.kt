@@ -13,11 +13,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,13 +64,53 @@ import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.eriknivar.firebasedatabase.data.MaestroRepo  // ⬅️ usar repo
+import com.eriknivar.firebasedatabase.data.MaestroRepo
 import com.eriknivar.firebasedatabase.security.RoleRules
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import com.google.firebase.firestore.SetOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
+
+// =========================
+// Utilidades: auto-código
+// =========================
+private const val CODIGO_PAD = 5            // dígitos del correlativo (ajusta si quieres)
+private const val CODIGO_PREFIJO = "TEMP"       // ejemplo: "S" si quieres S000001
+private fun formatearCodigo(n: Long) = "$CODIGO_PREFIJO${n.toString().padStart(CODIGO_PAD, '0')}"
+
+// Solo previsualiza (no consume número)
+private fun previewSiguienteCodigo(clienteId: String, onReady: (String) -> Unit) {
+    val ref = Firebase.firestore.collection("clientes").document(clienteId).collection("contadores")
+        .document("productos")
+    ref.get().addOnSuccessListener { snap ->
+        val ultimo = snap.getLong("ultimoNumero") ?: 0L
+        onReady(formatearCodigo(ultimo + 1))
+    }.addOnFailureListener {
+        onReady(formatearCodigo(1))
+    }
+}
+
+// Reserva el siguiente código en transacción (consume número)
+private fun reservarSiguienteCodigo(
+    clienteId: String, onOk: (String) -> Unit, onErr: (Exception) -> Unit
+) {
+    val db = Firebase.firestore
+    val ref =
+        db.collection("clientes").document(clienteId).collection("contadores").document("productos")
+
+    db.runTransaction { tx ->
+        val snap = tx.get(ref)
+        val next = (snap.getLong("ultimoNumero") ?: 0L) + 1L
+        tx.set(ref, mapOf("ultimoNumero" to next), SetOptions.merge())
+        next
+    }.addOnSuccessListener { next -> onOk(formatearCodigo(next)) }
+        .addOnFailureListener { e -> onErr(e) }
+}
+
+// =========================
 
 @Composable
 fun MasterDataFragment(
@@ -84,6 +130,7 @@ fun MasterDataFragment(
     var unidadInput by remember { mutableStateOf("") }
     var busqueda by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -94,9 +141,6 @@ fun MasterDataFragment(
     val clientes = remember { mutableStateListOf<Cliente>() }
     var clienteSel by remember { mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty()) }
     var menuClientesAbierto by remember { mutableStateOf(false) }
-    // estados (arriba con tus remember)
-    var isSaving by remember { mutableStateOf(false) }
-
 
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
@@ -105,43 +149,36 @@ fun MasterDataFragment(
     val dummyDateText = remember { mutableStateOf("") }
 
     val navyBlue = Color(0xFF001F5B)
+    val softNavy = Color(0x1A001F5B) // navy con transparencia para tarjetas suaves
 
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
 
-    DisposableEffect(currentUserId, currentSessionId) {
+    val kb = LocalSoftwareKeyboardController.current
 
+    // Listener de sesión activa
+    DisposableEffect(currentUserId, currentSessionId) {
         val listenerRegistration = firestore.collection("usuarios").document(currentUserId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("FirestoreListener", "Error en snapshotListener", error)
                     return@addSnapshotListener
                 }
-
                 val remoteSessionId = snapshot?.getString("sessionId") ?: ""
-
                 if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
                     Toast.makeText(
                         context, "Tu sesión fue cerrada por el administrador", Toast.LENGTH_LONG
                     ).show()
-
                     userViewModel.clearUser()
-
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    navController.navigate("login") { popUpTo(0) { inclusive = true } }
                 }
             }
-
-        onDispose {
-            listenerRegistration.remove()
-        }
+        onDispose { listenerRegistration.remove() }
     }
 
-    // Solo permitir acceso a admin o superuser
+    // Acceso
     val tipo = userViewModel.tipo.value
     if (!RoleRules.canAccessMasterData(tipo)) {
-        // mismo contenido visual de "Acceso restringido" que ya tienes
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -185,22 +222,18 @@ fun MasterDataFragment(
     fun cargarClientes() {
         if (!esSuper) return
         Firebase.firestore.collection("clientes").get().addOnSuccessListener { snap ->
-                clientes.clear()
-                clientes.addAll(snap.documents.map { d ->
-                    Cliente(
-                        id = d.id, nombre = d.getString("nombre") ?: d.id
-                    )
-                }.sortedBy { it.nombre })
-            }.addOnFailureListener { e ->
-                Log.e("MD", "Error cargando clientes", e)
-                Toast.makeText(context, "Error cargando clientes: ${e.message}", Toast.LENGTH_SHORT)
-                    .show()
-            }
+            clientes.clear()
+            clientes.addAll(snap.documents.map { d ->
+                Cliente(id = d.id, nombre = d.getString("nombre") ?: d.id)
+            }.sortedBy { it.nombre })
+        }.addOnFailureListener { e ->
+            Log.e("MD", "Error cargando clientes", e)
+            Toast.makeText(context, "Error cargando clientes: ${e.message}", Toast.LENGTH_SHORT)
+                .show()
+        }
     }
 
-    LaunchedEffect(esSuper) {
-        if (esSuper) cargarClientes()
-    }
+    LaunchedEffect(esSuper) { if (esSuper) cargarClientes() }
 
     ScreenWithNetworkBanner(
         showDisconnectedBanner = false,
@@ -222,27 +255,37 @@ fun MasterDataFragment(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // === SECCIÓN SELECTOR DE CLIENTE (solo si es superuser) ===
-                if (esSuper) {
-                    Text(
-                        text = "Cliente",
-                        color = navyBlue,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(6.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                // === Cliente (visual mejorada) ===
+                if (esSuper) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = softNavy),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = if (clienteSel.isBlank()) "Selecciona un cliente" else clienteSel,
-                            fontSize = 14.sp
-                        )
-                        TextButton(onClick = { menuClientesAbierto = true }) {
-                            Text("Cambiar")
+                        Column(Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Cliente",
+                                        color = navyBlue,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = if (clienteSel.isBlank()) "Selecciona un cliente" else clienteSel,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                TextButton(onClick = { menuClientesAbierto = true }) {
+                                    Text("Cambiar", color = navyBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
 
@@ -259,185 +302,516 @@ fun MasterDataFragment(
                                     text = { Text("${c.nombre} (${c.id})") },
                                     onClick = {
                                         clienteSel = c.id
-                                        userViewModel.setClienteId(c.id) // <-- actualiza el cliente en ViewModel
+                                        userViewModel.setClienteId(c.id)
                                         menuClientesAbierto = false
-                                        productos.clear()                // limpia la lista actual
+                                        productos.clear()
                                     })
                             }
                         }
                     }
-
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                 }
 
-                // [MD:BTN-CREAR] — Botón para abrir el diálogo de creación
+                // Botón: Agregar Producto (ahora muestra preview del próximo código)
                 if (RoleRules.canMutateMasterData(userViewModel.tipo.value)) {
-                    ElevatedButton(
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = navyBlue, contentColor = Color.White
-                        ), onClick = {
-                            selectedProduct = null          // ← modo creación
-                            codigoInput = ""
-                            descripcionInput = ""
-                            unidadInput = ""
-                            showDialog = true               // ← abre el diálogo
-                        }, modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Agregar Producto")
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
+                    // === Botones lado a lado con iconos ===
+                    Row(modifier = Modifier.fillMaxWidth()) {
 
-                OutlinedTextField(
-                    value = busqueda.uppercase(),
-                    singleLine = true,
-                    onValueChange = { busqueda = it },
-                    label = { Text("Buscar por descripción") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ElevatedButton(
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = navyBlue, contentColor = Color.White
-                    ), onClick = {
-                        // [ROLE:LOAD]
-                        val tipoUser = userViewModel.tipo.value
-                        val userCid = userViewModel.clienteId.value
-                        val targetCid = userViewModel.clienteId.value
-                        if (!RoleRules.canActOnCliente(tipoUser, userCid, targetCid)) {
-                            Toast.makeText(
-                                context, "No puedes ver datos de otro cliente", Toast.LENGTH_SHORT
-                            ).show()
-                            return@ElevatedButton
+                        // Botón: Agregar Producto
+                        ElevatedButton(
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = navyBlue, contentColor = Color.White
+                            ),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                            onClick = {
+                                // === lo mismo que ya tenías para crear ===
+                                selectedProduct = null
+                                descripcionInput = ""
+                                unidadInput = ""
+                                val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
+                                if (clienteId.isBlank()) {
+                                    Toast.makeText(
+                                        context, "Selecciona un cliente primero", Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@ElevatedButton
+                                }
+                                previewSiguienteCodigo(clienteId) { next ->
+                                    codigoInput = next // preview (no consume)
+                                    showDialog = true
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material.icons.Icons.Default.Add
+                                Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Agregar")
+                            }
                         }
-                        cargarProductos()
-                    }, enabled = !isLoading, modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (isLoading) Text("Cargando...") else Text("Cargar Datos Maestro")
-                }
 
-                if (isLoading) {
-                    LinearProgressIndicator(
+                        Spacer(Modifier.width(12.dp))
+
+                        // Botón: Cargar Datos Maestro
+                        ElevatedButton(
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = navyBlue, contentColor = Color.White
+                            ),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                            onClick = {
+                                val tipoUser = userViewModel.tipo.value
+                                val userCid = userViewModel.clienteId.value
+                                val targetCid = userViewModel.clienteId.value
+                                if (!RoleRules.canActOnCliente(tipoUser, userCid, targetCid)) {
+                                    Toast.makeText(
+                                        context,
+                                        "No puedes ver datos de otro cliente",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@ElevatedButton
+                                }
+                                cargarProductos()
+                            },
+                            enabled = !isLoading,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh, // o CloudDownload si prefieres
+                                    contentDescription = null
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (isLoading) "Cargando..." else "Cargar")
+                            }
+                        }
+                    }
+
+                    // { if (isLoading) Text("Cargando...") else Text("Cargar Datos Maestro") }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // === Buscador con lupa y botón "X" para limpiar ===
+                    OutlinedTextField(
+                        value = busqueda,
+                        onValueChange = { busqueda = it },
+                        singleLine = true,
+                        label = { Text("Buscar por descripción", color = Color.Gray) },
+                        placeholder = { Text("Buscar por descripción", color = Color.Gray) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search, contentDescription = "Buscar"
+                            )
+                        },
+                        trailingIcon = {
+                            if (busqueda.isNotEmpty()) {
+                                IconButton(onClick = { busqueda = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Limpiar"
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        // Opcional: UX de teclado
+                        ///////////////////////////////////////
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                kb?.hide()
+                            }
+                        )
+                    )
+
+                    // === Contador de productos (total y filtrados) ===
+                    val total = productos.size
+                    val filtrados =
+                        productos.count { it.descripcion.contains(busqueda, ignoreCase = true) }
+
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+                            .padding(top = 6.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Chip de total
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    navyBlue,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                "Artículos: $total",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
 
-                val productosFiltrados = productos.filter {
-                    it.descripcion.contains(busqueda, ignoreCase = true)
-                }
+                        // Mostrando (según filtro)
+                        Text(
+                            text = if (busqueda.isBlank()) "Mostrando: $filtrados" else "Filtro: $filtrados / $total",
+                            color = Color.Gray
+                        )
+                    }
 
-                LazyColumn {
-                    items(productosFiltrados) { producto ->
-                        Card(
+
+                    if (isLoading) {
+                        LinearProgressIndicator(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            elevation = CardDefaults.cardElevation(4.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(buildAnnotatedString {
-                                    withStyle(style = SpanStyle(color = Color.Blue)) { append("Código: ") }
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(producto.codigo)
-                                    }
-                                })
-                                Text(buildAnnotatedString {
-                                    withStyle(style = SpanStyle(color = Color.Blue)) { append("Descripción: ") }
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(producto.descripcion)
-                                    }
-                                })
-                                Text(buildAnnotatedString {
-                                    withStyle(style = SpanStyle(color = Color.Blue)) { append("Unidad: ") }
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(producto.unidad)
-                                    }
-                                })
+                                .padding(vertical = 8.dp)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
+                    val productosFiltrados = productos.filter {
+                        it.descripcion.contains(busqueda, ignoreCase = true)
+                    }
+
+                    LazyColumn {
+                        if (productosFiltrados.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 24.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    IconButton(onClick = {
-                                        selectedProduct = producto
-                                        codigoInput = producto.codigo
-                                        descripcionInput = producto.descripcion
-                                        unidadInput = producto.unidad
-                                        showDialog = true
-                                    }) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "Editar",
-                                            tint = Color.Blue
+                                    Text("Sin resultados", color = Color.Gray)
+                                }
+                            }
+                        } else {
+                            items(productosFiltrados) { producto ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(
+                                            0xFFF5F6FA
                                         )
-                                    }
-                                    IconButton(onClick = {
-                                        productoAEliminar = producto
-                                        showDeleteDialog = true
-                                    }) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "Eliminar",
-                                            tint = Color.Red
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+
+                                        // Línea Código (azul + bold en valor)
+                                        Text(
+                                            buildAnnotatedString {
+                                                withStyle(style = SpanStyle(color = navyBlue)) {
+                                                    append(
+                                                        "Código: "
+                                                    )
+                                                }
+                                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                                    append(producto.codigo)
+                                                }
+                                            },
+                                            fontSize = 15.sp
                                         )
+
+                                        Spacer(Modifier.height(4.dp))
+
+                                        // Línea Descripción
+                                        Text(
+                                            buildAnnotatedString {
+                                                withStyle(style = SpanStyle(color = navyBlue)) {
+                                                    append(
+                                                        "Descripción: "
+                                                    )
+                                                }
+                                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                                    append(producto.descripcion)
+                                                }
+                                            },
+                                            fontSize = 15.sp
+                                        )
+
+                                        Spacer(Modifier.height(4.dp))
+
+                                        // Línea Unidad
+                                        Text(
+                                            buildAnnotatedString {
+                                                withStyle(style = SpanStyle(color = navyBlue)) {
+                                                    append(
+                                                        "Unidad: "
+                                                    )
+                                                }
+                                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                                    append(producto.unidad)
+                                                }
+                                            },
+                                            fontSize = 15.sp
+                                        )
+
+                                        Spacer(Modifier.height(8.dp))
+
+                                        // Botones de acción (editar / eliminar)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            IconButton(onClick = {
+                                                selectedProduct = producto
+                                                codigoInput = producto.codigo
+                                                descripcionInput = producto.descripcion
+                                                unidadInput = producto.unidad
+                                                showDialog = true
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Editar",
+                                                    tint = navyBlue
+                                                )
+                                            }
+                                            Spacer(Modifier.width(4.dp))
+                                            IconButton(onClick = {
+                                                productoAEliminar = producto
+                                                showDeleteDialog = true
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Eliminar",
+                                                    tint = Color(0xFFD32F2F) // rojo agradable
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                SnackbarHost(hostState = snackbarHostState)
 
-                if (showDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showDialog = false },
-                        title = { Text(if (selectedProduct == null) "Agregar Producto" else "Editar Producto") },
-                        text = {
-                            Column {
-                                OutlinedTextField(
-                                    value = codigoInput.uppercase(),
-                                    singleLine = true,
-                                    onValueChange = { codigoInput = it },
-                                    label = { Text("Código") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    enabled = selectedProduct == null
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                OutlinedTextField(
-                                    value = descripcionInput.uppercase(),
-                                    singleLine = true,
-                                    onValueChange = { descripcionInput = it },
-                                    label = { Text("Descripción") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                OutlinedTextField(
-                                    value = unidadInput.uppercase(),
-                                    singleLine = true,
-                                    onValueChange = { unidadInput = it },
-                                    label = { Text("Unidad de Medida") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(
-                                enabled = !isSaving, onClick = {
-                                    if (isSaving) return@TextButton
-                                   // isSaving = true
+                    SnackbarHost(hostState = snackbarHostState)
 
-                                    // [ROLE:SAVE]
+                    if (showDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showDialog = false },
+                            title = { Text(if (selectedProduct == null) "Agregar Producto" else "Editar Producto") },
+                            text = {
+                                Column {
+                                    // Código: read-only siempre (evita cambios manuales)
+                                    OutlinedTextField(
+                                        value = codigoInput.uppercase(),
+                                        singleLine = true,
+                                        onValueChange = { /* read-only */ },
+                                        label = { Text("Código") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = false,
+                                        readOnly = true
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = descripcionInput.uppercase(),
+                                        singleLine = true,
+                                        onValueChange = { descripcionInput = it },
+                                        label = { Text("Descripción") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = unidadInput.uppercase(),
+                                        singleLine = true,
+                                        onValueChange = { unidadInput = it },
+                                        label = { Text("Unidad de Medida") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    enabled = !isSaving, onClick = {
+                                        if (isSaving) return@TextButton
+
+                                        // Permisos
+                                        val tipoUser = userViewModel.tipo.value
+                                        val userCid = userViewModel.clienteId.value
+                                        val targetCid = userViewModel.clienteId.value
+                                        if (!RoleRules.canMutateMasterData(tipoUser) || !RoleRules.canActOnCliente(
+                                                tipoUser,
+                                                userCid,
+                                                targetCid
+                                            )
+                                        ) {
+                                            Toast.makeText(
+                                                context,
+                                                "No tienes permisos para esta acción",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        val clienteId =
+                                            userViewModel.clienteId.value?.trim().orEmpty()
+                                        if (clienteId.isBlank()) {
+                                            Toast.makeText(
+                                                context,
+                                                "Selecciona un cliente primero",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        if (descripcionInput.isBlank() || unidadInput.isBlank()) {
+                                            Toast.makeText(
+                                                context,
+                                                "Completa todos los campos",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+
+                                        val desc = descripcionInput.trim().uppercase()
+                                        val uni = unidadInput.trim().uppercase()
+
+                                        if (selectedProduct == null) {
+                                            // Crear — reservar código y luego crear
+                                            // Valida duplicados por descripción/unidad en la lista actual
+                                            val yaExiste = productos.any {
+                                                it.descripcion.equals(
+                                                    desc,
+                                                    ignoreCase = true
+                                                ) && it.unidad.equals(uni, ignoreCase = true)
+                                            }
+                                            if (yaExiste) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Este producto ya existe",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@TextButton
+                                            }
+
+                                            isSaving = true
+                                            reservarSiguienteCodigo(
+                                                clienteId = clienteId,
+                                                onOk = { codigoFinal ->
+                                                    val nuevo = Producto(
+                                                        id = null,
+                                                        codigo = codigoFinal,
+                                                        descripcion = desc,
+                                                        unidad = uni
+                                                    )
+                                                    MaestroRepo.crearProducto(
+                                                        clienteId = clienteId,
+                                                        producto = nuevo,
+                                                        onResult = {
+                                                            isSaving = false
+                                                            productos.add(
+                                                                Producto(
+                                                                    id = codigoFinal,
+                                                                    codigo = codigoFinal,
+                                                                    descripcion = nuevo.descripcion,
+                                                                    unidad = nuevo.unidad
+                                                                )
+                                                            )
+                                                            productos.sortBy { it.descripcion }
+                                                            showDialog = false
+                                                            coroutineScope.launch {
+                                                                snackbarHostState.showSnackbar("Producto agregado")
+                                                            }
+                                                        },
+                                                        onErr = { e ->
+                                                            isSaving = false
+                                                            Log.e("MD", "Error creando", e)
+                                                            Toast.makeText(
+                                                                context,
+                                                                "No se pudo crear: ${e.message}",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        })
+                                                },
+                                                onErr = { e ->
+                                                    isSaving = false
+                                                    Log.e("MD", "Error reservando código", e)
+                                                    Toast.makeText(
+                                                        context,
+                                                        "No se pudo reservar código: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                })
+                                        } else {
+                                            // Actualizar — sin cambiar código
+                                            val duplicado = productos.any {
+                                                it.codigo != selectedProduct!!.codigo && it.descripcion.equals(
+                                                    desc, ignoreCase = true
+                                                ) && it.unidad.equals(uni, ignoreCase = true)
+                                            }
+                                            if (duplicado) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Ya existe otro producto con esta descripción y unidad",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@TextButton
+                                            }
+
+                                            val cambios = mapOf(
+                                                "descripcion" to desc, "unidad" to uni
+                                            )
+                                            isSaving = true
+                                            MaestroRepo.actualizarProducto(
+                                                clienteId = clienteId,
+                                                productoId = selectedProduct!!.codigo,
+                                                cambios = cambios,
+                                                onResult = {
+                                                    isSaving = false
+                                                    val idx =
+                                                        productos.indexOfFirst { it.codigo == selectedProduct!!.codigo }
+                                                    if (idx != -1) {
+                                                        productos[idx] = productos[idx].copy(
+                                                            descripcion = desc, unidad = uni
+                                                        )
+                                                    }
+                                                    showDialog = false
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar("Producto actualizado")
+                                                    }
+                                                },
+                                                onErr = { e ->
+                                                    isSaving = false
+                                                    Log.e("MD", "Error actualizando", e)
+                                                    Toast.makeText(
+                                                        context,
+                                                        "No se pudo actualizar: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                })
+                                        }
+                                    }) { Text("Guardar", color = navyBlue, fontWeight = FontWeight.Bold) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDialog = false }) { Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold) }
+                            })
+                    }
+
+                    if (showDeleteDialog && productoAEliminar != null) {
+                        AlertDialog(
+                            onDismissRequest = { showDeleteDialog = false },
+                            title = { Text("Eliminar Producto") },
+                            text = {
+                                Text(
+                                    buildAnnotatedString {
+                                        append("¿Estás seguro de que deseas eliminar el producto \"")
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append(productoAEliminar?.descripcion ?: "")
+                                        }
+                                        append("\"?")
+                                    })
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
                                     val tipoUser = userViewModel.tipo.value
                                     val userCid = userViewModel.clienteId.value
-                                    val targetCid =
-                                        userViewModel.clienteId.value   // en este módulo, el target es el cliente seleccionado
+                                    val targetCid = userViewModel.clienteId.value
                                     if (!RoleRules.canMutateMasterData(tipoUser) || !RoleRules.canActOnCliente(
                                             tipoUser,
                                             userCid,
@@ -462,205 +836,32 @@ fun MasterDataFragment(
                                         return@TextButton
                                     }
 
-                                    if (codigoInput.isBlank() || descripcionInput.isBlank() || unidadInput.isBlank()) {
-                                        Toast.makeText(
-                                            context, "Completa todos los campos", Toast.LENGTH_SHORT
-                                        ).show()
-                                        return@TextButton
-                                    }
-
-                                    if (selectedProduct == null) {
-                                        // crear
-                                        val existe = productos.any {
-                                            it.codigo.equals(
-                                                codigoInput,
-                                                ignoreCase = true
-                                            ) || it.descripcion.equals(
-                                                descripcionInput, ignoreCase = true
-                                            )
-                                        }
-                                        if (existe) {
-                                            Toast.makeText(
-                                                context,
-                                                "Este producto ya existe",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@TextButton
-                                        }
-
-                                        // Normaliza entradas
-                                        val cod = codigoInput.trim().uppercase()
-                                        val desc = descripcionInput.trim().uppercase()
-                                        val uni = unidadInput.trim().uppercase()
-
-                                        // Validaciones rápidas
-                                        if (cod.isBlank() || desc.isBlank() || uni.isBlank()) {
-                                            Toast.makeText(
-                                                context,
-                                                "Completa todos los campos",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@TextButton
-                                        }
-
-                                        // Evita duplicados en UI (por código o descripción)
-                                        val yaExiste = productos.any {
-                                            it.codigo.equals(
-                                                cod,
-                                                ignoreCase = true
-                                            ) || it.descripcion.equals(desc, ignoreCase = true)
-                                        }
-                                        if (yaExiste) {
-                                            Toast.makeText(
-                                                context,
-                                                "Este producto ya existe",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@TextButton
-                                        }
-
-                                        // Construye el nuevo
-                                        val nuevo = Producto(
-                                            id = null,
-                                            codigo = cod,
-                                            descripcion = desc,
-                                            unidad = uni
-                                        )
-
-                                        isSaving = true
-
-                                        MaestroRepo.crearProducto(
-                                            clienteId = clienteId,
-                                            producto = nuevo,
-                                            onResult = { nuevoId ->
-                                                isSaving = false
-                                                productos.add(
-                                                    Producto(id = nuevoId, codigo = nuevoId, descripcion = nuevo.descripcion, unidad = nuevo.unidad)
-                                                )
-                                                productos.sortBy { it.descripcion } // opcional: ordena al vuelo
-                                                showDialog = false
-                                                coroutineScope.launch { snackbarHostState.showSnackbar("Producto agregado") }
-                                            },
-                                            onErr = { e ->
-                                                isSaving = false
-                                                Log.e("MD", "Error creando", e)
-                                                Toast.makeText(context, "No se pudo crear: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    MaestroRepo.borrarProducto(
+                                        clienteId = clienteId,
+                                        productoId = productoAEliminar!!.codigo,
+                                        onResult = {
+                                            productos.remove(productoAEliminar)
+                                            showDeleteDialog = false
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar("Producto eliminado")
                                             }
-                                        )
-                                    } else {
-                                        // actualizar
-                                        val duplicado = productos.any {
-                                            it.codigo != selectedProduct!!.codigo && it.descripcion.equals(
-                                                descripcionInput, ignoreCase = true
-                                            ) && it.unidad.equals(unidadInput, ignoreCase = true)
-                                        }
-                                        if (duplicado) {
+                                        },
+                                        onErr = { e ->
+                                            Log.e("MD", "Error borrando", e)
                                             Toast.makeText(
                                                 context,
-                                                "Ya existe otro producto con esta descripción y unidad",
+                                                "No se pudo eliminar: ${e.message}",
                                                 Toast.LENGTH_SHORT
                                             ).show()
-                                            return@TextButton
-                                        }
-
-                                        val cambios = mapOf(
-                                            "descripcion" to descripcionInput.uppercase(),
-                                            "unidad" to unidadInput.uppercase()
-                                        )
-                                        MaestroRepo.actualizarProducto(
-                                            clienteId = clienteId,
-                                            productoId = selectedProduct!!.codigo,
-                                            cambios = cambios,
-                                            onResult = {
-                                                isSaving = false
-                                                val idx = productos.indexOfFirst { it.codigo == selectedProduct!!.codigo }
-                                                if (idx != -1) {
-                                                    productos[idx] = productos[idx].copy(
-                                                        descripcion = descripcionInput.uppercase(),
-                                                        unidad = unidadInput.uppercase()
-                                                    )
-                                                }
-                                                showDialog = false
-                                                coroutineScope.launch { snackbarHostState.showSnackbar("Producto actualizado") }
-                                            },
-                                            onErr = { e ->
-                                                isSaving = false
-                                                Log.e("MD", "Error actualizando", e)
-                                                Toast.makeText(context, "No se pudo actualizar: ${e.message}", Toast.LENGTH_SHORT).show()
-                                            }
-                                        )
-                                    }
-                                }) { Text("Guardar") }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                onClick = { showDialog = false }) { Text("Cancelar") }
-                        })
-                }
-
-                if (showDeleteDialog && productoAEliminar != null) {
-                    AlertDialog(
-                        onDismissRequest = { showDeleteDialog = false },
-                        title = { Text("Eliminar Producto") },
-                        text = {
-                            Text(
-                                buildAnnotatedString {
-                                    append("¿Estás seguro de que deseas eliminar el producto \"")
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(productoAEliminar?.descripcion ?: "")
-                                    }
-                                    append("\"?")
-                                })
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                // [ROLE:DELETE]
-                                val tipoUser = userViewModel.tipo.value
-                                val userCid = userViewModel.clienteId.value
-                                val targetCid = userViewModel.clienteId.value
-                                if (!RoleRules.canMutateMasterData(tipoUser) || !RoleRules.canActOnCliente(
-                                        tipoUser,
-                                        userCid,
-                                        targetCid
-                                    )
-                                ) {
-                                    Toast.makeText(
-                                        context,
-                                        "No tienes permisos para esta acción",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@TextButton
-                                }
-
-                                val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
-                                if (clienteId.isBlank()) {
-                                    Toast.makeText(
-                                        context, "Selecciona un cliente primero", Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@TextButton
-                                }
-                                MaestroRepo.borrarProducto(
-                                    clienteId = clienteId,
-                                    productoId = productoAEliminar!!.codigo,
-                                    onResult = {
-                                        productos.remove(productoAEliminar)
-                                        showDeleteDialog = false
-                                        coroutineScope.launch { snackbarHostState.showSnackbar("Producto eliminado") }
-                                    },
-                                    onErr = { e ->
-                                        Log.e("MD", "Error borrando", e)
-                                        Toast.makeText(
-                                            context,
-                                            "No se pudo eliminar: ${e.message}",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    })
-                            }) { Text("Sí") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") }
-                        }
-                    )
+                                        })
+                                }) { Text("Sí") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    showDeleteDialog = false
+                                }) { Text("Cancelar", color = Color.Red,  fontWeight = FontWeight.Bold) }
+                            })
+                    }
                 }
             }
         }

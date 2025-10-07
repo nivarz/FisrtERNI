@@ -39,6 +39,7 @@ fun ConteoModeDialog(
     if (!visible) return
 
     var selected by remember(visible) { mutableStateOf(initial) }
+    val navy = Color(0xFF0D3B66)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -84,12 +85,12 @@ fun ConteoModeDialog(
             TextButton(
                 onClick = { onConfirm(selected) }
             ) {
-                Text("Continuar", color = Color.Black)
+                Text("Continuar", color = navy)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = Color.Black)
+                Text("Cancelar", color = Color.Red)
             }
         },
         shape = RoundedCornerShape(20.dp)

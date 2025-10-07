@@ -312,7 +312,7 @@ fun MessageCard(
                     onClick = { showDialog = false }) {
                     Text(
                         "No",
-                        color = Color(0xFF003366),
+                        color = Color.Red,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1039,7 +1039,7 @@ fun MessageCard(
                                     containerColor = Color(0xFF003366), contentColor = Color.White
                                 )
                             ) {
-                                Text("Guardar")
+                                Text("Guardar", fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }, dismissButton = {
                             Button(
@@ -1052,10 +1052,13 @@ fun MessageCard(
                                     editedLocationState.value = item.location.uppercase()
                                     showErrorLocation.value = false
                                 }, colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xD8692121), contentColor = Color.White
+                                    containerColor = Color(0xFF003366), contentColor = Color.White
                                 )
                             ) {
-                                Text("Cancelar")
+                                Text("Cancelar", fontWeight = FontWeight.Bold, color = Color(
+                                    0xFFDA3737
+                                )
+                                )
                             }
                         }
                         )
@@ -1074,7 +1077,7 @@ fun MessageCard(
                                     focusLoc.requestFocus()
                                 }
                             )
-                            { Text("Aceptar") }
+                            { Text("Aceptar", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
                         }
                     )
                 }

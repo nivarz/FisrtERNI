@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.eriknivar.firebasedatabase.viewmodel.ClienteFormViewModel
 import kotlinx.coroutines.FlowPreview
@@ -163,7 +164,7 @@ fun ClienteFormScreen(
                     onClick = onBack,
                     enabled = !loading,
                     modifier = Modifier.weight(1f)
-                ) { Text("Cancelar") }
+                ) { Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold) }
 
                 Button(
                     onClick = { intentarGuardar() },

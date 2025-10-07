@@ -523,17 +523,17 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                         }
                     },
                     confirmButton = {
-                        Button(
+                        TextButton(
                             onClick = {
-                                if (selectedCid.isBlank()) return@Button
-                                if (codigoInput.isBlank() || nombreInput.isBlank()) return@Button
+                                if (selectedCid.isBlank()) return@TextButton
+                                if (codigoInput.isBlank() || nombreInput.isBlank()) return@TextButton
 
                                 if (isEditing) {
                                     val cid = selectedCid.trim().uppercase()
                                     val codigo = codigoInput.trim().uppercase()
                                     val nuevoNombre = nombreInput.trim()
 
-                                    if (cid.isBlank() || codigo.isBlank() || nuevoNombre.isBlank()) return@Button
+                                    if (cid.isBlank() || codigo.isBlank() || nuevoNombre.isBlank()) return@TextButton
 
                                     isSaving = true
 
@@ -571,7 +571,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                     val codigo = codigoInput.trim().uppercase()
                                     val nombre = nombreInput.trim()
 
-                                    if (cid.isBlank() || codigo.isBlank() || nombre.isBlank()) return@Button
+                                    if (cid.isBlank() || codigo.isBlank() || nombre.isBlank()) return@TextButton
 
                                     isSaving = true
 
@@ -605,10 +605,10 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                     }
                                 }
                             }
-                        ) { Text(if (isEditing) "Guardar" else "Crear") }
+                        ) { Text(if (isEditing) "Guardar" else "Crear", fontWeight = FontWeight.Bold, color = Color(0xFF003366)) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancelar") }
+                        TextButton(onClick = { showDialog = false }) { Text("Cancelar", fontWeight = FontWeight.Bold, color = Color.Red) }
                     }
                 )
             }
@@ -634,7 +634,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                     confirmButton = {
                         TextButton(onClick = {
                             showNombreExistenteDialog = false
-                        }) { Text("OK") }
+                        }) { Text("OK", fontWeight = FontWeight.Bold, color = Color(0xFF003366)) }
                     }
                 )
             }
@@ -688,7 +688,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                                     )
                                     Spacer(Modifier.width(8.dp))
                                 }
-                                Text("Eliminar")
+                                Text("Sí, Eliminar", fontWeight = FontWeight.Bold, color = Color(0xFF003366))
                             }
                         }
                     },
@@ -696,7 +696,7 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
                         TextButton(
                             enabled = !isDeleting,
                             onClick = { showDeleteDialog = false; codeToDelete = null }
-                        ) { Text("Cancelar") }
+                        ) { Text("Cancelar",fontWeight = FontWeight.Bold, color = Color.Red) }
                     }
                 )
             }

@@ -127,7 +127,7 @@ fun OutlinedTextFieldsInputsLot(
                 .padding(4.dp)
                 .focusRequester(focusRequester),
             singleLine = true,
-            label = { Text(text = "Lote") },
+            label = { Text(text = "Lote", color = Color.Gray) },
             value = lot.value,
             interactionSource = interaction,
             onValueChange = {

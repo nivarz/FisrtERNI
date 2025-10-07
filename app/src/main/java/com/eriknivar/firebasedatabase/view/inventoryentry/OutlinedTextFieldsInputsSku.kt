@@ -144,7 +144,7 @@ fun OutlinedTextFieldsInputsSku(
                 .padding(4.dp)
                 .focusRequester(focusRequester),
             singleLine = true,
-            label = { Text(text = "Código Producto") },
+            label = { Text(text = "Código Producto", color = Color.Gray) },
             value = sku.value,
             onValueChange = { newValue ->
                 val cleanSku = newValue.uppercase().replace(Regex("[^A-Z0-9_\\-]"), "")

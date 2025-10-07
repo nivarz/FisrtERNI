@@ -172,7 +172,7 @@ fun InventoryReportItem(
                             onDismissRequest = { showImageDialog = false },
                             confirmButton = {
                                 TextButton(onClick = { showImageDialog = false }) {
-                                    Text("Cerrar", color = Color(0xFF003366))
+                                    Text("Cerrar", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
                                 }
                             },
                             title = {
@@ -259,7 +259,7 @@ fun InventoryReportItem(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("No", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
+                    Text("No", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -381,7 +381,7 @@ fun InventoryReportItem(
             },
             dismissButton = {
                 TextButton(onClick = { showEditDialog = false }) {
-                    Text("Cancelar", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
+                    Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
             }
         )

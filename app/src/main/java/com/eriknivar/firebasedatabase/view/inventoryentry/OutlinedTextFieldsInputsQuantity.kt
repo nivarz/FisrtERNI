@@ -71,7 +71,7 @@ fun OutlinedTextFieldsInputsQuantity(
             keyboardActions = KeyboardActions(onDone = {
                 keyboardController?.hide()
             }),
-            label = { Text("Cantidad") },
+            label = { Text("Cantidad", color = Color.Gray) },
             value = quantity.value,
             onValueChange = { newValue ->
                 if (newValue == ".") {

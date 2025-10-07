@@ -376,7 +376,7 @@ fun NavigationDrawer(
                                             }
                                     }
                                 ) {
-                                    Text("Sí", color = Color.Black)
+                                    Text("Sí, Cerrar",  color = Color(0xFF003366), fontWeight = FontWeight.Bold)
                                 }
                             },
                             dismissButton = {
@@ -387,7 +387,7 @@ fun NavigationDrawer(
                                             false // Solo cierra el diálogo si presiona "Cancelar"
                                     }
                                 ) {
-                                    Text("Cancelar", color = Color.Black)
+                                    Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold)
                                 }
                             }
                         )

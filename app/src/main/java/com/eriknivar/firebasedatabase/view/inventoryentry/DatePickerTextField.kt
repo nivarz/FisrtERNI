@@ -84,7 +84,7 @@ fun DatePickerTextField(
                     justPicked = false
                 }
             },
-            label = { Text("Caducidad") },
+            label = { Text("Caducidad", color = Color.Gray) },
             modifier = Modifier
                 .width(275.dp)
                 .height(64.dp)
