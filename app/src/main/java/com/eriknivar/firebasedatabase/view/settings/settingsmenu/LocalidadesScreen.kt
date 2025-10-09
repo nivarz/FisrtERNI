@@ -239,11 +239,10 @@ fun LocalidadesScreen(navController: NavHostController, userViewModel: UserViewM
         )
     }
 
-
     // --- UI ---
     NavigationDrawer(
         navController = navController,
-        storageType = "Localidades",
+        storageType = "Almacenes",
         userViewModel = userViewModel,
         location = dummy, sku = dummy, quantity = dummy, lot = dummy, expirationDate = dummy
     ) {
