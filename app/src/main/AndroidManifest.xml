@@ -60,7 +60,8 @@
             android:configChanges="orientation|screenSize"
             android:exported="true"
             android:theme="@style/Theme.FirebaseDatabase"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:resizeableActivity="true">
 
 
             <intent-filter>

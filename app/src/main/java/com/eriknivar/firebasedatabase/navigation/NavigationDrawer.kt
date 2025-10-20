@@ -119,7 +119,9 @@ fun NavigationDrawer(
     val scrollState = rememberScrollState()
 
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
-        ModalDrawerSheet {
+        ModalDrawerSheet(
+            drawerContainerColor = Color(0xFFF7F8FC)
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth(.75f)

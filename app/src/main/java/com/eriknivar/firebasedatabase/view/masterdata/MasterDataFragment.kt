@@ -69,6 +69,7 @@ import com.eriknivar.firebasedatabase.data.MaestroRepo
 import com.eriknivar.firebasedatabase.security.RoleRules
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.google.firebase.firestore.SetOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -134,13 +135,19 @@ fun MasterDataFragment(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    // Estados (arriba, junto a clienteSel)
+    var clienteSel by rememberSaveable { mutableStateOf("") }          // id elegido
+    var clienteNombreSel by rememberSaveable { mutableStateOf("") }    // nombre elegido
+    var menuClientesAbierto by remember { mutableStateOf(false) }
+
+
     // --- Selector de Cliente (solo superuser) ---
     data class Cliente(val id: String, val nombre: String)
 
     val esSuper = (userViewModel.tipo.value ?: "").equals("superuser", ignoreCase = true)
     val clientes = remember { mutableStateListOf<Cliente>() }
-    var clienteSel by remember { mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty()) }
-    var menuClientesAbierto by remember { mutableStateOf(false) }
+    //var clienteSel by remember { mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty()) }
+    //var menuClientesAbierto by remember { mutableStateOf(false) }
 
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
@@ -263,52 +270,83 @@ fun MasterDataFragment(
                         elevation = CardDefaults.cardElevation(0.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Cliente",
+                                    color = navyBlue,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(2.dp))
+
+                                if (clienteNombreSel.isBlank() && clienteSel.isBlank()) {
+                                    // ← Placeholder hasta que el usuario elija
                                     Text(
-                                        text = "Cliente",
-                                        color = navyBlue,
+                                        "Selecciona un cliente",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
+                                } else {
+                                    // Nombre (negrita) + id debajo
+                                    Text(
+                                        text = if (clienteNombreSel.isNotBlank()) clienteNombreSel else clienteSel,
                                         fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.SemiBold
                                     )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        text = if (clienteSel.isBlank()) "Selecciona un cliente" else clienteSel,
-                                        fontSize = 14.sp
-                                    )
+                                    if (clienteNombreSel.isNotBlank()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = clienteSel,
+                                            fontSize = 13.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
                                 }
-                                TextButton(onClick = { menuClientesAbierto = true }) {
-                                    Text("Cambiar", color = navyBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                }
+                            }
+
+                            TextButton(onClick = { menuClientesAbierto = true }) {
+                                Text(
+                                    "Cambiar",
+                                    color = navyBlue,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
 
                     DropdownMenu(
                         expanded = menuClientesAbierto,
-                        onDismissRequest = { menuClientesAbierto = false }) {
+                        onDismissRequest = { menuClientesAbierto = false }
+                    ) {
                         if (clientes.isEmpty()) {
                             DropdownMenuItem(
                                 text = { Text("No hay clientes disponibles") },
-                                onClick = { menuClientesAbierto = false })
+                                onClick = { menuClientesAbierto = false }
+                            )
                         } else {
                             clientes.forEach { c ->
                                 DropdownMenuItem(
                                     text = { Text("${c.nombre} (${c.id})") },
                                     onClick = {
                                         clienteSel = c.id
-                                        userViewModel.setClienteId(c.id)
+                                        clienteNombreSel = c.nombre           // ← setea nombre
+                                        userViewModel.setClienteId(c.id)      // tu estado global si lo necesitas
                                         menuClientesAbierto = false
                                         productos.clear()
-                                    })
+                                    }
+                                )
                             }
                         }
                     }
+
                     Spacer(Modifier.height(10.dp))
                 }
 
@@ -317,6 +355,9 @@ fun MasterDataFragment(
                     // === Botones lado a lado con iconos ===
                     Row(modifier = Modifier.fillMaxWidth()) {
 
+                        // Asume que ya tienes:
+                        val clienteElegido = clienteSel.isNotBlank()
+
                         // Botón: Agregar Producto
                         ElevatedButton(
                             colors = ButtonDefaults.buttonColors(
@@ -324,26 +365,30 @@ fun MasterDataFragment(
                             ),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                             onClick = {
-                                // === lo mismo que ya tenías para crear ===
-                                selectedProduct = null
-                                descripcionInput = ""
-                                unidadInput = ""
-                                val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
-                                if (clienteId.isBlank()) {
+                                if (!clienteElegido) {
                                     Toast.makeText(
-                                        context, "Selecciona un cliente primero", Toast.LENGTH_SHORT
+                                        context,
+                                        "Selecciona un cliente primero",
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                     return@ElevatedButton
                                 }
+
+                                // === lógica de crear ===
+                                selectedProduct = null
+                                descripcionInput = ""
+                                unidadInput = ""
+
+                                val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
                                 previewSiguienteCodigo(clienteId) { next ->
                                     codigoInput = next // preview (no consume)
                                     showDialog = true
                                 }
                             },
+                            enabled = clienteElegido,              // ← deshabilitado si no hay cliente
                             modifier = Modifier.weight(1f)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                androidx.compose.material.icons.Icons.Default.Add
                                 Icon(imageVector = Icons.Default.Add, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Agregar")
@@ -359,6 +404,17 @@ fun MasterDataFragment(
                             ),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                             onClick = {
+                                // 1) Validar que haya un cliente seleccionado
+                                if (!clienteElegido) {
+                                    Toast.makeText(
+                                        context,
+                                        "Selecciona un cliente primero",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@ElevatedButton
+                                }
+
+                                // 2) Reglas de rol/cliente (como ya tenías)
                                 val tipoUser = userViewModel.tipo.value
                                 val userCid = userViewModel.clienteId.value
                                 val targetCid = userViewModel.clienteId.value
@@ -370,14 +426,16 @@ fun MasterDataFragment(
                                     ).show()
                                     return@ElevatedButton
                                 }
+
+                                // 3) Acción
                                 cargarProductos()
                             },
-                            enabled = !isLoading,
+                            enabled = clienteElegido && !isLoading,   // ← deshabilitado si no hay cliente
                             modifier = Modifier.weight(1f)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Refresh, // o CloudDownload si prefieres
+                                    imageVector = Icons.Default.Refresh,
                                     contentDescription = null
                                 )
                                 Spacer(Modifier.width(8.dp))
@@ -786,10 +844,22 @@ fun MasterDataFragment(
                                                     ).show()
                                                 })
                                         }
-                                    }) { Text("Guardar", color = navyBlue, fontWeight = FontWeight.Bold) }
+                                    }) {
+                                    Text(
+                                        "Guardar",
+                                        color = navyBlue,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showDialog = false }) { Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold) }
+                                TextButton(onClick = { showDialog = false }) {
+                                    Text(
+                                        "Cancelar",
+                                        color = Color.Red,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             })
                     }
 
@@ -859,7 +929,13 @@ fun MasterDataFragment(
                             dismissButton = {
                                 TextButton(onClick = {
                                     showDeleteDialog = false
-                                }) { Text("Cancelar", color = Color.Red,  fontWeight = FontWeight.Bold) }
+                                }) {
+                                    Text(
+                                        "Cancelar",
+                                        color = Color.Red,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             })
                     }
                 }

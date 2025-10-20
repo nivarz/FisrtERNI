@@ -70,7 +70,7 @@ fun FirestoreApp(
     userViewModel: UserViewModel,
     conteoMode: ConteoMode = ConteoMode.CON_LOTE
 
-    ) {
+) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -289,6 +289,8 @@ fun FirestoreApp(
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
+                    .imePadding()                 // ⬅️ importante en Android 14/15
+                    .navigationBarsPadding()
             ) {
 
                 val nombre = userViewModel.nombre.observeAsState("").value
@@ -444,8 +446,6 @@ fun FirestoreApp(
             }
         }
     }
-
-
 }
 
 // Utilidad: límites de HOY [00:00, 24:00)

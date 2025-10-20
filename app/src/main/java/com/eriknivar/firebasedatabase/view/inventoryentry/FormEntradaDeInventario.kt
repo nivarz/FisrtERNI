@@ -79,6 +79,8 @@ import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 
 
 @Composable
@@ -307,6 +309,8 @@ fun FormEntradaDeInventario(
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
+                .imePadding()                     // ⬅️ que se mueva con el teclado
+                .navigationBarsPadding()
                 .padding(bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -715,8 +719,8 @@ fun FormEntradaDeInventario(
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialog = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -728,8 +732,8 @@ fun FormEntradaDeInventario(
             if (showDialog1) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog1 = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialog1 = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -741,8 +745,8 @@ fun FormEntradaDeInventario(
             if (showDialog2) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog2 = true
-                },
+                        showDialog2 = true
+                    },
                     title = { Text("Codigo No Existe") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -754,8 +758,8 @@ fun FormEntradaDeInventario(
             if (showDialogValueQuantityCero) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialogValueQuantityCero = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialogValueQuantityCero = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
