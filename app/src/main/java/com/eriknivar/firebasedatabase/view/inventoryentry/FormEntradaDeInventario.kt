@@ -81,6 +81,7 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import kotlinx.coroutines.withContext
 
 
 @Composable
@@ -225,11 +226,32 @@ fun FormEntradaDeInventario(
         } ?: clienteIdFromUser
         else clienteIdFromUser
 
-    val imagenBitmap = remember { mutableStateOf<Bitmap?>(null) }
+    val fotoBytes = remember { mutableStateOf<ByteArray?>(null) }
+    val tieneFoto = remember { mutableStateOf(false) }
+
     val tomarFotoLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-            imagenBitmap.value = bitmap
+        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bmp ->
+            if (bmp == null) {
+                fotoBytes.value = null
+                tieneFoto.value = false
+                return@rememberLauncherForActivityResult
+            }
+            coroutineScope.launch {
+                val bytes = withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    val baos = java.io.ByteArrayOutputStream()
+                    try {
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 80, baos)
+                        baos.toByteArray()
+                    } finally {
+                        try { baos.close() } catch (_: Exception) {}
+                        bmp.recycle()
+                    }
+                }
+                fotoBytes.value = bytes
+                tieneFoto.value = bytes.isNotEmpty()
+            }
         }
+
 
     LaunchedEffect(Unit) {
         userViewModel.nombre.observeForever { nuevoNombre ->
@@ -475,7 +497,7 @@ fun FormEntradaDeInventario(
                             unidadMedida.value = ""
                             qrCodeContentSku.value = ""
                             qrCodeContentLot.value = ""
-                            imagenBitmap.value = null
+                            //imagenBitmap.value = null
                             userViewModel.limpiarValoresTemporales()
                         }
                         isSaving = false
@@ -492,27 +514,26 @@ fun FormEntradaDeInventario(
                     })
             }
 
-            fun subirImagenAFirebase(bitmap: Bitmap, onUrlLista: (String) -> Unit) {
-                val baos = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
-                val data = baos.toByteArray()
-
-                val storageRef =
-                    Firebase.storage.reference.child("fotos_registro/${UUID.randomUUID()}.jpg")
-
-                storageRef.putBytes(data).addOnSuccessListener {
-                    storageRef.downloadUrl.addOnSuccessListener { uri ->
-                        val fotoUrl = uri.toString()
-                        Log.d("FotoDebug", "✅ URL generada: $fotoUrl") // 👈 útil para confirmar
-
-                        onUrlLista(fotoUrl)
+            fun subirImagenAFirebase(bytes: ByteArray?, onUrlLista: (String) -> Unit) {
+                if (bytes == null || bytes.isEmpty()) { onUrlLista(""); return }
+                val storageRef = Firebase.storage.reference
+                    .child("fotos_registro/${UUID.randomUUID()}.jpg")
+                storageRef.putBytes(bytes)
+                    .addOnSuccessListener {
+                        storageRef.downloadUrl.addOnSuccessListener { uri ->
+                            onUrlLista(uri.toString())
+                        }.addOnFailureListener { e ->
+                            Toast.makeText(context, "Error URL: ${e.message}", Toast.LENGTH_SHORT).show()
+                            onUrlLista("")
+                        }
                     }
-
-                }.addOnFailureListener {
-                    Toast.makeText(context, "Error al subir imagen", Toast.LENGTH_SHORT).show()
-                    onUrlLista("") // en caso de fallo se puede pasar vacío o null
-                }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(context, "Error al subir imagen: ${e.message}", Toast.LENGTH_SHORT).show()
+                        onUrlLista("")
+                    }
             }
+
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -524,14 +545,13 @@ fun FormEntradaDeInventario(
             ) {
                 Button(
                     onClick = { tomarFotoLauncher.launch(null) },
-                    //enabled = isSaving,
+                    enabled = !isSaving && (tieneFoto.value == false),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
+                    modifier = Modifier.weight(1f).height(40.dp)
                 ) {
                     Text("📷 Foto", fontSize = 13.sp, color = Color.White)
                 }
+
                 Button(
                     onClick = {
                         if (isSaving) return@Button     // doble-tap guard
@@ -680,6 +700,20 @@ fun FormEntradaDeInventario(
                 }
             }
 
+            if (tieneFoto.value) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("✅ Foto lista para subir", fontSize = 12.sp, color = Color(0xFF2E7D32))
+                    TextButton(onClick = { fotoBytes.value = null; tieneFoto.value = false }) {
+                        Text("Quitar foto")
+                    }
+                }
+            }
+
+
             HorizontalDivider(
                 thickness = 2.dp,
                 color = Color.Gray,
@@ -700,13 +734,15 @@ fun FormEntradaDeInventario(
 
                                 showSavingDialog.value = true // 🟢 MOSTRAR CARGANDO
 
-                                if (imagenBitmap.value != null) {
-                                    subirImagenAFirebase(imagenBitmap.value!!) { urlFoto ->
-                                        showSavingDialog.value = false // 🔴 OCULTAR CARGANDO
+                                if (tieneFoto.value && (fotoBytes.value != null)) {
+                                    subirImagenAFirebase(fotoBytes.value) { urlFoto ->
+                                        showSavingDialog.value = false
                                         continuarGuardadoConFoto(urlFoto)
+                                        fotoBytes.value = null
+                                        tieneFoto.value = false
                                     }
                                 } else {
-                                    showSavingDialog.value = false // 🔴 OCULTAR CARGANDO
+                                    showSavingDialog.value = false
                                     continuarGuardadoConFoto(null)
                                 }
 
@@ -877,10 +913,10 @@ fun FormEntradaDeInventario(
                             keyboardController?.hide()
                             // Dispara la salida (BackHandler ya está deshabilitado por pendingExit)
                             pendingExit = true
-                        }) { Text("Salir") }
+                        }) { Text("Salir", color = Color.Red, fontWeight = FontWeight.Bold) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showExitDialog = false }) { Text("Cancelar") }
+                        TextButton(onClick = { showExitDialog = false }) { Text("Cancelar",color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
                     })
             }
         }
