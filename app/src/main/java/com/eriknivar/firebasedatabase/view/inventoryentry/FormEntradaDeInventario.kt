@@ -1,9 +1,13 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -74,7 +78,10 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-
+import androidx.core.content.FileProvider.getUriForFile
+import com.google.firebase.storage.StorageReference
+import java.io.File
+import java.io.FileOutputStream
 
 @Composable
 fun FormEntradaDeInventario(
@@ -214,17 +221,14 @@ fun FormEntradaDeInventario(
     val tomarFotoLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
             if (success && photoUri.value != null) {
-                // No guardamos Bitmap ni bytes aquí: solo marcamos el indicador
                 tieneFoto.value = true
-                // Si venías de una versión con bytes, los limpiamos para no duplicar memoria
-                fotoBytes.value = null
+                fotoBytes.value = null // por si quedó algo viejo
             } else {
-                // Cancelado o fallo: limpiamos indicador/uri
                 tieneFoto.value = false
                 photoUri.value = null
+                Toast.makeText(context, "Captura cancelada", Toast.LENGTH_SHORT).show()
             }
         }
-
 
     LaunchedEffect(Unit) {
         if (!restored.value) {
@@ -262,7 +266,6 @@ fun FormEntradaDeInventario(
             }
         }
     }
-
 
     fun enfocarSkuDespuesDeGrabar() {
         // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
@@ -396,6 +399,7 @@ fun FormEntradaDeInventario(
                 keyboardController = LocalSoftwareKeyboardController.current
             )
 
+
             fun continuarGuardadoConFoto(fotoUrl: String?) {
                 validarRegistroDuplicado(
                     db = firestore,
@@ -475,23 +479,22 @@ fun FormEntradaDeInventario(
                 val storageRef =
                     storage.reference.child("fotos_registro/${java.util.UUID.randomUUID()}.jpg")
 
-                val metadata = com.google.firebase.storage.storageMetadata {
-                    contentType = "image/jpeg"
-                }
+                // Metadatos con cacheControl (mejora muchísimo la carga posterior)
+                val metadata = com.google.firebase.storage.StorageMetadata.Builder()
+                    .setContentType("image/jpeg")
+                    .setCacheControl("public, max-age=31536000, immutable").build()
 
-                // 🔹 Función interna: borra el archivo temporal del FileProvider
+                // 🔹 Borra el archivo temporal (si es del FileProvider o un File path)
                 fun borrarTemporal(u: Uri) {
                     try {
                         if (u.scheme == "content") {
                             val rows = context.contentResolver.delete(u, null, null)
                             Log.d("FotoDebug", "Tmp borrado via resolver: rows=$rows")
                         } else {
-                            val f = java.io.File(u.path ?: "")
+                            val f = File(u.path ?: "")
                             if (f.exists()) {
                                 val ok = f.delete()
-                                Log.d(
-                                    "FotoDebug", "Tmp borrado via File.delete(): $ok"
-                                )
+                                Log.d("FotoDebug", "Tmp borrado via File.delete(): $ok")
                             }
                         }
                     } catch (e: Exception) {
@@ -499,24 +502,37 @@ fun FormEntradaDeInventario(
                     }
                 }
 
-                // dentro de fun subirImagenAFirebase(...)
                 if (uri != null) {
-                    // ⬇️ preparar versión optimizada (1600px máx., 80% JPEG)
+                    // ⬇️ Optimiza (1600px máx., 80% JPEG) y sube con putFile
                     val optimizedUri: Uri = prepararFotoParaSubir(context, uri)
 
                     storageRef.putFile(optimizedUri, metadata).addOnSuccessListener {
-                            storageRef.downloadUrl.addOnSuccessListener { dl ->
-                                Log.d("FotoDebug", "✅ Subida OK (putFile). URL=$dl")
+                            getDownloadUrlWithRetry(
+                                ref = storageRef,
+                                attempts = 2,
+                                delayMs = 300,
+                                onSuccess = { dl ->
+                                    Log.d("FotoDebug", "✅ Subida OK (putFile). URL=$dl")
 
-                                // 🧹 borra el/los temporales
-                                borrarTemporal(optimizedUri)
-                                if (optimizedUri != uri) borrarTemporal(uri)
+                                    // 🧹 limpieza de temporales
+                                    borrarTemporal(optimizedUri)
+                                    if (optimizedUri != uri) borrarTemporal(uri)
 
-                                onUrlLista(dl.toString())
-                            }.addOnFailureListener { e ->
-                                Log.e("FotoDebug", "Error URL: ${e.message}", e)
-                                onUrlLista("")
-                            }
+                                    onUrlLista(dl.toString())
+                                },
+                                onError = { e ->
+                                    Log.e(
+                                        "FotoDebug",
+                                        "❌ downloadUrl falló tras reintentos: ${e.message}",
+                                        e
+                                    )
+
+                                    // 🧹 igual limpiamos temporales
+                                    borrarTemporal(optimizedUri)
+                                    if (optimizedUri != uri) borrarTemporal(uri)
+
+                                    onUrlLista("")
+                                })
                         }.addOnFailureListener { e ->
                             val se = e as? com.google.firebase.storage.StorageException
                             Log.e(
@@ -524,22 +540,35 @@ fun FormEntradaDeInventario(
                                 "❌ putFile falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
                                 e
                             )
+
+                            // 🧹 limpieza de temporales también en fallo
+                            borrarTemporal(optimizedUri)
+                            if (optimizedUri != uri) borrarTemporal(uri)
+
                             onUrlLista("")
                         }
                     return
                 }
 
-
-                // Fallback: bytes (por compatibilidad con tu versión anterior)
+                // Fallback: subir desde bytes (compatibilidad)
                 if (bytes != null && bytes.isNotEmpty()) {
                     storageRef.putBytes(bytes, metadata).addOnSuccessListener {
-                            storageRef.downloadUrl.addOnSuccessListener { dl ->
-                                Log.d("FotoDebug", "✅ Subida OK (bytes). URL=$dl")
-                                onUrlLista(dl.toString())
-                            }.addOnFailureListener { e ->
-                                Log.e("FotoDebug", "Error URL: ${e.message}", e)
-                                onUrlLista("")
-                            }
+                            getDownloadUrlWithRetry(
+                                ref = storageRef,
+                                attempts = 2,
+                                delayMs = 300,
+                                onSuccess = { dl ->
+                                    Log.d("FotoDebug", "✅ Subida OK (bytes). URL=$dl")
+                                    onUrlLista(dl.toString())
+                                },
+                                onError = { e ->
+                                    Log.e(
+                                        "FotoDebug",
+                                        "❌ downloadUrl (bytes) tras reintentos: ${e.message}",
+                                        e
+                                    )
+                                    onUrlLista("")
+                                })
                         }.addOnFailureListener { e ->
                             val se = e as? com.google.firebase.storage.StorageException
                             Log.e(
@@ -556,6 +585,12 @@ fun FormEntradaDeInventario(
                 onUrlLista("")
             }
 
+            // Libera loading y continúa con o sin URL
+            fun finishSaving(urlFoto: String?) {
+                showSavingDialog.value = false
+                isSaving = false
+                continuarGuardadoConFoto(urlFoto)
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -568,10 +603,10 @@ fun FormEntradaDeInventario(
                 Button(
                     onClick = {
                         val ctx = context
-                        val imagesDir = java.io.File(ctx.cacheDir, "images").apply { mkdirs() }
-                        val imageFile = java.io.File.createTempFile("foto_", ".jpg", imagesDir)
+                        val imagesDir = File(ctx.cacheDir, "images").apply { mkdirs() }
+                        val imageFile = File.createTempFile("foto_", ".jpg", imagesDir)
 
-                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                        val uri = getUriForFile(
                             ctx, ctx.packageName + ".fileprovider", imageFile
                         )
                         photoUri.value = uri
@@ -764,31 +799,27 @@ fun FormEntradaDeInventario(
                                 showSavingDialog.value = true
 
                                 val uri = photoUri.value
-                                val bytes = fotoBytes.value
+                                val hadPhoto = tieneFoto.value
 
-                                if (tieneFoto.value && uri != null) {
-                                    // subimos usando putFile(uri) (y adentro optimizas/limpias)
+                                if (hadPhoto && uri != null) {
                                     subirImagenAFirebase(
-                                        bytes = bytes,        // puede ir null; internamente ignoras si usas uri
-                                        uri = uri
-                                    ) { urlFoto ->
-                                        showSavingDialog.value = false
-                                        continuarGuardadoConFoto(urlFoto)
-
-                                        // Limpieza tras guardar
+                                        bytes = fotoBytes.value, uri = uri
+                                    ) { url ->
+                                        // Limpieza SIEMPRE
                                         fotoBytes.value = null
                                         photoUri.value = null
                                         tieneFoto.value = false
+
+                                        // si subió ok → url no vacía; si falló → null
+                                        finishSaving(url.ifEmpty { null })
                                     }
                                 } else {
-                                    // no hay foto: continúa sin URL
-                                    showSavingDialog.value = false
-                                    continuarGuardadoConFoto(null)
+                                    // no hay foto → guardado normal
+                                    finishSaving(null)
                                 }
                             }) {
                             Text("Sí, grabar", color = Color(0xFF003366))
                         }
-
                     },
                     dismissButton = {
                         TextButton(onClick = {
@@ -799,7 +830,6 @@ fun FormEntradaDeInventario(
                         }
                     })
             }
-
 
             if (showDialog) {
                 AlertDialog(
@@ -974,73 +1004,143 @@ fun FormEntradaDeInventario(
     }
 }
 
-// Imports que quizá te falten arriba del archivo:
 
+private fun applyExifRotation(
+    context: Context, sourceUri: Uri, bmp: Bitmap
+): Bitmap {
+    return try {
+        context.contentResolver.openInputStream(sourceUri)?.use { ins ->
+            val exif = ExifInterface(ins)
+            val rotation = when (exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+            )) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+            if (rotation != 0f) {
+                val m = Matrix().apply { postRotate(rotation) }
+                Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+            } else bmp
+        } ?: bmp
+    } catch (_: Exception) {
+        bmp
+    }
+}
 
 private fun prepararFotoParaSubir(
-    context: android.content.Context,
+    context: Context,
     sourceUri: Uri,
     maxDimPx: Int = 1600,
-    qualityJpeg: Int = 80
+    qualityStart: Int = 85,
+    targetMaxBytes: Long = 1_200_000L, // ~1.2 MB
+    qualityFloor: Int = 60
 ): Uri {
+    var decoded: Bitmap? = null
+    var oriented: Bitmap? = null
+    var scaled: Bitmap? = null
+
     try {
-        // 1) Decodificar la imagen de forma eficiente
         val resolver = context.contentResolver
 
-        // Leer solo dimensiones primero
+        // 1) Sólo bounds
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(sourceUri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, bounds)
-        }
+        resolver.openInputStream(sourceUri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
 
-        // Calcular inSampleSize para reducir memoria
-        val (w, h) = bounds.outWidth to bounds.outHeight
+        val w = bounds.outWidth
+        val h = bounds.outHeight
+        if (w <= 0 || h <= 0) return sourceUri
+
+        // 2) Sample + config ahorradora
         var inSample = 1
-        if (w > 0 && h > 0) {
+        run {
             val halfW = w / 2
             val halfH = h / 2
             while ((halfW / inSample) >= maxDimPx || (halfH / inSample) >= maxDimPx) {
                 inSample *= 2
             }
         }
-
-        val decodeOpts = BitmapFactory.Options().apply { inSampleSize = inSample.coerceAtLeast(1) }
-        val decoded: Bitmap = resolver.openInputStream(sourceUri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, decodeOpts)
-        } ?: return sourceUri // si algo falla, regresa el original
-
-        // 2) Reescalar exactamente a maxDimPx si aún excede
-        val scaled: Bitmap = run {
-            val curW = decoded.width
-            val curH = decoded.height
-            val maxCur = maxOf(curW, curH)
-            if (maxCur > maxDimPx) {
-                val factor = maxDimPx.toFloat() / maxCur.toFloat()
-                val m = Matrix().apply { postScale(factor, factor) }
-                Bitmap.createBitmap(decoded, 0, 0, curW, curH, m, true)
-            } else decoded
+        val decodeOpts = BitmapFactory.Options().apply {
+            inSampleSize = inSample.coerceAtLeast(1)
+            inPreferredConfig = Bitmap.Config.RGB_565
+            inDither = true
         }
 
-        // 3) Escribir JPEG en archivo temporal dentro de cache/images
-        val imagesDir = java.io.File(context.cacheDir, "images").apply { mkdirs() }
-        val outFile = java.io.File.createTempFile("upload_", ".jpg", imagesDir)
+        decoded = resolver.openInputStream(sourceUri)?.use {
+            BitmapFactory.decodeStream(it, null, decodeOpts)
+        } ?: return sourceUri
 
-        java.io.FileOutputStream(outFile).use { fos ->
-            scaled.compress(Bitmap.CompressFormat.JPEG, qualityJpeg.coerceIn(40, 100), fos)
-            fos.flush()
+        // 3) Rotación EXIF
+        oriented = applyExifRotation(context, sourceUri, decoded)
+        if (oriented !== decoded) {
+            decoded.recycle(); decoded = null
         }
 
-        // Libera el bitmap intermedio si creó copia
-        if (scaled !== decoded) decoded.recycle()
+        // 4) Escalado final
+        val cur = oriented
+        val maxCur = maxOf(cur.width, cur.height)
+        scaled = if (maxCur > maxDimPx) {
+            val f = maxDimPx.toFloat() / maxCur.toFloat()
+            val m = Matrix().apply { postScale(f, f) }
+            Bitmap.createBitmap(cur, 0, 0, cur.width, cur.height, m, true)
+        } else {
+            cur
+        }
+        if (scaled !== oriented) {
+            oriented.recycle(); oriented = null
+        }
 
-        // 4) Devolver Uri del FileProvider
-        return androidx.core.content.FileProvider.getUriForFile(
-            context, context.packageName + ".fileprovider", outFile
-        )
+        // 5) Escribir JPEG con control de tamaño (un solo archivo)
+        val imagesDir = File(context.cacheDir, "images").apply { mkdirs() }
+        val outFile = File.createTempFile("upload_", ".jpg", imagesDir)
+
+        var q = qualityStart.coerceIn(qualityFloor, 100)
+        fun write(qty: Int) {
+            FileOutputStream(outFile, false).use { fos ->
+                scaled.compress(Bitmap.CompressFormat.JPEG, qty, fos)
+                fos.flush()
+            }
+        }
+
+        write(q)
+        // Si quedó grande, bajamos calidad en pasos
+        while (outFile.length() > targetMaxBytes && q > qualityFloor) {
+            q = (q - 10).coerceAtLeast(qualityFloor)
+            write(q)
+        }
+
+        // 6) Devolver Uri del FileProvider
+        return getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+    } catch (oom: OutOfMemoryError) {
+        Log.e("FotoDebug", "OOM al preparar foto: ${oom.message}")
+        Toast.makeText(context, "Memoria insuficiente al procesar la foto", Toast.LENGTH_LONG).show()
+        return sourceUri // seguimos sin bloquear el flujo
     } catch (e: Exception) {
         Log.w("FotoDebug", "prepararFotoParaSubir falló: ${e.message}", e)
         return sourceUri
+    } finally {
+        try { scaled?.recycle() } catch (_: Exception) {}
+        try { oriented?.recycle() } catch (_: Exception) {}
+        try { decoded?.recycle() } catch (_: Exception) {}
     }
 }
 
 
+// Helper: obtiene la URL con reintentos suaves y backoff.
+private fun getDownloadUrlWithRetry(
+    ref: StorageReference, attempts: Int = 2,          // reintentos extra (total = 1 + attempts)
+    delayMs: Long = 300,        // backoff inicial
+    onSuccess: (Uri) -> Unit, onError: (Exception) -> Unit
+) {
+    ref.downloadUrl.addOnSuccessListener { onSuccess(it) }.addOnFailureListener { e ->
+            if (attempts > 0) {
+                Handler(Looper.getMainLooper()).postDelayed(
+                    { getDownloadUrlWithRetry(ref, attempts - 1, delayMs * 2, onSuccess, onError) },
+                    delayMs
+                )
+            } else {
+                onError(e)
+            }
+        }
+}
