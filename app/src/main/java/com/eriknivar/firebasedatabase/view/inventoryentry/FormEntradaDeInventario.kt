@@ -1,10 +1,11 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import android.app.Activity
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,29 +60,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.eriknivar.firebasedatabase.view.utility.validarRegistroDuplicado
-import com.google.firebase.storage.storage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
-import java.util.UUID
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import com.eriknivar.firebasedatabase.network.CatalogoRepository
 import com.eriknivar.firebasedatabase.network.SelectedClientStore
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import kotlinx.coroutines.withContext
 
 
 @Composable
@@ -115,8 +107,6 @@ fun FormEntradaDeInventario(
     val showDialogRegistroDuplicado = remember { mutableStateOf(false) }
     val showConfirmDialog = remember { mutableStateOf(false) }
 
-    val catalogRepo = remember { CatalogoRepository() }
-
     val showProductDialog = remember { mutableStateOf(false) } // 🔥 Para la lista de productos
     val productList = remember { mutableStateOf(emptyList<String>()) }
     val productMap = remember { mutableStateOf(emptyMap<String, Pair<String, String>>()) }
@@ -131,7 +121,6 @@ fun FormEntradaDeInventario(
     val focusRequesterLocation = remember { FocusRequester() }
     val openUbicacionInvalidaDialog = remember { mutableStateOf(false) }
     val tempLocationInput = remember { mutableStateOf("") }
-    val tempLotInput = remember { mutableStateOf("") }
     val showSavingDialog = remember { mutableStateOf(false) }
 
     var isSaving by remember { mutableStateOf(false) }
@@ -144,16 +133,10 @@ fun FormEntradaDeInventario(
     val context = LocalContext.current
     val firestore = Firebase.firestore
 
-    var showError1 by remember { mutableStateOf(false) }
-    var showError2 by remember { mutableStateOf(false) }
-    var showError3 by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) } // Estado para mostrar el cuadro de diálogo
     var showDialog1 by remember { mutableStateOf(false) }
     var showDialog2 by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") } // Mensaje de error para el cuadro de diálogo
-    var errorMessage1 by remember { mutableStateOf("") }
-    var errorMessage2 by remember { mutableStateOf("") }
-    var errorMessage3 by remember { mutableStateOf("") }
+
 
     val focusRequester = remember { FocusRequester() }
     val shouldRequestFocusAfterClear = remember { mutableStateOf(false) }
@@ -167,8 +150,6 @@ fun FormEntradaDeInventario(
 
     var showExitDialog by remember { mutableStateOf(false) }
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
-    val componentActivity = LocalContext.current as? ComponentActivity
-    val backOwner = LocalOnBackPressedDispatcherOwner.current
     var pendingExit by remember { mutableStateOf(false) }
 
     val conLote = (conteoMode == ConteoMode.CON_LOTE)
@@ -222,13 +203,13 @@ fun FormEntradaDeInventario(
     val clienteIdFromUser by userViewModel.clienteId.observeAsState()
     val clienteIdActual: String? =
         if (SelectedClientStore.isSuperuser) SelectedClientStore.selectedClienteId?.takeIf {
-            it.isNullOrBlank().not()
+            it.isBlank().not()
         } ?: clienteIdFromUser
         else clienteIdFromUser
 
     val fotoBytes = remember { mutableStateOf<ByteArray?>(null) }
     val tieneFoto = remember { mutableStateOf(false) }
-    val photoUri = remember { mutableStateOf<android.net.Uri?>(null) }
+    val photoUri = remember { mutableStateOf<Uri?>(null) }
 
     val tomarFotoLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -244,23 +225,6 @@ fun FormEntradaDeInventario(
             }
         }
 
-
-
-    LaunchedEffect(Unit) {
-        userViewModel.nombre.observeForever { nuevoNombre ->
-            if (nuevoNombre.isEmpty()) {
-                if (sku.value.isNotBlank() || lot.value.isNotBlank() || quantity.value.isNotBlank() || location.value.isNotBlank() || dateText.value.isNotBlank()) {
-                    userViewModel.guardarValoresTemporalmente(
-                        sku.value, lot.value, quantity.value, location.value, dateText.value
-                    )
-
-                    Log.d("TEMPORAL", "✅ Guardado CORRECTO antes de logout")
-                } else {
-                    Log.d("TEMPORAL", "⚠️ Evitado guardado de campos vacíos")
-                }
-            }
-        }
-    }
 
     LaunchedEffect(Unit) {
         if (!restored.value) {
@@ -287,26 +251,25 @@ fun FormEntradaDeInventario(
     }
 
     LaunchedEffect(usuario) {
-        if (usuario.isNotEmpty()) {
-            fetchDataFromFirestore(
-                db = Firebase.firestore,
-                allData = allData,
-                usuario = usuario,
-                listState = listState,
-                localidad = localidad,
-                clienteId = clienteIdActual.orEmpty(),
-                tipo = tipoActual,
-                uid = uidActual
-            )
+        if (usuario.isEmpty()) {
+            if (sku.value.isNotBlank() || lot.value.isNotBlank() || quantity.value.isNotBlank() || location.value.isNotBlank() || dateText.value.isNotBlank()) {
+                userViewModel.guardarValoresTemporalmente(
+                    sku.value, lot.value, quantity.value, location.value, dateText.value
+                )
+                Log.d("TEMPORAL", "✅ Guardado CORRECTO antes de logout")
+            } else {
+                Log.d("TEMPORAL", "⚠️ Evitado guardado de campos vacíos")
+            }
         }
     }
+
 
     fun enfocarSkuDespuesDeGrabar() {
         // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
         focusManager.clearFocus(force = true)
         // pequeño respiro para que Compose cierre diálogos/animaciones
         coroutineScope.launch {
-            kotlinx.coroutines.delay(120)
+            delay(120)
             try {
                 focusRequesterSku.requestFocus()
                 keyboardController?.show()
@@ -330,7 +293,6 @@ fun FormEntradaDeInventario(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            val userVM: UserViewModel = viewModel()
 
             // Location
 
@@ -385,7 +347,7 @@ fun FormEntradaDeInventario(
                     nextFocusRequester = focusRequesterFecha,
                     keyboardController = keyboardController,
                     shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
-                    enable = conLote
+                    enable = true
 
                 )
 
@@ -395,7 +357,7 @@ fun FormEntradaDeInventario(
                     dateText,
                     focusRequester = focusRequesterFecha,
                     nextFocusRequester = focusRequesterCantidad,
-                    enable = conLote
+                    enable = true
 
                 )
 
@@ -416,7 +378,7 @@ fun FormEntradaDeInventario(
             }
 
             LaunchedEffect(Unit) {
-                android.util.Log.d(
+                Log.d(
                     "CONTEO_MODE_FORM", "conteoMode=${conteoMode.name}, conLote=$conLote"
                 )
             }
@@ -490,7 +452,6 @@ fun FormEntradaDeInventario(
                             unidadMedida.value = ""
                             qrCodeContentSku.value = ""
                             qrCodeContentLot.value = ""
-                            //imagenBitmap.value = null
                             userViewModel.limpiarValoresTemporales()
                         }
                         isSaving = false
@@ -508,55 +469,57 @@ fun FormEntradaDeInventario(
             }
 
             fun subirImagenAFirebase(
-                bytes: ByteArray?,
-                uri: android.net.Uri?,
-                onUrlLista: (String) -> Unit
+                bytes: ByteArray?, uri: Uri?, onUrlLista: (String) -> Unit
             ) {
                 val storage = com.google.firebase.storage.FirebaseStorage.getInstance()
-                val storageRef = storage.reference
-                    .child("fotos_registro/${java.util.UUID.randomUUID()}.jpg")
+                val storageRef =
+                    storage.reference.child("fotos_registro/${java.util.UUID.randomUUID()}.jpg")
 
                 val metadata = com.google.firebase.storage.storageMetadata {
                     contentType = "image/jpeg"
                 }
 
                 // 🔹 Función interna: borra el archivo temporal del FileProvider
-                fun borrarTemporal(u: android.net.Uri) {
+                fun borrarTemporal(u: Uri) {
                     try {
                         if (u.scheme == "content") {
                             val rows = context.contentResolver.delete(u, null, null)
-                            android.util.Log.d("FotoDebug", "Tmp borrado via resolver: rows=$rows")
+                            Log.d("FotoDebug", "Tmp borrado via resolver: rows=$rows")
                         } else {
                             val f = java.io.File(u.path ?: "")
                             if (f.exists()) {
                                 val ok = f.delete()
-                                android.util.Log.d("FotoDebug", "Tmp borrado via File.delete(): $ok")
+                                Log.d(
+                                    "FotoDebug", "Tmp borrado via File.delete(): $ok"
+                                )
                             }
                         }
                     } catch (e: Exception) {
-                        android.util.Log.w("FotoDebug", "No se pudo borrar tmp: ${e.message}", e)
+                        Log.w("FotoDebug", "No se pudo borrar tmp: ${e.message}", e)
                     }
                 }
 
-                // ✅ Preferir URI: usar putFile
+                // dentro de fun subirImagenAFirebase(...)
                 if (uri != null) {
-                    storageRef.putFile(uri, metadata)
-                        .addOnSuccessListener {
-                            storageRef.downloadUrl.addOnSuccessListener { dl ->
-                                android.util.Log.d("FotoDebug", "✅ Subida OK (putFile). URL=$dl")
+                    // ⬇️ preparar versión optimizada (1600px máx., 80% JPEG)
+                    val optimizedUri: Uri = prepararFotoParaSubir(context, uri)
 
-                                // 🧹 borra el archivo temporal en cache
-                                borrarTemporal(uri)
+                    storageRef.putFile(optimizedUri, metadata).addOnSuccessListener {
+                            storageRef.downloadUrl.addOnSuccessListener { dl ->
+                                Log.d("FotoDebug", "✅ Subida OK (putFile). URL=$dl")
+
+                                // 🧹 borra el/los temporales
+                                borrarTemporal(optimizedUri)
+                                if (optimizedUri != uri) borrarTemporal(uri)
 
                                 onUrlLista(dl.toString())
                             }.addOnFailureListener { e ->
-                                android.util.Log.e("FotoDebug", "Error URL: ${e.message}", e)
+                                Log.e("FotoDebug", "Error URL: ${e.message}", e)
                                 onUrlLista("")
                             }
-                        }
-                        .addOnFailureListener { e ->
+                        }.addOnFailureListener { e ->
                             val se = e as? com.google.firebase.storage.StorageException
-                            android.util.Log.e(
+                            Log.e(
                                 "FotoDebug",
                                 "❌ putFile falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
                                 e
@@ -566,21 +529,20 @@ fun FormEntradaDeInventario(
                     return
                 }
 
+
                 // Fallback: bytes (por compatibilidad con tu versión anterior)
                 if (bytes != null && bytes.isNotEmpty()) {
-                    storageRef.putBytes(bytes, metadata)
-                        .addOnSuccessListener {
+                    storageRef.putBytes(bytes, metadata).addOnSuccessListener {
                             storageRef.downloadUrl.addOnSuccessListener { dl ->
-                                android.util.Log.d("FotoDebug", "✅ Subida OK (bytes). URL=$dl")
+                                Log.d("FotoDebug", "✅ Subida OK (bytes). URL=$dl")
                                 onUrlLista(dl.toString())
                             }.addOnFailureListener { e ->
-                                android.util.Log.e("FotoDebug", "Error URL: ${e.message}", e)
+                                Log.e("FotoDebug", "Error URL: ${e.message}", e)
                                 onUrlLista("")
                             }
-                        }
-                        .addOnFailureListener { e ->
+                        }.addOnFailureListener { e ->
                             val se = e as? com.google.firebase.storage.StorageException
-                            android.util.Log.e(
+                            Log.e(
                                 "FotoDebug",
                                 "❌ putBytes falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
                                 e
@@ -590,7 +552,7 @@ fun FormEntradaDeInventario(
                     return
                 }
 
-                android.util.Log.d("FotoDebug", "Sin foto (ni Uri ni bytes)")
+                Log.d("FotoDebug", "Sin foto (ni Uri ni bytes)")
                 onUrlLista("")
             }
 
@@ -610,17 +572,17 @@ fun FormEntradaDeInventario(
                         val imageFile = java.io.File.createTempFile("foto_", ".jpg", imagesDir)
 
                         val uri = androidx.core.content.FileProvider.getUriForFile(
-                            ctx,
-                            ctx.packageName + ".fileprovider",
-                            imageFile
+                            ctx, ctx.packageName + ".fileprovider", imageFile
                         )
                         photoUri.value = uri
 
                         tomarFotoLauncher.launch(uri)
                     },
-                    enabled = !isSaving && (tieneFoto.value == false),
+                    enabled = !isSaving && !tieneFoto.value,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                    modifier = Modifier.weight(1f).height(40.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
                 ) {
                     Text("📷 Foto", fontSize = 13.sp, color = Color.White)
                 }
@@ -683,7 +645,6 @@ fun FormEntradaDeInventario(
 
                             // 🟥 6. Validación: producto no existe o sin descripción válida
                             if (productoDescripcion.value == "Sin descripción" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
-                                errorMessage2 = "Código No Existe"
                                 delay(150)
                                 showDialog2 = true
                                 isSaving = false
@@ -692,7 +653,6 @@ fun FormEntradaDeInventario(
 
                             // 🟥 7. Validación: cantidad igual a 0
                             if (quantity.value == "0" || quantity.value.isEmpty()) {
-                                errorMessage = "No Admite cantidades 0"
                                 showDialogValueQuantityCero = true
                                 showErrorQuantity.value = true
                                 isSaving = false
@@ -705,13 +665,7 @@ fun FormEntradaDeInventario(
 
                             showErrorLocation.value = false
                             showErrorSku.value = false
-                            errorMessage = ""
-                            showError1 = false
-                            errorMessage1 = ""
-                            showError2 = false
-                            errorMessage2 = ""
-                            showError3 = false
-                            errorMessage3 = ""
+
 
                         }
                     },
@@ -741,7 +695,6 @@ fun FormEntradaDeInventario(
                 // 🔘 Botón Limpiar
                 Button(
                     onClick = {
-                        //focusManager.clearFocus()
 
                         location.value = ""
                         tempLocationInput.value = ""
@@ -775,7 +728,9 @@ fun FormEntradaDeInventario(
 
             if (tieneFoto.value) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -789,8 +744,6 @@ fun FormEntradaDeInventario(
 
                 }
             }
-
-
             HorizontalDivider(
                 thickness = 2.dp,
                 color = Color.Gray,
@@ -810,24 +763,32 @@ fun FormEntradaDeInventario(
                                 showConfirmDialog.value = false
                                 showSavingDialog.value = true
 
-                                // ✅ ÚNICA llamada de subida (usa Uri si hay, si no usa bytes; si no hay nada, devuelve "")
-                                subirImagenAFirebase(
-                                    bytes = fotoBytes.value,
-                                    uri = photoUri.value
-                                ) { urlFoto ->
-                                    showSavingDialog.value = false
-                                    val finalUrl = urlFoto.takeIf { it.isNotBlank() } // "" -> null
-                                    continuarGuardadoConFoto(finalUrl)
+                                val uri = photoUri.value
+                                val bytes = fotoBytes.value
 
-                                    // Limpieza tras guardar
-                                    fotoBytes.value = null
-                                    photoUri.value = null
-                                    tieneFoto.value = false
+                                if (tieneFoto.value && uri != null) {
+                                    // subimos usando putFile(uri) (y adentro optimizas/limpias)
+                                    subirImagenAFirebase(
+                                        bytes = bytes,        // puede ir null; internamente ignoras si usas uri
+                                        uri = uri
+                                    ) { urlFoto ->
+                                        showSavingDialog.value = false
+                                        continuarGuardadoConFoto(urlFoto)
+
+                                        // Limpieza tras guardar
+                                        fotoBytes.value = null
+                                        photoUri.value = null
+                                        tieneFoto.value = false
+                                    }
+                                } else {
+                                    // no hay foto: continúa sin URL
+                                    showSavingDialog.value = false
+                                    continuarGuardadoConFoto(null)
                                 }
-                            }
-                        ) {
+                            }) {
                             Text("Sí, grabar", color = Color(0xFF003366))
                         }
+
                     },
                     dismissButton = {
                         TextButton(onClick = {
@@ -836,16 +797,15 @@ fun FormEntradaDeInventario(
                         }) {
                             Text("Cancelar", color = Color.Red)
                         }
-                    }
-                )
+                    })
             }
 
 
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialog = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -857,8 +817,8 @@ fun FormEntradaDeInventario(
             if (showDialog1) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog1 = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialog1 = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -870,8 +830,8 @@ fun FormEntradaDeInventario(
             if (showDialog2) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog2 = true
-                    },
+                    showDialog2 = true
+                },
                     title = { Text("Codigo No Existe") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -883,8 +843,8 @@ fun FormEntradaDeInventario(
             if (showDialogValueQuantityCero) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialogValueQuantityCero = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialogValueQuantityCero = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -997,7 +957,11 @@ fun FormEntradaDeInventario(
                         }) { Text("Salir", color = Color.Red, fontWeight = FontWeight.Bold) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showExitDialog = false }) { Text("Cancelar",color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
+                        TextButton(onClick = { showExitDialog = false }) {
+                            Text(
+                                "Cancelar", color = Color(0xFF003366), fontWeight = FontWeight.Bold
+                            )
+                        }
                     })
             }
         }
@@ -1010,69 +974,73 @@ fun FormEntradaDeInventario(
     }
 }
 
+// Imports que quizá te falten arriba del archivo:
+
+
 private fun prepararFotoParaSubir(
     context: android.content.Context,
-    sourceUri: android.net.Uri,
-    maxDimPx: Int = 1600,   // lado mayor máx.
-    qualityJpeg: Int = 80   // calidad de compresión
-): android.net.Uri? {
+    sourceUri: Uri,
+    maxDimPx: Int = 1600,
+    qualityJpeg: Int = 80
+): Uri {
     try {
-        // 1) Leer solo dimensiones
-        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            android.graphics.BitmapFactory.decodeStream(input, null, bounds)
+        // 1) Decodificar la imagen de forma eficiente
+        val resolver = context.contentResolver
+
+        // Leer solo dimensiones primero
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(sourceUri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
         }
 
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return sourceUri
-
-        // 2) Calcular inSampleSize para bajar memoria
-        fun calcInSampleSize(w: Int, h: Int, maxDim: Int): Int {
-            var sample = 1
-            var cw = w
-            var ch = h
-            while (cw > maxDim || ch > maxDim) {
-                cw /= 2; ch /= 2; sample *= 2
+        // Calcular inSampleSize para reducir memoria
+        val (w, h) = bounds.outWidth to bounds.outHeight
+        var inSample = 1
+        if (w > 0 && h > 0) {
+            val halfW = w / 2
+            val halfH = h / 2
+            while ((halfW / inSample) >= maxDimPx || (halfH / inSample) >= maxDimPx) {
+                inSample *= 2
             }
-            return sample.coerceAtLeast(1)
         }
-        val inSample = calcInSampleSize(bounds.outWidth, bounds.outHeight, maxDimPx)
 
-        // 3) Decodificar ya con sample
-        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = inSample }
-        val sampled = context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            android.graphics.BitmapFactory.decodeStream(input, null, opts)
-        } ?: return sourceUri
+        val decodeOpts = BitmapFactory.Options().apply { inSampleSize = inSample.coerceAtLeast(1) }
+        val decoded: Bitmap = resolver.openInputStream(sourceUri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, decodeOpts)
+        } ?: return sourceUri // si algo falla, regresa el original
 
-        // 4) Asegurar que el lado mayor no pase maxDimPx (por si quedó un poco >)
-        val w = sampled.width
-        val h = sampled.height
-        val maxActual = maxOf(w, h)
-        val finalBitmap = if (maxActual > maxDimPx) {
-            val scale = maxDimPx.toFloat() / maxActual.toFloat()
-            val nw = (w * scale).toInt().coerceAtLeast(1)
-            val nh = (h * scale).toInt().coerceAtLeast(1)
-            android.graphics.Bitmap.createScaledBitmap(sampled, nw, nh, true).also {
-                if (it !== sampled) sampled.recycle()
-            }
-        } else sampled
+        // 2) Reescalar exactamente a maxDimPx si aún excede
+        val scaled: Bitmap = run {
+            val curW = decoded.width
+            val curH = decoded.height
+            val maxCur = maxOf(curW, curH)
+            if (maxCur > maxDimPx) {
+                val factor = maxDimPx.toFloat() / maxCur.toFloat()
+                val m = Matrix().apply { postScale(factor, factor) }
+                Bitmap.createBitmap(decoded, 0, 0, curW, curH, m, true)
+            } else decoded
+        }
 
-        // 5) Escribir JPEG comprimido en un archivo temporal nuevo
-        val outDir = java.io.File(context.cacheDir, "images_up").apply { mkdirs() }
-        val outFile = java.io.File.createTempFile("up_", ".jpg", outDir)
+        // 3) Escribir JPEG en archivo temporal dentro de cache/images
+        val imagesDir = java.io.File(context.cacheDir, "images").apply { mkdirs() }
+        val outFile = java.io.File.createTempFile("upload_", ".jpg", imagesDir)
+
         java.io.FileOutputStream(outFile).use { fos ->
-            finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, qualityJpeg, fos)
+            scaled.compress(Bitmap.CompressFormat.JPEG, qualityJpeg.coerceIn(40, 100), fos)
+            fos.flush()
         }
-        finalBitmap.recycle()
 
-        // 6) Devolver un Uri FileProvider para ese archivo
+        // Libera el bitmap intermedio si creó copia
+        if (scaled !== decoded) decoded.recycle()
+
+        // 4) Devolver Uri del FileProvider
         return androidx.core.content.FileProvider.getUriForFile(
-            context,
-            context.packageName + ".fileprovider",
-            outFile
+            context, context.packageName + ".fileprovider", outFile
         )
     } catch (e: Exception) {
-        android.util.Log.w("FotoDebug", "prepararFotoParaSubir falló: ${e.message}", e)
-        // Ante cualquier problema, seguimos con el original
+        Log.w("FotoDebug", "prepararFotoParaSubir falló: ${e.message}", e)
         return sourceUri
     }
 }
+
+
