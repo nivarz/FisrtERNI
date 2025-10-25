@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
@@ -42,26 +41,20 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
-import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.view.utility.contarRegistrosDelDia
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
-import com.google.firebase.firestore.ListenerRegistration
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.*
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.ktx.firestore
-import java.util.Calendar
 
 @Composable
 fun FirestoreApp(
@@ -86,24 +79,22 @@ fun FirestoreApp(
     val listState = rememberLazyListState() // ✅ ahora aquí
     val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
     val expandedForm = remember { mutableStateOf(true) }
-    var invReg: ListenerRegistration? by remember { mutableStateOf<ListenerRegistration?>(null) }
 
     val context = LocalContext.current
-    val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
 
     val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
 
-    // donde declaras estados del formulario
-    val cantidadRegistrosHoy by remember {
-        derivedStateOf { allData.size }   // <- cuenta lo que ya cargaste/escuchaste
-    }
-
+    val currentUserId = userViewModel.documentId.value?.takeIf { it.isNotBlank() }
 
     DisposableEffect(currentUserId, currentSessionId) {
-        val firestore = Firebase.firestore
+        if (currentUserId == null) {
+            Log.w("FirestoreListener", "⚠️ currentUserId vacío, no se inicia listener de sesión.")
+            return@DisposableEffect onDispose { }
+        }
 
+        val firestore = Firebase.firestore
         val listenerRegistration = firestore.collection("usuarios")
             .document(currentUserId)
             .addSnapshotListener { snapshot, error ->
@@ -154,7 +145,6 @@ fun FirestoreApp(
         }
     }
 
-    val usuario by userViewModel.nombre.observeAsState("")
 
 // 🔊 Listener Realtime de inventario (reemplaza el que tenías antes)
     DisposableEffect(
@@ -174,8 +164,6 @@ fun FirestoreApp(
         if (cid.isBlank() || loc.isBlank()) {
             return@DisposableEffect onDispose { }
         }
-
-        val (inicio, fin) = hoyBounds()
 
         val base = firestore
             .collection("clientes").document(cid)
@@ -418,7 +406,6 @@ fun FirestoreApp(
                     ) { index, item ->
                         MessageCard(
                             item = item,
-                            firestore = Firebase.firestore,
                             allData = allData,
                             onSuccess = {
                                 showSuccessDialog = true
@@ -446,18 +433,4 @@ fun FirestoreApp(
             }
         }
     }
-}
-
-// Utilidad: límites de HOY [00:00, 24:00)
-private fun hoyBounds(): Pair<Timestamp, Timestamp> {
-    val cal = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val inicio = Timestamp(cal.time)
-    cal.add(Calendar.DAY_OF_MONTH, 1)
-    val fin = Timestamp(cal.time)
-    return inicio to fin
 }

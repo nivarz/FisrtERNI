@@ -363,26 +363,34 @@ fun FormEntradaDeInventario(
             )
 
             // 📌 CAMPO DE TEXTO PARA EL LOTE
+            if (conLote) {
+                OutlinedTextFieldsInputsLot(
+                    lot,
+                    focusRequester = focusRequesterLot,
+                    nextFocusRequester = focusRequesterFecha,
+                    keyboardController = keyboardController,
+                    shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
+                    enable = conLote
 
-            OutlinedTextFieldsInputsLot(
-                lot,
-                focusRequester = focusRequesterLot,
-                nextFocusRequester = focusRequesterFecha,
-                keyboardController = keyboardController,
-                shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
-                enable = conLote
+                )
 
-            )
+                // 📌 CAMPO DE TEXTO PARA LA FECHA
 
-            // 📌 CAMPO DE TEXTO PARA LA FECHA
+                DatePickerTextField(
+                    dateText,
+                    focusRequester = focusRequesterFecha,
+                    nextFocusRequester = focusRequesterCantidad,
+                    enable = conLote
 
-            DatePickerTextField(
-                dateText,
-                focusRequester = focusRequesterFecha,
-                nextFocusRequester = focusRequesterCantidad,
-                enable = conLote
+                )
 
-            )
+            } else {
+                // 🔹 Si no usa lote, asigna los valores por defecto
+                LaunchedEffect(Unit) {
+                    lot.value = "-"
+                    dateText.value = "-"
+                }
+            }
 
             // Opcional: forzar “-” cuando se cambia a SIN_LOTE
             LaunchedEffect(conLote) {

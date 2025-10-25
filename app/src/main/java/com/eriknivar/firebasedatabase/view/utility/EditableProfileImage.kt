@@ -19,12 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,44 +40,47 @@ fun EditableProfileImage(
     val context = LocalContext.current
     val storage = FirebaseStorage.getInstance()
     val firestore = FirebaseFirestore.getInstance()
-
     var fotoUrl by remember { mutableStateOf<String?>(null) }
 
+    // === Selector de imagen ===
     val contentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        Log.d("FOTO_DEBUG", "Imagen seleccionada: $uri")
-
         uri?.let {
+            if (documentId.isBlank()) {
+                Log.e("FOTO_DEBUG", "❌ documentId vacío, no se puede subir imagen.")
+                Toast.makeText(context, "Error: ID de usuario vacío", Toast.LENGTH_SHORT).show()
+                return@let
+            }
+
             val imageRef = storage.reference.child("usuarios/$userName/perfil.jpg")
 
             imageRef.putFile(it)
                 .addOnSuccessListener {
-                    Log.d("FOTO_DEBUG", "Imagen subida a Storage correctamente")
+                    Log.d("FOTO_DEBUG", "✅ Imagen subida correctamente a Storage")
 
                     imageRef.downloadUrl.addOnSuccessListener { downloadUri ->
                         fotoUrl = downloadUri.toString()
-                        Log.d("FOTO_DEBUG", "URL obtenida: $fotoUrl")
+                        Log.d("FOTO_DEBUG", "📸 Nueva URL: $fotoUrl")
 
                         firestore.collection("usuarios")
                             .document(documentId)
                             .update("fotoUrl", fotoUrl)
                             .addOnSuccessListener {
-                                Log.d("FOTO_DEBUG", "fotoUrl guardado en Firestore")
+                                Log.d("FOTO_DEBUG", "✅ fotoUrl actualizado en Firestore")
                             }
-                            .addOnFailureListener { exception ->
-                                Log.e("FOTO_DEBUG", "Error al recuperar fotoUrl", exception)
+                            .addOnFailureListener { e ->
+                                Log.e("FOTO_DEBUG", "❌ Error al actualizar Firestore", e)
                             }
-
                     }
                 }
-                .addOnFailureListener { exception ->
-                    Log.e("FOTO_DEBUG", "Error al recuperar fotoUrl", exception)
+                .addOnFailureListener { e ->
+                    Log.e("FOTO_DEBUG", "❌ Error al subir imagen a Storage", e)
                 }
-
         }
     }
 
+    // === Permisos ===
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_IMAGES
     } else {
@@ -93,34 +91,39 @@ fun EditableProfileImage(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            Log.d("FOTO_DEBUG", "Permiso concedido")
             contentPicker.launch("image/*")
         } else {
-            Log.d("FOTO_DEBUG", "Permiso denegado")
             Toast.makeText(context, "Permiso denegado", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 🔄 Recuperar fotoUrl usando el documentId
+    // === Recuperar la imagen guardada en Firestore ===
     LaunchedEffect(documentId) {
+        if (documentId.isBlank()) {
+            Log.w("FOTO_DEBUG", "⚠️ documentId vacío: se omite la recuperación de fotoUrl.")
+            return@LaunchedEffect
+        }
+
         firestore.collection("usuarios")
             .document(documentId)
             .get()
             .addOnSuccessListener { doc ->
                 val url = doc.getString("fotoUrl")
                 fotoUrl = url
-                Log.d("FOTO_DEBUG", "fotoUrl recuperado: $url")
+                Log.d("FOTO_DEBUG", "📥 fotoUrl recuperado: $url")
             }
             .addOnFailureListener {
-                Log.e("FOTO_DEBUG", "Error al recuperar fotoUrl", it)
+                Log.e("FOTO_DEBUG", "❌ Error al recuperar fotoUrl", it)
             }
     }
 
+    // === Animación ===
     val scale by animateFloatAsState(
         targetValue = if (fotoUrl != null) 1.1f else 1f,
         label = "ZoomAnim"
     )
 
+    // === Diseño del componente ===
     Box(
         modifier = Modifier.size(70.dp),
         contentAlignment = Alignment.Center

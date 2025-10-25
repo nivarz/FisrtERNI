@@ -51,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,19 +61,16 @@ import coil.compose.AsyncImage
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
-import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.view.utility.auditoria.registrarAuditoriaConteo
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
 import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
@@ -82,7 +78,6 @@ import com.eriknivar.firebasedatabase.view.common.ConteoMode
 @Composable
 fun MessageCard(
     item: DataFields,
-    firestore: FirebaseFirestore,
     allData: MutableList<DataFields>,
     onSuccess: () -> Unit,
     listState: LazyListState,
@@ -92,7 +87,6 @@ fun MessageCard(
     conteoMode: ConteoMode
 ) {
     val context = LocalContext.current
-    val calendar = Calendar.getInstance()
     var showDialog by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
     var showImageDialog by remember { mutableStateOf(false) }
@@ -112,33 +106,10 @@ fun MessageCard(
     val showErrorLocation = remember { mutableStateOf(false) }
     val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
     val focusLoc = remember { FocusRequester() }
-    val focusNext =
-        remember { FocusRequester() } // para saltar al siguiente campo si la validación pasa
-    val keyboard = LocalSoftwareKeyboardController.current
 
-    // --- Flags de permisos/modo para edición de Lote/Vencimiento ---
-    val isInv = (userViewModel.tipo.value ?: "")
-        .equals("invitado", ignoreCase = true)
     // Evita dependencia directa del enum: comparamos por nombre/string
-    val isConLote = item.lote.trim() != "-"
     val canEditLoteYVenc = (conteoMode == ConteoMode.CON_LOTE)
 
-    // Para evitar reescrituras en recomposición
-    var dialogInitialized by remember { mutableStateOf(false) }
-
-    /*
-    LaunchedEffect(isEditing, item.documentId) {
-        if (isEditing && !dialogInitialized) {
-            // Carga los valores actuales del registro
-            editedLocationState.value = item.location.trim().uppercase()
-            editedLote = item.lote.trim().uppercase()
-
-            editedQuantity = item.quantity.toString()
-
-            dialogInitialized = true
-        }
-    }
-*/
 
     LaunchedEffect(isEditing) {
         if (isEditing) {
@@ -156,8 +127,11 @@ fun MessageCard(
                             java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
                         )
                         d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    } catch (_: Exception) { src }
+                    } catch (_: Exception) {
+                        src
+                    }
                 }
+
                 else -> src
             }
 
@@ -177,10 +151,6 @@ fun MessageCard(
         }
     }
 
-    // 🔐 1) Resolver datos base
-    val cid = userViewModel.clienteId.value.orEmpty().trim().uppercase()
-    val rol = (userViewModel.tipo.value ?: "").lowercase()
-    val isInvitado = (rol == "invitado")
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
     val fechaFormateada = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
@@ -305,7 +275,13 @@ fun MessageCard(
                                 context, "No se pudo verificar permisos.", Toast.LENGTH_LONG
                             ).show()
                         }
-                    }) { Text("Sí, eliminar", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
+                    }) {
+                    Text(
+                        "Sí, eliminar",
+                        color = Color(0xFF003366),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             },
             dismissButton = {
                 TextButton(
@@ -334,8 +310,6 @@ fun MessageCard(
     }
     val backgroundColorCard = if (isExpanded) Color(0xFFE3F2FD) else Color.White
 
-    // saber si la fecha vino del date picker
-    var justPicked by remember { mutableStateOf(false) }
 
     // (opcional) normaliza la fecha inicial del item: si vino "yyyy-MM-dd" -> "dd/MM/yyyy"
     LaunchedEffect(isEditing, item.documentId) {
@@ -350,9 +324,9 @@ fun MessageCard(
                     val d = raw.substring(8, 10)
                     "$d/$m/$y"
                 }
+
                 else -> raw
             }
-            justPicked = false
         }
     }
 
@@ -372,32 +346,11 @@ fun MessageCard(
         context,
         { _, year, month, dayOfMonth ->
             editedExpirationDate = "%02d/%02d/%04d".format(dayOfMonth, month + 1, year)
-            justPicked = true
         },
         cal.get(Calendar.YEAR),
         cal.get(Calendar.MONTH),
         cal.get(Calendar.DAY_OF_MONTH)
     )
-
-    /*
-    // si el campo está deshabilitado por modo, fuerza "-"
-    LaunchedEffect(canEditLoteYVenc) { if (!canEditLoteYVenc) editedExpirationDate = "-" }
-
-    // si borran o queda vacío, quita el flag
-    LaunchedEffect(editedExpirationDate) {
-        if (editedExpirationDate.isBlank() || editedExpirationDate == "-") justPicked = false
-    }
-*/
-
-    val iconAlpha = if (canEditLoteYVenc) 1f else 0.3f
-
-    val loteParaGuardar  = editedLote.trim().ifEmpty { "-" }.uppercase()
-    val fechaParaGuardar = editedExpirationDate.trim()  // ya viene en dd/MM/yyyy si la formateaste arriba
-
-    val fechaISO = try {
-        val d = java.time.LocalDate.parse(fechaParaGuardar, java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-        d.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-    } catch (_: Exception) { fechaParaGuardar } // deja tal cual si no parsea
 
     Card(
         modifier = Modifier
@@ -497,7 +450,7 @@ fun MessageCard(
                             }
 
                             // 🟦 Mostrar enlace a foto si existe
-                            if (!item.fotoUrl.isNullOrBlank()) {
+                            if (item.fotoUrl.isNotBlank()) {
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -732,27 +685,6 @@ fun MessageCard(
                                         }
                                     }
 
-                                    // === 2) Auditoría (capturas ANTES y DESPUÉS) ===
-                                    val valoresAntes: Map<String, Any?> = mapOf(
-                                        "ubicacion" to item.location,
-                                        "lote" to item.lote,
-                                        "fechaVencimiento" to item.expirationDate,
-                                        "cantidad" to item.quantity
-                                    )
-                                    val valoresDespues: Map<String, Any?> = mapOf(
-                                        "ubicacion" to nuevaUbi,
-                                        "lote" to editedLote.trim().ifBlank { "-" }.uppercase(),
-                                        "fechaVencimiento" to editedExpirationDate.trim()
-                                            .ifBlank { "-" },
-                                        "cantidad" to qty
-                                    )
-                                    val cambiosClaves =
-                                        valoresAntes.keys.filter { k -> valoresAntes[k] != valoresDespues[k] }
-                                    val auditAntes = valoresAntes.filterKeys { it in cambiosClaves }
-                                    val auditDespues =
-                                        valoresDespues.filterKeys { it in cambiosClaves }
-                                    val huboCambios = cambiosClaves.isNotEmpty()
-
                                     // === 3) Update Firestore (según rol) ===
                                     fun continuarConUpdate() {
                                         val docRef = Firebase.firestore.collection("clientes")
@@ -904,7 +836,7 @@ fun MessageCard(
                                         } else {
                                             // admin / superuser: siempre enviamos ubicacion + demás campos
                                             val updatesFull =
-                                                mutableMapOf<String, Any>(
+                                                mutableMapOf(
                                                     "ubicacion" to nuevaUbi,  // <<— siempre
                                                     "cantidad" to qty,
                                                     "lote" to editedLote.trim().ifBlank { "-" }
@@ -1003,7 +935,7 @@ fun MessageCard(
                                         }
                                     }
                                     // === 2.5) Validación en app (helper compartido) ===
-                                    val locCodigo = item.localidad.trim().uppercase().orEmpty()
+                                    val locCodigo = item.localidad.trim().uppercase()
 
                                     if (!locationChanged) {
                                         // No cambió la ubicación → no validar maestro, guardar directo
@@ -1055,9 +987,10 @@ fun MessageCard(
                                     containerColor = Color(0xFF003366), contentColor = Color.White
                                 )
                             ) {
-                                Text("Cancelar", fontWeight = FontWeight.Bold, color = Color(
-                                    0xFFDA3737
-                                )
+                                Text(
+                                    "Cancelar", fontWeight = FontWeight.Bold, color = Color(
+                                        0xFFDA3737
+                                    )
                                 )
                             }
                         }
@@ -1077,7 +1010,13 @@ fun MessageCard(
                                     focusLoc.requestFocus()
                                 }
                             )
-                            { Text("Aceptar", color = Color(0xFF003366), fontWeight = FontWeight.Bold) }
+                            {
+                                Text(
+                                    "Aceptar",
+                                    color = Color(0xFF003366),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     )
                 }

@@ -46,33 +46,26 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.TextUnit
 import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -388,7 +381,11 @@ fun NavigationDrawer(
                                             }
                                     }
                                 ) {
-                                    Text("Sí, Cerrar",  color = Color(0xFF003366), fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Sí, Cerrar",
+                                        color = Color(0xFF003366),
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             },
                             dismissButton = {
@@ -399,7 +396,11 @@ fun NavigationDrawer(
                                             false // Solo cierra el diálogo si presiona "Cancelar"
                                     }
                                 ) {
-                                    Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Cancelar",
+                                        color = Color.Red,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         )
@@ -481,40 +482,5 @@ fun NavigationDrawer(
 
             }
         }
-    }
-}
-
-@Composable
-fun DrawerMenuItem(
-    icon: ImageVector,
-    label: String,
-    isSubItem: Boolean,
-    trailingIcon: ImageVector? = null,
-    onClick: () -> Unit,
-    labelFontSize: TextUnit = TextUnit.Unspecified,        // opcional: si no lo pasas, decide según isSubItem
-    labelColor: Color = Color(0xFF0B2C5F),
-    labelWeight: FontWeight = FontWeight.SemiBold
-) {
-    val effectiveSize = if (labelFontSize == TextUnit.Unspecified) {
-        if (isSubItem) 12.sp else 14.sp                    // principal 18, sub 16
-    } else labelFontSize
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = if (isSubItem) 8.dp else 10.dp), // ↓ un poco el alto
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = labelColor)
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = label,
-            fontSize = effectiveSize,
-            color = labelColor,
-            fontWeight = labelWeight
-        )
-        Spacer(Modifier.weight(1f))
-        trailingIcon?.let { Icon(it, contentDescription = null, tint = labelColor) }
     }
 }

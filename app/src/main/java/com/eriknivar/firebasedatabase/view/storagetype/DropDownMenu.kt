@@ -1,28 +1,19 @@
 package com.eriknivar.firebasedatabase.view.storagetype
 
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,27 +33,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
-import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.firestore
-import com.eriknivar.firebasedatabase.network.SelectedClientStore
 import com.eriknivar.firebasedatabase.view.common.ClienteItem
 import com.eriknivar.firebasedatabase.view.common.ClientePickerDialog
 import com.eriknivar.firebasedatabase.view.common.cargarClientes
-import androidx.compose.runtime.livedata.observeAsState
 import com.eriknivar.firebasedatabase.data.LocalidadesRepo
-import com.google.firebase.firestore.FirebaseFirestore
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.style.TextAlign
-import com.eriknivar.firebasedatabase.view.common.ConteoMode
 
 @Composable
 fun DropDownUpScreen(
@@ -78,21 +55,11 @@ fun DropDownUpScreen(
     isSuperuser: Boolean = false
 
 ) {
-    val firestore = Firebase.firestore
 
-    var valueText by remember { mutableStateOf("") }
     var expandedDropdown by remember { mutableStateOf(false) }
 
     val navyBlue = Color(0xFF001F5B)
 
-    // 👇 Observa LiveData como State
-    val rolRaw by userViewModel.tipo.observeAsState("")
-    val cliente by userViewModel.clienteId.observeAsState("")
-
-    // estados y refs
-    val db = Firebase.firestore
-    val cid by userViewModel.clienteId.observeAsState("")     // ya lo usas para el tipo
-    val cidActual = cid.trim().uppercase()
 
     var showConteoDialog by remember { mutableStateOf(false) }
     var localidadElegida by remember { mutableStateOf("") }
@@ -109,7 +76,6 @@ fun DropDownUpScreen(
     }
 
     // estados del picker (arriba del DropdownMenu, en el mismo composable)
-    val tipo by userViewModel.tipo.observeAsState("")
     val showClientePicker = remember { mutableStateOf(false) }
     val clientes = remember { mutableStateListOf<ClienteItem>() }
 
@@ -120,7 +86,6 @@ fun DropDownUpScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        val interactionSource = remember { MutableInteractionSource() }
 
         Box(
             modifier = Modifier
@@ -237,7 +202,6 @@ fun DropDownUpScreen(
 
             // Botón extra solo para superuser (con separador)
             if (isSuperuser) {
-                androidx.compose.material3.HorizontalDivider()
                 DropdownMenuItem(
                     text = { Text("Cambiar cliente") },
                     onClick = {
@@ -282,7 +246,7 @@ fun DropDownUpScreen(
             onDismiss = { showConteoDialog = false },
             onConfirm = { modo ->
                 showConteoDialog = false
-                val loc = localidadElegida.orEmpty()
+                val loc = localidadElegida
                 navController.navigate("appEntrada?loc=$loc&mode=${modo.name}")
             }
         )
