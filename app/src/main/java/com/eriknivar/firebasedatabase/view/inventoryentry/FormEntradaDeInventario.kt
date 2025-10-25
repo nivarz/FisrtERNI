@@ -228,29 +228,22 @@ fun FormEntradaDeInventario(
 
     val fotoBytes = remember { mutableStateOf<ByteArray?>(null) }
     val tieneFoto = remember { mutableStateOf(false) }
+    val photoUri = remember { mutableStateOf<android.net.Uri?>(null) }
 
     val tomarFotoLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bmp ->
-            if (bmp == null) {
+        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (success && photoUri.value != null) {
+                // No guardamos Bitmap ni bytes aquí: solo marcamos el indicador
+                tieneFoto.value = true
+                // Si venías de una versión con bytes, los limpiamos para no duplicar memoria
                 fotoBytes.value = null
+            } else {
+                // Cancelado o fallo: limpiamos indicador/uri
                 tieneFoto.value = false
-                return@rememberLauncherForActivityResult
-            }
-            coroutineScope.launch {
-                val bytes = withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    val baos = java.io.ByteArrayOutputStream()
-                    try {
-                        bmp.compress(Bitmap.CompressFormat.JPEG, 80, baos)
-                        baos.toByteArray()
-                    } finally {
-                        try { baos.close() } catch (_: Exception) {}
-                        bmp.recycle()
-                    }
-                }
-                fotoBytes.value = bytes
-                tieneFoto.value = bytes.isNotEmpty()
+                photoUri.value = null
             }
         }
+
 
 
     LaunchedEffect(Unit) {
@@ -514,25 +507,92 @@ fun FormEntradaDeInventario(
                     })
             }
 
-            fun subirImagenAFirebase(bytes: ByteArray?, onUrlLista: (String) -> Unit) {
-                if (bytes == null || bytes.isEmpty()) { onUrlLista(""); return }
-                val storageRef = Firebase.storage.reference
-                    .child("fotos_registro/${UUID.randomUUID()}.jpg")
-                storageRef.putBytes(bytes)
-                    .addOnSuccessListener {
-                        storageRef.downloadUrl.addOnSuccessListener { uri ->
-                            onUrlLista(uri.toString())
-                        }.addOnFailureListener { e ->
-                            Toast.makeText(context, "Error URL: ${e.message}", Toast.LENGTH_SHORT).show()
+            fun subirImagenAFirebase(
+                bytes: ByteArray?,
+                uri: android.net.Uri?,
+                onUrlLista: (String) -> Unit
+            ) {
+                val storage = com.google.firebase.storage.FirebaseStorage.getInstance()
+                val storageRef = storage.reference
+                    .child("fotos_registro/${java.util.UUID.randomUUID()}.jpg")
+
+                val metadata = com.google.firebase.storage.storageMetadata {
+                    contentType = "image/jpeg"
+                }
+
+                // 🔹 Función interna: borra el archivo temporal del FileProvider
+                fun borrarTemporal(u: android.net.Uri) {
+                    try {
+                        if (u.scheme == "content") {
+                            val rows = context.contentResolver.delete(u, null, null)
+                            android.util.Log.d("FotoDebug", "Tmp borrado via resolver: rows=$rows")
+                        } else {
+                            val f = java.io.File(u.path ?: "")
+                            if (f.exists()) {
+                                val ok = f.delete()
+                                android.util.Log.d("FotoDebug", "Tmp borrado via File.delete(): $ok")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("FotoDebug", "No se pudo borrar tmp: ${e.message}", e)
+                    }
+                }
+
+                // ✅ Preferir URI: usar putFile
+                if (uri != null) {
+                    storageRef.putFile(uri, metadata)
+                        .addOnSuccessListener {
+                            storageRef.downloadUrl.addOnSuccessListener { dl ->
+                                android.util.Log.d("FotoDebug", "✅ Subida OK (putFile). URL=$dl")
+
+                                // 🧹 borra el archivo temporal en cache
+                                borrarTemporal(uri)
+
+                                onUrlLista(dl.toString())
+                            }.addOnFailureListener { e ->
+                                android.util.Log.e("FotoDebug", "Error URL: ${e.message}", e)
+                                onUrlLista("")
+                            }
+                        }
+                        .addOnFailureListener { e ->
+                            val se = e as? com.google.firebase.storage.StorageException
+                            android.util.Log.e(
+                                "FotoDebug",
+                                "❌ putFile falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
+                                e
+                            )
                             onUrlLista("")
                         }
-                    }
-                    .addOnFailureListener { e ->
-                        Toast.makeText(context, "Error al subir imagen: ${e.message}", Toast.LENGTH_SHORT).show()
-                        onUrlLista("")
-                    }
-            }
+                    return
+                }
 
+                // Fallback: bytes (por compatibilidad con tu versión anterior)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    storageRef.putBytes(bytes, metadata)
+                        .addOnSuccessListener {
+                            storageRef.downloadUrl.addOnSuccessListener { dl ->
+                                android.util.Log.d("FotoDebug", "✅ Subida OK (bytes). URL=$dl")
+                                onUrlLista(dl.toString())
+                            }.addOnFailureListener { e ->
+                                android.util.Log.e("FotoDebug", "Error URL: ${e.message}", e)
+                                onUrlLista("")
+                            }
+                        }
+                        .addOnFailureListener { e ->
+                            val se = e as? com.google.firebase.storage.StorageException
+                            android.util.Log.e(
+                                "FotoDebug",
+                                "❌ putBytes falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
+                                e
+                            )
+                            onUrlLista("")
+                        }
+                    return
+                }
+
+                android.util.Log.d("FotoDebug", "Sin foto (ni Uri ni bytes)")
+                onUrlLista("")
+            }
 
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -544,7 +604,20 @@ fun FormEntradaDeInventario(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { tomarFotoLauncher.launch(null) },
+                    onClick = {
+                        val ctx = context
+                        val imagesDir = java.io.File(ctx.cacheDir, "images").apply { mkdirs() }
+                        val imageFile = java.io.File.createTempFile("foto_", ".jpg", imagesDir)
+
+                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                            ctx,
+                            ctx.packageName + ".fileprovider",
+                            imageFile
+                        )
+                        photoUri.value = uri
+
+                        tomarFotoLauncher.launch(uri)
+                    },
                     enabled = !isSaving && (tieneFoto.value == false),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
                     modifier = Modifier.weight(1f).height(40.dp)
@@ -707,9 +780,13 @@ fun FormEntradaDeInventario(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("✅ Foto lista para subir", fontSize = 12.sp, color = Color(0xFF2E7D32))
-                    TextButton(onClick = { fotoBytes.value = null; tieneFoto.value = false }) {
-                        Text("Quitar foto")
-                    }
+
+                    TextButton(onClick = {
+                        fotoBytes.value = null
+                        tieneFoto.value = false
+                        photoUri.value = null
+                    }) { Text("Quitar foto") }
+
                 }
             }
 
@@ -731,22 +808,24 @@ fun FormEntradaDeInventario(
                         TextButton(
                             onClick = {
                                 showConfirmDialog.value = false
+                                showSavingDialog.value = true
 
-                                showSavingDialog.value = true // 🟢 MOSTRAR CARGANDO
-
-                                if (tieneFoto.value && (fotoBytes.value != null)) {
-                                    subirImagenAFirebase(fotoBytes.value) { urlFoto ->
-                                        showSavingDialog.value = false
-                                        continuarGuardadoConFoto(urlFoto)
-                                        fotoBytes.value = null
-                                        tieneFoto.value = false
-                                    }
-                                } else {
+                                // ✅ ÚNICA llamada de subida (usa Uri si hay, si no usa bytes; si no hay nada, devuelve "")
+                                subirImagenAFirebase(
+                                    bytes = fotoBytes.value,
+                                    uri = photoUri.value
+                                ) { urlFoto ->
                                     showSavingDialog.value = false
-                                    continuarGuardadoConFoto(null)
-                                }
+                                    val finalUrl = urlFoto.takeIf { it.isNotBlank() } // "" -> null
+                                    continuarGuardadoConFoto(finalUrl)
 
-                            }) {
+                                    // Limpieza tras guardar
+                                    fotoBytes.value = null
+                                    photoUri.value = null
+                                    tieneFoto.value = false
+                                }
+                            }
+                        ) {
                             Text("Sí, grabar", color = Color(0xFF003366))
                         }
                     },
@@ -757,8 +836,10 @@ fun FormEntradaDeInventario(
                         }) {
                             Text("Cancelar", color = Color.Red)
                         }
-                    })
+                    }
+                )
             }
+
 
             if (showDialog) {
                 AlertDialog(
@@ -926,5 +1007,72 @@ fun FormEntradaDeInventario(
             backDispatcher?.onBackPressed()
             pendingExit = false
         }
+    }
+}
+
+private fun prepararFotoParaSubir(
+    context: android.content.Context,
+    sourceUri: android.net.Uri,
+    maxDimPx: Int = 1600,   // lado mayor máx.
+    qualityJpeg: Int = 80   // calidad de compresión
+): android.net.Uri? {
+    try {
+        // 1) Leer solo dimensiones
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            android.graphics.BitmapFactory.decodeStream(input, null, bounds)
+        }
+
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return sourceUri
+
+        // 2) Calcular inSampleSize para bajar memoria
+        fun calcInSampleSize(w: Int, h: Int, maxDim: Int): Int {
+            var sample = 1
+            var cw = w
+            var ch = h
+            while (cw > maxDim || ch > maxDim) {
+                cw /= 2; ch /= 2; sample *= 2
+            }
+            return sample.coerceAtLeast(1)
+        }
+        val inSample = calcInSampleSize(bounds.outWidth, bounds.outHeight, maxDimPx)
+
+        // 3) Decodificar ya con sample
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = inSample }
+        val sampled = context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            android.graphics.BitmapFactory.decodeStream(input, null, opts)
+        } ?: return sourceUri
+
+        // 4) Asegurar que el lado mayor no pase maxDimPx (por si quedó un poco >)
+        val w = sampled.width
+        val h = sampled.height
+        val maxActual = maxOf(w, h)
+        val finalBitmap = if (maxActual > maxDimPx) {
+            val scale = maxDimPx.toFloat() / maxActual.toFloat()
+            val nw = (w * scale).toInt().coerceAtLeast(1)
+            val nh = (h * scale).toInt().coerceAtLeast(1)
+            android.graphics.Bitmap.createScaledBitmap(sampled, nw, nh, true).also {
+                if (it !== sampled) sampled.recycle()
+            }
+        } else sampled
+
+        // 5) Escribir JPEG comprimido en un archivo temporal nuevo
+        val outDir = java.io.File(context.cacheDir, "images_up").apply { mkdirs() }
+        val outFile = java.io.File.createTempFile("up_", ".jpg", outDir)
+        java.io.FileOutputStream(outFile).use { fos ->
+            finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, qualityJpeg, fos)
+        }
+        finalBitmap.recycle()
+
+        // 6) Devolver un Uri FileProvider para ese archivo
+        return androidx.core.content.FileProvider.getUriForFile(
+            context,
+            context.packageName + ".fileprovider",
+            outFile
+        )
+    } catch (e: Exception) {
+        android.util.Log.w("FotoDebug", "prepararFotoParaSubir falló: ${e.message}", e)
+        // Ante cualquier problema, seguimos con el original
+        return sourceUri
     }
 }
