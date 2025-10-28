@@ -99,19 +99,29 @@ fun FirestoreApp(
             .document(currentUserId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("FirestoreListener", "Error en snapshotListener", error)
+                    Log.w("SESSION", "listener error: ${error.message}")
                     return@addSnapshotListener
                 }
 
-                val remoteSessionId = snapshot?.getString("sessionId")?.trim().orEmpty()
-                val localSessionId = currentSessionId.trim()
+                // ⚠️ Si el doc no existe, no pateamos (evita falsos positivos)
+                if (snapshot == null || !snapshot.exists()) {
+                    Log.d("SESSION", "snapshot inexistente (posible cache/latencia). No kick.")
+                    return@addSnapshotListener
+                }
 
+                // 🔎 Si viene de cache (sin red / reconexión), NO expulsar
+                val fromCache = snapshot.metadata.isFromCache
 
-                // Solo “kick” si ambos tienen valor y son distintos.
-                // Evita falsos positivos cuando uno de los dos esté vacío por flaps de red.
-                val mustKick = remoteSessionId.isNotBlank() &&
+                val remoteSessionId = snapshot.getString("sessionId")?.trim().orEmpty()
+                val localSessionId = (currentSessionId).trim() // si fuera nullable: currentSessionId?.trim().orEmpty()
+
+                // ✅ Solo “kick” si NO es cache y ambos IDs tienen valor y son distintos
+                val mustKick = !fromCache &&
+                        remoteSessionId.isNotBlank() &&
                         localSessionId.isNotBlank() &&
                         remoteSessionId != localSessionId
+
+                Log.d("SESSION", "fromCache=$fromCache remote=$remoteSessionId local=$localSessionId mustKick=$mustKick manual=${userViewModel.isManualLogout.value}")
 
                 if (mustKick && !userViewModel.isManualLogout.value) {
                     Toast.makeText(
@@ -126,7 +136,6 @@ fun FirestoreApp(
                         popUpTo(0) { inclusive = true }
                     }
                 }
-
             }
 
         onDispose {
