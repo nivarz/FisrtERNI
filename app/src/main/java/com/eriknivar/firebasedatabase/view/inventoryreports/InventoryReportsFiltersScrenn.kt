@@ -89,7 +89,7 @@ import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.view.utility.auditoria.registrarAuditoriaConteo
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 
 private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
@@ -99,10 +99,7 @@ private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
     val usuarioUi = this.getString("usuarioNombre") ?: base.usuario
 
     // unidadMedida puede venir como "unidad" en algunos docs
-    val unidad = if (base.unidadMedida.isNotBlank())
-        base.unidadMedida
-    else
-        (this.getString("unidad") ?: "")
+    val unidad = base.unidadMedida.ifBlank { (this.getString("unidad") ?: "") }
 
     return base.copy(
         documentId = this.id,                 // ← imprescindible para editar/eliminar
@@ -148,14 +145,14 @@ fun InventoryReportFiltersScreen(
     val firestore = Firebase.firestore
     val cid = userViewModel.clienteId.observeAsState("").value.trim().uppercase()
     val db = Firebase.firestore
-    val cidRaw by userViewModel.clienteId.observeAsState("")
+    //val cidRaw by userViewModel.clienteId.observeAsState("")
 
     // La lista que la UI pinta
     val filteredData = remember { mutableStateListOf<DataFields>() }
 
     // Cambia estos nombres si tus estados se llaman distinto
-    val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
-    val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
+    //val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
+    //val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
 
     val cidLocal = (userViewModel.clienteId.value ?: "").trim().uppercase()
 
@@ -204,7 +201,7 @@ fun InventoryReportFiltersScreen(
     var loading by remember { mutableStateOf(true) } // ⬅️ inicia en true
 
     fun cargarReportes() {
-        val filtros = buildMap<String, String> {
+        val filtros = buildMap {
             localidadSeleccionada.value.trim().takeIf { it.isNotBlank() }?.let {
                 put("localidad", it.uppercase())
             }
@@ -253,7 +250,7 @@ fun InventoryReportFiltersScreen(
             .orderBy("codigo_ubi")
             .get()
             .addOnSuccessListener { snap ->
-                val data = snap.documents.mapNotNull { it.getString("codigo_ubi") }
+                //val data = snap.documents.mapNotNull { it.getString("codigo_ubi") }
                 // TODO: sustituye por tu estado real de localidades:
                 // localidadesOptions.clear(); localidadesOptions.addAll(data)
             }
@@ -263,7 +260,7 @@ fun InventoryReportFiltersScreen(
             .orderBy("codigo")      // o el campo que uses para listar
             .get()
             .addOnSuccessListener { snap ->
-                val data = snap.documents.mapNotNull { it.getString("codigo") }
+                //val data = snap.documents.mapNotNull { it.getString("codigo") }
                 // TODO: sustituye por tu estado real de SKUs:
                 // skuOptions.clear(); skuOptions.addAll(data)
             }
@@ -273,7 +270,7 @@ fun InventoryReportFiltersScreen(
             .whereEqualTo("clienteId", cid)
             .get()
             .addOnSuccessListener { snap ->
-                val data = snap.documents.mapNotNull { it.getString("nombre") }
+                //val data = snap.documents.mapNotNull { it.getString("nombre") }
                 // TODO: sustituye por tu estado real de usuarios:
                 // usuariosOptions.clear(); usuariosOptions.addAll(data)
             }
@@ -353,7 +350,7 @@ fun InventoryReportFiltersScreen(
                 }
 
                 OutlinedTextField(
-                    value = usuarioFiltro.value.uppercase(),
+                    value = usuarioFiltro.value,
                     onValueChange = { usuarioFiltro.value = it },
                     label = { Text("Nombre de Usuario") },
                     singleLine = true,
@@ -430,17 +427,25 @@ fun InventoryReportFiltersScreen(
                             isLoading.value = true
 
                             // === SÓLO sustituye el bloque buildMap actual por este ===
-                            val filtros = buildMap<String, String> {
+                            val filtros = buildMap {
                                 val tipo = tipoUsuario.lowercase().trim()
-                                val usr = if (tipo == "invitado") {
-                                    userViewModel.nombre.value.orEmpty()      // 🔒 fuerza su propio nombre
+                                val usrFinal = if (tipo == "invitado") {
+                                    userViewModel.nombre.value.orEmpty()      // fuerza su propio nombre
                                 } else {
                                     usuarioFiltro.value.trim()
                                 }
-                                if (usr.isNotBlank()) put("usuario", usr)
-                                if (localidadSeleccionada.value.isNotBlank())
-                                    put("localidad", localidadSeleccionada.value.trim().uppercase())
+
+                                if (usrFinal.isNotBlank()) {
+                                    // Enviar ambas variantes para que el repo/consulta coincida
+                                    put("usuarioNombre", usrFinal)
+                                    put("usuario", usrFinal)
+                                }
+
+                                localidadSeleccionada.value.trim()
+                                    .takeIf { it.isNotBlank() }
+                                    ?.let { put("localidad", it.uppercase()) }
                             }
+
 
                             // ⬇️ Reemplazo de fetchFilteredInventoryFromFirestore(...)
                             val q = ReportesRepo.buildReportQueryForRole(
@@ -456,29 +461,29 @@ fun InventoryReportFiltersScreen(
                                     // 🔎 DIAGNÓSTICO TEMPORAL (ponlo aquí mismo):
                                     val first = snap.documents.firstOrNull()
                                     if (first != null) {
-                                        android.util.Log.d(
+                                        Log.d(
                                             "DBG",
                                             "DocId=${first.id} data=${first.data}"
                                         )
-                                        android.util.Log.d(
+                                        Log.d(
                                             "DBG",
                                             "sku=${first.getString("sku")} | SKU_alt=${
                                                 first.getString("SKU")
                                             }"
                                         )
-                                        android.util.Log.d(
+                                        Log.d(
                                             "DBG",
                                             "ubicacion=${first.getString("ubicacion")} | location=${
                                                 first.getString("location")
                                             }"
                                         )
-                                        android.util.Log.d(
+                                        Log.d(
                                             "DBG",
                                             "usuario=${first.getString("usuario")} | usuarioUid=${
                                                 first.getString("usuarioUid")
                                             }"
                                         )
-                                        android.util.Log.d(
+                                        Log.d(
                                             "DBG",
                                             "cantidad=${first.getDouble("cantidad")} | qty=${
                                                 first.getDouble("qty")
@@ -519,7 +524,16 @@ fun InventoryReportFiltersScreen(
                                                             ignoreCase = true
                                                         )
 
-                                            matchesSku && matchesLocation && matchesDate && matchesLocalidad
+                                            val usrFinalUi = if (tipoUsuario.lowercase().trim() == "invitado")
+                                                userViewModel.nombre.value.orEmpty()
+                                            else
+                                                usuarioFiltro.value.trim()
+
+                                            val matchesUsuario =
+                                                usrFinalUi.isBlank() || item.usuario.equals(usrFinalUi, ignoreCase = true)
+
+
+                                            matchesSku && matchesLocation && matchesDate && matchesLocalidad  && matchesUsuario
                                         }.sortedByDescending { it.fechaRegistro?.toDate() }
                                     )
 
@@ -565,17 +579,37 @@ fun InventoryReportFiltersScreen(
                                 Log.d("EXPORT_DEBUG", "Ejecutando exportación y share...")
 
                                 try {
-                                    val file = exportToExcel(context, filteredData)
+                                    // 1) Exportar en hilo de I/O (evita bloquear la UI)
+                                    val file = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        exportToExcel(context, filteredData)
+                                    }
 
-                                    delay(800) // ⏱️ Retardo antes de ejecutar share
+                                    // 2) Compartir en Main
+                                    if (file != null) {
+                                        shareExcelFile(context, file)
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "No se generó el archivo",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
 
-                                    file?.let { shareExcelFile(context, it) }
-
-                                } catch (_: Exception) {
-                                    Toast.makeText(context, "Error al exportar", Toast.LENGTH_SHORT)
-                                        .show()
+                                } catch (e: Throwable) {
+                                    // 👇 Ver el error real en Logcat
+                                    Log.e(
+                                        "EXPORT_ERROR",
+                                        "Fallo al exportar/compartir",
+                                        e
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        "Error al exportar: ${e.message ?: ""}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 } finally {
-                                    delay(800) // 🔐 Tiempo extra antes de reactivar
+                                    // Pequeña pausa opcional para UX
+                                    delay(300)
                                     isExportEnabled = true
                                     isLoadingExport = false
                                 }
@@ -712,13 +746,17 @@ fun InventoryReportFiltersScreen(
                                     .addOnSuccessListener {
                                         // === Resolver nombre + email del usuario que elimina ===
                                         val auth = FirebaseAuth.getInstance().currentUser
-                                        val usuarioUid = userViewModel.documentId.value ?: auth?.uid ?: ""
+                                        val usuarioUid =
+                                            userViewModel.documentId.value ?: auth?.uid ?: ""
                                         val emailAuth = auth?.email
 
-                                        Firebase.firestore.collection("usuarios").document(usuarioUid).get()
+                                        Firebase.firestore.collection("usuarios")
+                                            .document(usuarioUid).get()
                                             .addOnSuccessListener { udoc ->
-                                                val nombreDoc = udoc.getString("nombre")?.takeIf { it.isNotBlank() }
-                                                val emailDoc  = udoc.getString("email")?.takeIf { it.isNotBlank() }
+                                                val nombreDoc = udoc.getString("nombre")
+                                                    ?.takeIf { it.isNotBlank() }
+                                                val emailDoc = udoc.getString("email")
+                                                    ?.takeIf { it.isNotBlank() }
 
                                                 val usuarioNombreFinal =
                                                     nombreDoc ?: auth?.displayName
@@ -728,19 +766,19 @@ fun InventoryReportFiltersScreen(
                                                 val usuarioEmailFinal = emailAuth ?: emailDoc
 
                                                 registrarAuditoriaConteo(
-                                                    clienteId      = cidLocal,              // tu cliente (en mayúsculas)
-                                                    registroId     = item.documentId,       // id del doc borrado
-                                                    tipoAccion     = "eliminar",
-                                                    usuarioNombre  = usuarioNombreFinal,
-                                                    usuarioUid     = usuarioUid,
-                                                    valoresAntes   = mapOf(
-                                                        "ubicacion"        to item.location,
-                                                        "lote"             to item.lote,
+                                                    clienteId = cidLocal,              // tu cliente (en mayúsculas)
+                                                    registroId = item.documentId,       // id del doc borrado
+                                                    tipoAccion = "eliminar",
+                                                    usuarioNombre = usuarioNombreFinal,
+                                                    usuarioUid = usuarioUid,
+                                                    valoresAntes = mapOf(
+                                                        "ubicacion" to item.location,
+                                                        "lote" to item.lote,
                                                         "fechaVencimiento" to item.expirationDate,
-                                                        "cantidad"         to item.quantity
+                                                        "cantidad" to item.quantity
                                                     ),
                                                     valoresDespues = emptyMap(),
-                                                    usuarioEmail   = usuarioEmailFinal
+                                                    usuarioEmail = usuarioEmailFinal
                                                 )
 
                                                 Toast.makeText(
@@ -933,26 +971,6 @@ private fun mapParaAuditoria(full: Map<String, Any?>): Map<String, Any?> {
     return full.filterKeys { it in keep }
 }
 
-@Composable
-fun LoadingOverlay(
-    visible: Boolean,
-    text: String = "Cargando datos..."
-) {
-    AnimatedVisibility(visible = visible) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.85f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(12.dp))
-                Text(text, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
 
 @Composable
 private fun rememberShimmerBrush(): Brush {

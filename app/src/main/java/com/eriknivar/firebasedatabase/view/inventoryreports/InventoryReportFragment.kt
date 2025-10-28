@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
-import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.material3.AlertDialog
@@ -10,7 +9,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,7 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
-import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -120,11 +117,11 @@ fun InventoryReportsFragment(
                 // 🔎 Diagnóstico: ver nombres reales de campos
                 val first = snap.documents.firstOrNull()
                 if (first != null) {
-                    android.util.Log.d("DBG", "DocId=${first.id} data=${first.data}")
-                    android.util.Log.d("DBG", "sku=${first.getString("sku")} | SKU=${first.getString("SKU")}")
-                    android.util.Log.d("DBG", "ubicacion=${first.getString("ubicacion")} | location=${first.getString("location")}")
-                    android.util.Log.d("DBG", "usuario=${first.getString("usuario")} | usuarioUid=${first.getString("usuarioUid")}")
-                    android.util.Log.d("DBG", "cantidad=${first.getDouble("cantidad")} | qty=${first.getDouble("qty")}")
+                    Log.d("DBG", "DocId=${first.id} data=${first.data}")
+                    Log.d("DBG", "sku=${first.getString("sku")} | SKU=${first.getString("SKU")}")
+                    Log.d("DBG", "ubicacion=${first.getString("ubicacion")} | location=${first.getString("location")}")
+                    Log.d("DBG", "usuario=${first.getString("usuario")} | usuarioUid=${first.getString("usuarioUid")}")
+                    Log.d("DBG", "cantidad=${first.getDouble("cantidad")} | qty=${first.getDouble("qty")}")
                 }
 
                 val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }

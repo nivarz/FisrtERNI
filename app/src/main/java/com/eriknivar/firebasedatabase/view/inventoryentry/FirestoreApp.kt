@@ -103,9 +103,17 @@ fun FirestoreApp(
                     return@addSnapshotListener
                 }
 
-                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+                val remoteSessionId = snapshot?.getString("sessionId")?.trim().orEmpty()
+                val localSessionId = currentSessionId.trim()
 
-                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+
+                // Solo “kick” si ambos tienen valor y son distintos.
+                // Evita falsos positivos cuando uno de los dos esté vacío por flaps de red.
+                val mustKick = remoteSessionId.isNotBlank() &&
+                        localSessionId.isNotBlank() &&
+                        remoteSessionId != localSessionId
+
+                if (mustKick && !userViewModel.isManualLogout.value) {
                     Toast.makeText(
                         context,
                         "Tu sesión fue cerrada por el administrador",
@@ -118,6 +126,7 @@ fun FirestoreApp(
                         popUpTo(0) { inclusive = true }
                     }
                 }
+
             }
 
         onDispose {

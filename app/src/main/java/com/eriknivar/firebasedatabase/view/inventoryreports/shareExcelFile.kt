@@ -2,22 +2,37 @@ package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
 
 fun shareExcelFile(context: Context, file: File) {
-    val uri: Uri = FileProvider.getUriForFile(
+    val uri = FileProvider.getUriForFile(
         context,
-        "${context.packageName}.provider", // asegúrate de tener este provider en el Manifest
+        "${context.packageName}.fileprovider", // <- authority correcto (debe coincidir con el Manifest)
         file
     )
 
-    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+    val intent = Intent(Intent.ACTION_SEND).apply {
         type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // Opcional: asunto y texto
+        putExtra(Intent.EXTRA_SUBJECT, "Reporte de Inventario")
+        putExtra(Intent.EXTRA_TEXT, "Adjunto reporte en formato Excel.")
+        // Algunos receptores leen ClipData
+        clipData = android.content.ClipData.newUri(context.contentResolver, "xlsx", uri)
     }
 
-    context.startActivity(Intent.createChooser(shareIntent, "Compartir archivo Excel"))
+    // Concede permiso de lectura a las apps destino (extra robusto)
+    val resInfoList = context.packageManager.queryIntentActivities(intent, 0)
+    for (ri in resInfoList) {
+        context.grantUriPermission(
+            ri.activityInfo.packageName,
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+    }
+
+    context.startActivity(Intent.createChooser(intent, "Compartir archivo Excel"))
 }
+

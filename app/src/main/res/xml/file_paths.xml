@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- caché interna -->
+    <!-- EXISTENTES: para tus imágenes (no se tocan) -->
     <cache-path name="images" path="images/"/>
-    <!-- caché externa (por si el OEM lo requiere) -->
     <external-cache-path name="external_images" path="images/"/>
+
+    <!-- NUEVOS: para el Excel -->
+    <cache-path name="export_cache" path="."/>
+    <external-files-path name="export_external" path="Documents/"/>
 </paths>
+
+
 

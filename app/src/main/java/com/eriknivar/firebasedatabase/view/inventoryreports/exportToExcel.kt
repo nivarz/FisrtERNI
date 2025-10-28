@@ -18,7 +18,7 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
         val workbook = XSSFWorkbook()
         val sheet = workbook.createSheet("Reporte Inventario")
 
-        // Crear estilos para encabezados
+        // ==== Estilos ====
         val headerStyle = workbook.createCellStyle().apply {
             val font = workbook.createFont().apply {
                 bold = true
@@ -30,41 +30,36 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             fillPattern = FillPatternType.SOLID_FOREGROUND
             alignment = HorizontalAlignment.CENTER
         }
-
         val redFontStyle = workbook.createCellStyle().apply {
-            val redFont = workbook.createFont().apply {
-                color = IndexedColors.RED.index
-            }
+            val redFont = workbook.createFont().apply { color = IndexedColors.RED.index }
             setFont(redFont)
         }
-
         val boldStyle = workbook.createCellStyle().apply {
-            val font = workbook.createFont().apply {
-                bold = true
-            }
+            val font = workbook.createFont().apply { bold = true }
             setFont(font)
         }
 
-        // Crear encabezado
+        // ==== Encabezado ====
         val headerRow = sheet.createRow(0)
-        val headers = listOf("Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento", "Cantidad", "U.Medida", "Usuario", "F.Registro", "Localidad", "Foto")
+        val headers = listOf(
+            "Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento",
+            "Cantidad", "U.Medida", "Usuario", "F.Registro", "Localidad", "Foto"
+        )
         headers.forEachIndexed { index, title ->
-            val cell = headerRow.createCell(index)
-            cell.setCellValue(title)
-            cell.cellStyle = headerStyle
+            headerRow.createCell(index).apply {
+                setCellValue(title)
+                cellStyle = headerStyle
+            }
         }
-
-        // Fijar fila de encabezado
         sheet.createFreezePane(0, 1)
 
-        // Fecha actual para validación
+        // ==== Fechas y contadores ====
         val currentDate = LocalDate.now()
         val inputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
         val outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
-
         var totalCantidad = 0.0
 
-        // Agregar los datos
+        // ==== Datos ====
         data.forEachIndexed { rowIndex, item ->
             val row = sheet.createRow(rowIndex + 1)
             row.createCell(0).setCellValue(item.location)
@@ -72,15 +67,16 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             row.createCell(2).setCellValue(item.description)
             row.createCell(3).setCellValue(item.lote)
 
-            val cellVencimiento = row.createCell(4)
-            cellVencimiento.setCellValue(item.expirationDate)
-
+            val cellVencimiento = row.createCell(4).apply {
+                setCellValue(item.expirationDate)
+            }
             try {
                 val vencimiento = LocalDate.parse(item.expirationDate, inputFormatter)
                 if (vencimiento.isBefore(currentDate)) {
                     cellVencimiento.cellStyle = redFontStyle
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) { /* fecha inválida o "-" */
+            }
 
             row.createCell(5).setCellValue(item.quantity)
             totalCantidad += item.quantity
@@ -88,16 +84,17 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             row.createCell(7).setCellValue(item.usuario)
 
             val fechaFormateada = item.fechaRegistro?.toDate()?.let {
-                outputFormatter.format(it.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime())
+                outputFormatter.format(
+                    it.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                )
             } ?: ""
             row.createCell(8).setCellValue(fechaFormateada)
 
             row.createCell(9).setCellValue(item.localidad)
             row.createCell(10).setCellValue(item.fotoUrl)
-
         }
 
-        // Fila de resumen
+        // ==== Resumen ====
         val summaryRow = sheet.createRow(data.size + 2)
         summaryRow.createCell(0).apply {
             setCellValue("Total de registros:")
@@ -111,7 +108,6 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
         }
         summaryRow.createCell(5).setCellValue(totalCantidad)
 
-        // Fila con fecha y hora de generación del reporte
         val timestampRow = sheet.createRow(data.size + 4)
         timestampRow.createCell(0).apply {
             setCellValue("Generado el:")
@@ -121,17 +117,22 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
         )
 
-        // Ajustar ancho de columnas
-        for (i in headers.indices) {
-            sheet.setColumnWidth(i, 6000)
-        }
+        // ==== Ancho columnas ====
+        for (i in headers.indices) sheet.setColumnWidth(i, 6000)
 
-        val fileName = "Reporte_de_inventario.xlsx"
-        val file = File(context.cacheDir, fileName)
-        val outputStream = FileOutputStream(file)
-        workbook.write(outputStream)
-        outputStream.close()
+        // ==== Guardado seguro (Documents privado o cache) ====
+        val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)
+            ?: context.cacheDir
+        if (!dir.exists()) dir.mkdirs()
+
+        val file = File(dir, "Reporte_de_inventario_${System.currentTimeMillis()}.xlsx")
+
+        FileOutputStream(file).use { fos ->
+            workbook.write(fos)
+        }
         workbook.close()
+
+
 
         file
     } catch (e: Exception) {
@@ -139,5 +140,3 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
         null
     }
 }
-
-

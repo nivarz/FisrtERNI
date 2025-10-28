@@ -18,8 +18,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -48,7 +46,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
-import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -76,14 +73,9 @@ fun InventoryReportItem(
     val backgroundColor = if (expanded) Color(0xFFE3F2FD) else Color.White
 
     var isSaving by remember { mutableStateOf(false) }
-   // var showUbiInvalida by remember { mutableStateOf(false) }
-    //var ubiInvalidaTexto by remember { mutableStateOf("") }
-
-    val cid = clienteIdActual.trim().uppercase()
-    val loc = item.localidad.trim().uppercase()
 
     var showUbiInvalida by remember { mutableStateOf(false) }
-    var ubiInvalidaTexto by remember { mutableStateOf<AnnotatedString>(AnnotatedString("")) }
+    var ubiInvalidaTexto by remember { mutableStateOf(AnnotatedString("")) }
 
 
     val datePickerDialog = DatePickerDialog(
