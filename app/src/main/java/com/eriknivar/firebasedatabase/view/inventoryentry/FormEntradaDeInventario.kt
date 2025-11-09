@@ -78,8 +78,12 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.mutableStateListOf
 import androidx.core.content.FileProvider.getUriForFile
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.storage.StorageReference
+import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.io.FileOutputStream
 
@@ -267,6 +271,76 @@ fun FormEntradaDeInventario(
         }
     }
 
+    // ANCLA: // estados de UI (debajo de tempLocationInput)
+    val showLocationDialog = remember { mutableStateOf(false) }
+    val ubicacionesLista = remember { mutableStateListOf<String>() }
+
+    // ANCLA: // carga de ubicaciones para el diálogo
+    LaunchedEffect(clienteIdActual, localidad) {
+        ubicacionesLista.clear()
+        val cid = clienteIdActual.orEmpty()
+        val loc = localidad
+        if (cid.isBlank() || loc.isBlank()) return@LaunchedEffect
+
+        val db = FirebaseFirestore.getInstance()
+        val codigos = mutableSetOf<String>()
+
+        fun extraerCodigosFromSnap(snap: QuerySnapshot) {
+            // ⛔ elimina cualquier "val codes = …"
+            snap.documents.forEach { d ->
+                // 1) Campo preferido
+                val byField =
+                    d.getString("codigo_ubi")
+                        ?: d.getString("codigoUbicacion")
+                        ?: d.getString("codigo")
+                        ?: d.getString("code")
+                        ?: d.getString("ubicacion")
+                        ?: d.getString("location")
+
+                // 2) Fallback: parte final del ID
+                val byId = d.id.substringAfterLast('_').ifBlank { d.id }
+
+                // 3) Normaliza y agrega al set global
+                val code = (byField ?: byId).trim().uppercase()
+                if (code.isNotEmpty()) codigos += code
+            }
+        }
+
+
+        try {
+            // 1) Ruta nueva: clientes/{cid}/localidades/{loc}/ubicaciones/*
+            extraerCodigosFromSnap(
+                db.collection("clientes").document(cid)
+                    .collection("localidades").document(loc)
+                    .collection("ubicaciones").get().await()
+            )
+
+            // 2) Ruta nueva sin subcolección por loc: clientes/{cid}/ubicaciones where localidad==loc
+            extraerCodigosFromSnap(
+                db.collection("clientes").document(cid)
+                    .collection("ubicaciones")
+                    .whereEqualTo("localidad", loc)
+                    .get().await()
+            )
+
+            // 3) Legacy global: ubicaciones where clienteId==cid and localidad==loc
+            extraerCodigosFromSnap(
+                db.collection("ubicaciones")
+                    .whereEqualTo("clienteId", cid)
+                    .whereEqualTo("localidad", loc)
+                    .get().await()
+            )
+        } catch (e: Exception) {
+            Log.e("UbicDlg", "Error cargando ubicaciones ($cid/$loc)", e)
+        }
+
+        ubicacionesLista.addAll(codigos.sorted())
+    }
+
+
+
+
+
     fun enfocarSkuDespuesDeGrabar() {
         // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
         focusManager.clearFocus(force = true)
@@ -307,7 +381,10 @@ fun FormEntradaDeInventario(
                 shouldRequestFocusAfterClear = shouldRequestFocusAfterClear,
                 tempLocationInput = tempLocationInput,
                 clienteIdActual = clienteIdActual,        // ← antes: userViewModel.clienteId.value
-                localidadActual = localidad
+                localidadActual = localidad,
+                onSearchClick = {
+                    showLocationDialog.value = true
+                }
             )
 
             // SKU
@@ -631,20 +708,36 @@ fun FormEntradaDeInventario(
 
                         coroutineScope.launch {
 
-                            // 🟥 1. Validación: ubicación contra maestro por cliente/localidad
+                            // 🟥 1) Validación de ubicación (OFFLINE-FIRST con tri-estado)
                             val cid = clienteIdActual.orEmpty()
-                            val okUbic = UbicacionesRepo.existeUbicacion(
+                            val ubicCheck: Boolean? = UbicacionesRepo.existeUbicacionOfflineFirst(
                                 clienteId = cid,
-                                codigoIngresado = location.value,
-                                localidad = localidad
+                                localidad = localidad,
+                                codigoIngresado = location.value
                             )
 
-                            if (!okUbic) {
-                                showErrorLocation.value = true
-                                delay(150)
-                                openUbicacionInvalidaDialog.value = true
-                                isSaving = false
-                                return@launch
+                            /*
+                             * true  -> existe (continúa)
+                             * false -> NO existe (muestra diálogo y detiene)
+                             * null  -> sin red / no verificable ahora (permitir grabar y avisar)
+                             */
+                            when (ubicCheck) {
+                                true -> { /* OK, sigue */ }
+                                false -> {
+                                    showErrorLocation.value = true
+                                    openUbicacionInvalidaDialog.value = true
+                                    isSaving = false
+                                    return@launch
+                                }
+                                null -> {
+                                    Toast.makeText(
+                                        context,
+                                        "Sin conexión. Se validará al sincronizar.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    showErrorLocation.value = false
+
+                                }
                             }
 
                             // 🟥 2. Validación general de campos vacíos
@@ -994,6 +1087,30 @@ fun FormEntradaDeInventario(
                         }
                     })
             }
+
+            // ANCLA: // diálogos al final
+            if (showLocationDialog.value) {
+                LocationSelectionDialog(
+                    locations = ubicacionesLista,
+                    onSelect = { code ->
+                        val limpio = code.trim().uppercase()
+
+                        // 👇 lo que ve el TextField
+                        tempLocationInput.value = limpio
+
+                        // 👇 tu valor “oficial” validado
+                        location.value = limpio
+
+                        showErrorLocation.value = false
+                        shouldRequestFocusAfterClear.value = false
+                        focusRequesterSku.requestFocus()   // pasa al SKU
+                        showLocationDialog.value = false
+                    }
+                    ,
+                    onDismiss = { showLocationDialog.value = false }
+                )
+            }
+
         }
     }
     LaunchedEffect(pendingExit) {

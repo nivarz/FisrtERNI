@@ -1,8 +1,10 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,21 +30,27 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.google.firebase.Firebase
-import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.MutableState
-import com.google.firebase.firestore.ktx.firestore
+import androidx.compose.ui.platform.LocalContext
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import android.content.Context
+import android.widget.Toast
+import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
+import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
 
+private fun isOnline(ctx: Context): Boolean {
+    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val net = cm.activeNetwork ?: return false
+    val caps = cm.getNetworkCapabilities(net) ?: return false
+    return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+}
 
 @Composable
 fun OutlinedTextFieldsInputsLocation(
@@ -53,7 +62,8 @@ fun OutlinedTextFieldsInputsLocation(
     shouldRequestFocusAfterClear: MutableState<Boolean>,
     tempLocationInput: MutableState<String>,
     clienteIdActual: String?,            // 👈 NUEVO: quién es el cliente
-    localidadActual: String?             // 👈 NUEVO: (opcional) filtrar por localidad
+    localidadActual: String?,             // 👈 NUEVO: (opcional) filtrar por localidad
+    onSearchClick: () -> Unit
 ) {
 
     val isZebraScan = remember { mutableStateOf(false) }
@@ -61,61 +71,9 @@ fun OutlinedTextFieldsInputsLocation(
     val focusRequesterLocation = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val contents = result.contents
-        if (contents != null) {
-            val scanned = contents.trim().uppercase()
-
-            // 1) Mostrar el código en el campo
-            tempLocationInput.value = scanned
-
-            // 2) Validar inmediatamente contra el maestro
-            validarUbicacionEnMaestro(
-                codigo = scanned,
-                clienteIdActual = clienteIdActual,
-                localidadActual = localidadActual,
-                location = location,
-                showErrorLocation = showErrorLocation,
-                showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
-                nextFocusRequester = nextFocusRequester,
-                keyboardController = keyboardController,
-                ocultarTeclado = true
-            )
-
-            Log.d("ScanDebug", "Escaneo recibido: $scanned")
-        } else {
-            Log.d("ScanDebug", "Escaneo cancelado / sin contenido")
-        }
-    }
+    val ctx = LocalContext.current
 
 
-    //val qrCodeScannerLocation = remember { QRCodeScanner(qrScanLauncherLocation) }
-    val context = LocalContext.current
-
-    // 2) Zebra: además de pasar foco, valida ANTES
-    LaunchedEffect(isZebraScan.value) {
-        if (isZebraScan.value) {
-            val code = tempLocationInput.value
-            if (code.length >= 5) {
-                validarUbicacionEnMaestro(
-                    codigo = code,
-                    clienteIdActual = clienteIdActual,
-                    localidadActual = localidadActual,
-                    location = location,
-                    showErrorLocation = showErrorLocation,
-                    showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
-                    nextFocusRequester = nextFocusRequester,
-                    keyboardController = keyboardController
-                )
-            }
-            try {
-                keyboardController?.hide()
-                nextFocusRequester.requestFocus()
-            } catch (_: Exception) {
-            }
-            isZebraScan.value = false
-        }
-    }
 
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
@@ -126,6 +84,98 @@ fun OutlinedTextFieldsInputsLocation(
                 Log.e("FocusClear", "Error al pasar foco tras limpiar: ${e.message}")
             }
             shouldRequestFocusAfterClear.value = false
+        }
+    }
+
+    // ANCLA: helper local para validar o aceptar offline
+    fun validarOAceptarUbicacion(
+        codigo: String,
+        ocultarTeclado: Boolean
+    ) {
+        val code = normalizeUbi(codigo)
+
+        // 🔌 Offline → aceptar sin error y avisar
+        if (!isOnline(ctx)) {
+            location.value = code
+            showErrorLocation.value = false
+            Toast.makeText(ctx, "Sin conexión. Se validará al enviar.", Toast.LENGTH_SHORT).show()
+            if (ocultarTeclado) keyboardController?.hide()
+            try {
+                nextFocusRequester.requestFocus()
+            } catch (_: Exception) {
+            }
+            return
+        }
+
+        // 🌐 Online → usar el validador central
+        validarUbicacionEnMaestro(
+            clienteId = clienteIdActual.orEmpty(),
+            localidadCodigo = localidadActual.orEmpty(),
+            codigoUbi = code,
+            onResult = { existe ->
+                if (existe) {
+                    location.value = code
+                    showErrorLocation.value = false
+                    if (ocultarTeclado) keyboardController?.hide()
+                    try {
+                        nextFocusRequester.requestFocus()
+                    } catch (_: Exception) {
+                    }
+                } else {
+                    showErrorLocation.value = true
+                    showUbicacionNoExisteDialog.value = true
+                }
+            },
+            onError = {
+                // Trátalo como red caída/transitorio
+                location.value = code
+                showErrorLocation.value = false
+                Toast.makeText(
+                    ctx,
+                    "No se pudo validar (red). Se validará al enviar.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                if (ocultarTeclado) keyboardController?.hide()
+                try {
+                    nextFocusRequester.requestFocus()
+                } catch (_: Exception) {
+                }
+            }
+        )
+    }
+
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (contents != null) {
+            val scanned = contents.trim().uppercase()
+
+            // 1) Mostrar el código en el campo
+            tempLocationInput.value = scanned
+
+            // 2) Validar inmediatamente contra el maestro
+            tempLocationInput.value = scanned
+            validarOAceptarUbicacion(scanned, ocultarTeclado = true)
+
+
+            Log.d("ScanDebug", "Escaneo recibido: $scanned")
+        } else {
+            Log.d("ScanDebug", "Escaneo cancelado / sin contenido")
+        }
+    }
+
+    // 2) Zebra: además de pasar foco, valida ANTES
+    LaunchedEffect(isZebraScan.value) {
+        if (isZebraScan.value) {
+            val code = tempLocationInput.value
+            if (code.length >= 5) {
+                validarOAceptarUbicacion(code, ocultarTeclado = true)
+            }
+            try {
+                keyboardController?.hide()
+                nextFocusRequester.requestFocus()
+            } catch (_: Exception) {
+            }
+            isZebraScan.value = false
         }
     }
 
@@ -142,16 +192,30 @@ fun OutlinedTextFieldsInputsLocation(
                 // 1) onFocusChanged: baja el umbral
                 .onFocusChanged { focusState ->
                     if (!focusState.isFocused && tempLocationInput.value.length >= 5) {
-                        validarUbicacionEnMaestro(
-                            codigo = tempLocationInput.value,
-                            clienteIdActual = clienteIdActual,
-                            localidadActual = localidadActual,
-                            location = location,
-                            showErrorLocation = showErrorLocation,
-                            showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
-                            nextFocusRequester = nextFocusRequester,
-                            keyboardController = keyboardController
-                        )
+
+                        if (!isOnline(ctx)) {
+                            // Offline: no marcar error; acepta la ubicación y sigue
+                            val code = tempLocationInput.value.trim().uppercase()
+                            location.value = code
+                            showErrorLocation.value = false
+
+                            // 👇 Aviso offline
+                            Toast.makeText(
+                                ctx,
+                                "Sin conexión. Se validará al enviar.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+
+                            return@onFocusChanged
+                        }
+
+                        if (!focusState.isFocused && tempLocationInput.value.length >= 5) {
+                            validarOAceptarUbicacion(
+                                tempLocationInput.value,
+                                ocultarTeclado = false
+                            )
+                        }
+
                     }
                 },
             singleLine = true,
@@ -174,41 +238,70 @@ fun OutlinedTextFieldsInputsLocation(
             // 4) KeyboardActions (onNext): baja el umbral
             keyboardActions = KeyboardActions(onNext = {
                 if (tempLocationInput.value.length >= 5) {
-                    validarUbicacionEnMaestro(
-                        codigo = tempLocationInput.value,
-                        clienteIdActual = clienteIdActual,
-                        localidadActual = localidadActual,
-                        location = location,
-                        showErrorLocation = showErrorLocation,
-                        showUbicacionNoExisteDialog = showUbicacionNoExisteDialog,
-                        nextFocusRequester = nextFocusRequester,
-                        keyboardController = keyboardController,
-                        ocultarTeclado = false
-                    )
+
+                    if (!isOnline(ctx)) {
+                        val code = tempLocationInput.value.trim().uppercase()
+                        location.value = code
+                        showErrorLocation.value = false
+                        nextFocusRequester.requestFocus()
+
+                        Toast.makeText(
+                            ctx,
+                            "Sin conexión. Se validará al enviar.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@KeyboardActions
+                    }
+
+                    if (tempLocationInput.value.length >= 5) {
+                        validarOAceptarUbicacion(tempLocationInput.value, ocultarTeclado = false)
+                    }
+
                 }
                 if (!showErrorLocation.value) nextFocusRequester.requestFocus()
                 else showUbicacionNoExisteDialog.value = true
             }),
+            // ANCLA: reemplazo de trailingIcon en el OutlinedTextField de Ubicación
             trailingIcon = {
-                IconButton(
-                    onClick = {
-                        val options = ScanOptions().apply {
-                            setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
-                            setPrompt("Escanea el código")
-                            setBeepEnabled(false)
-                            setOrientationLocked(true) // 👈 bloquea rotación
-                            setCaptureActivity(com.eriknivar.firebasedatabase.scan.CapturePortraitActivity::class.java) // 👈 portrait
-                        }
-                        scanLauncher.launch(options)
-                    },
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier.padding(end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCodeScanner,
-                        contentDescription = "Escanear Código"
-                    )
+                    // Lupa → abre el diálogo de selección de ubicación
+                    IconButton(
+                        onClick = { onSearchClick() },           // ← callback que abre LocationSelectionDialog
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar ubicación"
+                        )
+                    }
+
+                    // QR → escanear código de ubicación (tu lógica actual)
+                    IconButton(
+                        onClick = {
+                            val options = ScanOptions().apply {
+                                setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                                setPrompt("Escanea el código")
+                                setBeepEnabled(false)
+                                setOrientationLocked(true)
+                                setCaptureActivity(
+                                    com.eriknivar.firebasedatabase.scan.CapturePortraitActivity::class.java
+                                )
+                            }
+                            scanLauncher.launch(options)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.QrCodeScanner,
+                            contentDescription = "Escanear Código"
+                        )
+                    }
                 }
             }
+
         )
 
         // 🔵 Ícono de borrar separado (afuera del campo)
@@ -246,123 +339,3 @@ fun OutlinedTextFieldsInputsLocation(
         }
     }
 }
-
-
-fun validarUbicacionEnMaestro(
-    codigo: String,
-    clienteIdActual: String?,
-    localidadActual: String?,
-    location: MutableState<String>,
-    showErrorLocation: MutableState<Boolean>,
-    showUbicacionNoExisteDialog: MutableState<Boolean>,
-    nextFocusRequester: FocusRequester?,
-    keyboardController: SoftwareKeyboardController?,
-    ocultarTeclado: Boolean = false,
-    onValid: (() -> Unit)? = null,      // ⬅️ se usará para “guardar”
-    onInvalid: (() -> Unit)? = null     // ⬅️ feedback adicional
-) {
-    val TAG = "UBI_VALID"
-    val code = codigo.trim().uppercase().replace(Regex("[^A-Z0-9]"), "")
-    val cid = clienteIdActual?.trim()?.uppercase()
-    val loc = localidadActual?.trim()?.uppercase()
-
-    Log.d(TAG, "-> cid=$cid  loc=$loc  code='$code'")
-
-    // Validaciones rápidas
-    if (cid.isNullOrBlank() || code.isBlank() || loc.isNullOrBlank()) {
-        showErrorLocation.value = true
-        showUbicacionNoExisteDialog.value = true
-        onInvalid?.invoke()
-        return
-    }
-
-    val db = Firebase.firestore
-
-    // Ruta NUEVA
-    val docNueva = db.collection("clientes").document(cid)
-        .collection("localidades").document(loc)
-        .collection("ubicaciones").document(code)
-
-    docNueva.get()
-        .addOnSuccessListener { snap ->
-            Log.d(
-                TAG,
-                "exists=${snap.exists()} path=clientes/$cid/localidades/$loc/ubicaciones/$code"
-            )
-            if (snap.exists()) {
-                // ✅ éxito (nueva)
-                location.value = code
-                showErrorLocation.value = false
-                if (ocultarTeclado) keyboardController?.hide()
-                try {
-                    nextFocusRequester?.requestFocus()
-                } catch (_: Exception) {
-                }
-                onValid?.invoke()                                  // ⬅️ DISPARA GUARDADO
-            } else {
-                // LEGACY por id
-                val docLegacy = db.collection("clientes").document(cid)
-                    .collection("ubicaciones").document(code)
-
-                docLegacy.get()
-                    .addOnSuccessListener { legacySnap ->
-                        Log.d(
-                            TAG,
-                            "LEGACY exists=${legacySnap.exists()} path=clientes/$cid/ubicaciones/$code"
-                        )
-                        if (legacySnap.exists()) {
-                            // ✅ éxito (legacy)
-                            location.value = code
-                            showErrorLocation.value = false
-                            if (ocultarTeclado) keyboardController?.hide()
-                            try {
-                                nextFocusRequester?.requestFocus()
-                            } catch (_: Exception) {
-                            }
-                            onValid?.invoke()                      // ⬅️ DISPARA GUARDADO
-                        } else {
-                            // LEGACY por campo alterno (si lo usaste)
-                            db.collection("clientes").document(cid)
-                                .collection("ubicaciones")
-                                .whereEqualTo("codigo_ubi", code)
-                                .limit(1)
-                                .get()
-                                .addOnSuccessListener { q ->
-                                    if (!q.isEmpty) {
-                                        location.value = code
-                                        showErrorLocation.value = false
-                                        if (ocultarTeclado) keyboardController?.hide()
-                                        try {
-                                            nextFocusRequester?.requestFocus()
-                                        } catch (_: Exception) {
-                                        }
-                                        onValid?.invoke()          // ⬅️ DISPARA GUARDADO
-                                    } else {
-                                        showErrorLocation.value = true
-                                        showUbicacionNoExisteDialog.value = true
-                                        onInvalid?.invoke()
-                                    }
-                                }
-                                .addOnFailureListener {
-                                    showErrorLocation.value = true
-                                    showUbicacionNoExisteDialog.value = true
-                                    onInvalid?.invoke()
-                                }
-                        }
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e(TAG, "LEGACY get() failed: ${e.message}")
-                        showErrorLocation.value = true
-                        showUbicacionNoExisteDialog.value = true
-                        onInvalid?.invoke()
-                    }
-            }
-        }
-        .addOnFailureListener { e ->
-            Log.e(TAG, "NUEVA get() failed: ${e.message}")
-            showErrorLocation.value = true
-            showUbicacionNoExisteDialog.value = true
-            onInvalid?.invoke()
-        }
-}
-
