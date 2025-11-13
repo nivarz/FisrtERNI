@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -140,7 +141,6 @@ fun MasterDataFragment(
 
     var menuClientesAbierto by remember { mutableStateOf(false) }
 
-
     // --- Selector de Cliente (solo superuser) ---
     data class Cliente(val id: String, val nombre: String)
 
@@ -151,7 +151,6 @@ fun MasterDataFragment(
             clienteNombreSel = clienteSel
         }
     }
-
 
     val clientes = remember { mutableStateListOf<Cliente>() }
 
@@ -307,82 +306,89 @@ fun MasterDataFragment(
 
                 // === Cliente (visual mejorada) ===
                 if (esSuper) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = softNavy),
-                        elevation = CardDefaults.cardElevation(0.dp),
+                    Box(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = softNavy),
+                            elevation = CardDefaults.cardElevation(0.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
-                                Text(
-                                    text = "Cliente",
-                                    color = navyBlue,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.height(2.dp))
-
-                                if (clienteNombreSel.isBlank() && clienteSel.isBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
                                     Text(
-                                        "Selecciona un cliente",
-                                        fontSize = 14.sp,
-                                        color = Color.Gray
-                                    )
-                                } else {
-                                    Text(
-                                        text = clienteNombreSel.ifBlank { clienteSel },
+                                        text = "Cliente",
+                                        color = navyBlue,
                                         fontSize = 16.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    if (clienteNombreSel.isNotBlank()) {
-                                        Spacer(Modifier.height(2.dp))
+                                    Spacer(Modifier.height(2.dp))
+
+                                    if (clienteNombreSel.isBlank() && clienteSel.isBlank()) {
                                         Text(
-                                            text = clienteSel,
-                                            fontSize = 13.sp,
+                                            "Selecciona un cliente",
+                                            fontSize = 14.sp,
                                             color = Color.Gray
                                         )
+                                    } else {
+                                        Text(
+                                            text = clienteNombreSel.ifBlank { clienteSel },
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        if (clienteNombreSel.isNotBlank()) {
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                text = clienteSel,
+                                                fontSize = 13.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
                                     }
                                 }
-                            }
 
-                            TextButton(onClick = { menuClientesAbierto = true }) {
-                                Text(
-                                    "Cambiar",
-                                    color = navyBlue,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                TextButton(onClick = { menuClientesAbierto = true }) {
+                                    Text(
+                                        "Cambiar",
+                                        color = navyBlue,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    DropdownMenu(
-                        expanded = menuClientesAbierto,
-                        onDismissRequest = { menuClientesAbierto = false }
-                    ) {
-                        if (clientes.isEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("No hay clientes disponibles") },
-                                onClick = { menuClientesAbierto = false }
-                            )
-                        } else {
-                            clientes.forEach { c ->
+                        DropdownMenu(
+                            expanded = menuClientesAbierto,
+                            onDismissRequest = { menuClientesAbierto = false },
+                            modifier = Modifier
+                                .fillMaxWidth(.9f)           // 👉 mismo ancho que la card
+                                .heightIn(max = 260.dp)   // 👉 si hay muchos, hace scroll
+                        ) {
+                            if (clientes.isEmpty()) {
                                 DropdownMenuItem(
-                                    text = { Text("${c.nombre} (${c.id})") },
-                                    onClick = {
-                                        clienteSel = c.id
-                                        clienteNombreSel = c.nombre
-                                        userViewModel.setClienteId(c.id)
-                                        menuClientesAbierto = false
-                                        productos.clear()
-                                    }
+                                    text = { Text("No hay clientes disponibles") },
+                                    onClick = { menuClientesAbierto = false }
                                 )
+                            } else {
+                                clientes.forEach { c ->
+                                    DropdownMenuItem(
+                                        text = { Text("${c.nombre} (${c.id})") },
+                                        onClick = {
+                                            clienteSel = c.id
+                                            clienteNombreSel = c.nombre
+                                            userViewModel.setClienteId(c.id)
+                                            menuClientesAbierto = false
+                                            productos.clear()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -528,8 +534,6 @@ fun MasterDataFragment(
                         }
                     }
 
-                    // { if (isLoading) Text("Cargando...") else Text("Cargar Datos Maestro") }
-
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // === Buscador con lupa y botón "X" para limpiar ===
@@ -599,7 +603,6 @@ fun MasterDataFragment(
                             color = Color.Gray
                         )
                     }
-
 
                     if (isLoading) {
                         LinearProgressIndicator(

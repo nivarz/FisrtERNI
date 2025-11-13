@@ -9,6 +9,14 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.FieldValue
+
+enum class LogoutReason {
+    MANUAL,
+    INACTIVIDAD,
+    ERROR,
+    FORZADO
+}
 
 class UserViewModel : ViewModel() {
 
@@ -37,6 +45,59 @@ class UserViewModel : ViewModel() {
     fun setClienteId(v: String) {
         _clienteId.postValue(v)
     }
+
+    private fun limpiarEstadoLocal() {
+        _nombre.value = ""
+        _tipo.value = ""
+        _documentId.value = ""
+        _clienteId.value = ""
+        _clienteNombre.value = ""
+        _sessionId.value = ""
+        _isInitialized.value = false
+        isManualLogout.value = false
+        limpiarValoresTemporales()
+    }
+
+    fun cerrarSesion(
+        motivo: LogoutReason = LogoutReason.MANUAL,
+        onComplete: (() -> Unit)? = null
+    ) {
+        val auth = Firebase.auth
+        val currentUid = auth.currentUser?.uid
+
+        // docId puede ser el que guardas tú o el uid de Auth
+        val docId = documentId.value?.takeIf { it.isNotBlank() } ?: currentUid
+
+        // marcar si fue manual para mensajes en UI
+        isManualLogout.value = (motivo == LogoutReason.MANUAL)
+
+        if (docId == null) {
+            // No hay usuario logueado, solo limpiamos local
+            limpiarEstadoLocal()
+            auth.signOut()
+            onComplete?.invoke()
+            return
+        }
+
+        val userDoc = Firebase.firestore
+            .collection("usuarios")
+            .document(docId)
+
+        val updates = hashMapOf<String, Any?>(
+            "sessionId" to FieldValue.delete(),            // 👈 se borra SIEMPRE
+            "sesionActiva" to false,
+            "ultimoLogout" to FieldValue.serverTimestamp(),
+            "motivoUltimoLogout" to motivo.name
+        )
+
+        userDoc.update(updates)
+            .addOnCompleteListener {
+                limpiarEstadoLocal()
+                auth.signOut()
+                onComplete?.invoke()
+            }
+    }
+
 
     fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
@@ -95,11 +156,10 @@ class UserViewModel : ViewModel() {
         _isInitialized.value = true
     }
 
-    fun logout() {
-        Firebase.auth.signOut()
-        _nombre.value = ""
-        _tipo.value = ""
+    fun logout(onComplete: (() -> Unit)? = null) {
+        cerrarSesion(LogoutReason.MANUAL, onComplete)
     }
+
 
     // ✅ Esta función guarda los datos actuales antes del logout
     fun guardarValoresTemporalmente(

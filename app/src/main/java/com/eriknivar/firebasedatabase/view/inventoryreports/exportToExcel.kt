@@ -43,7 +43,7 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
         val headerRow = sheet.createRow(0)
         val headers = listOf(
             "Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento",
-            "Cantidad", "U.Medida", "Usuario", "F.Registro", "Localidad", "Foto"
+            "Cantidad", "U.Medida", "Usuario", "F.Registro", "Almacen", "Foto"
         )
         headers.forEachIndexed { index, title ->
             headerRow.createCell(index).apply {
