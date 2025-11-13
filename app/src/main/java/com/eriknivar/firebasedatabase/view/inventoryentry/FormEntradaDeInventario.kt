@@ -791,11 +791,11 @@ fun FormEntradaDeInventario(
                                 if (hadPhoto) {
                                     photoUri.value = null
                                     tieneFoto.value = false
-                                    Toast.makeText(
+                                   /* Toast.makeText(
                                         context,
                                         "Registro guardado. La foto se subirá en segundo plano.",
                                         Toast.LENGTH_SHORT
-                                    ).show()
+                                    ).show()*/
                                 }
 
 

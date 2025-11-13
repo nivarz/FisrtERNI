@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view.masterdata
 
-import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -60,7 +59,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.utility.ScreenWithNetworkBanner
-import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -136,8 +134,10 @@ fun MasterDataFragment(
     val coroutineScope = rememberCoroutineScope()
 
     // Estados (arriba, junto a clienteSel)
-    var clienteSel by rememberSaveable { mutableStateOf("") }          // id elegido
-    var clienteNombreSel by rememberSaveable { mutableStateOf("") }    // nombre elegido
+    var clienteSel by rememberSaveable {
+        mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty())
+    }
+    var clienteNombreSel by rememberSaveable { mutableStateOf("") }
     var menuClientesAbierto by remember { mutableStateOf(false) }
 
 
@@ -145,9 +145,15 @@ fun MasterDataFragment(
     data class Cliente(val id: String, val nombre: String)
 
     val esSuper = (userViewModel.tipo.value ?: "").equals("superuser", ignoreCase = true)
+    LaunchedEffect(esSuper, userViewModel.clienteId.value) {
+        if (!esSuper) {
+            clienteSel = userViewModel.clienteId.value?.trim().orEmpty()
+            // opcional: podrías mostrar el id como “nombre” para el admin
+            clienteNombreSel = clienteSel
+        }
+    }
+
     val clientes = remember { mutableStateListOf<Cliente>() }
-    //var clienteSel by remember { mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty()) }
-    //var menuClientesAbierto by remember { mutableStateOf(false) }
 
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
