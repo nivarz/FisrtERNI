@@ -1,10 +1,5 @@
 package com.eriknivar.firebasedatabase.view.inventoryentry
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -50,8 +45,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
-import com.google.firebase.Firebase
-import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.SpanStyle
@@ -74,18 +67,18 @@ import androidx.compose.material3.Icon
 import com.eriknivar.firebasedatabase.network.SelectedClientStore
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
-import com.google.firebase.auth.FirebaseAuth
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.mutableStateListOf
-import androidx.core.content.FileProvider.getUriForFile
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.tasks.await
-import java.io.File
-import java.io.FileOutputStream
+import com.eriknivar.firebasedatabase.view.utility.ImageUtils
 
 @Composable
 fun FormEntradaDeInventario(
@@ -147,7 +140,6 @@ fun FormEntradaDeInventario(
     var showDialog by remember { mutableStateOf(false) } // Estado para mostrar el cuadro de diálogo
     var showDialog1 by remember { mutableStateOf(false) }
     var showDialog2 by remember { mutableStateOf(false) }
-
 
     val focusRequester = remember { FocusRequester() }
     val shouldRequestFocusAfterClear = remember { mutableStateOf(false) }
@@ -218,21 +210,25 @@ fun FormEntradaDeInventario(
         } ?: clienteIdFromUser
         else clienteIdFromUser
 
-    val fotoBytes = remember { mutableStateOf<ByteArray?>(null) }
-    val tieneFoto = remember { mutableStateOf(false) }
+    // states
     val photoUri = remember { mutableStateOf<Uri?>(null) }
+    val tieneFoto = remember { mutableStateOf(false) }
 
-    val tomarFotoLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-            if (success && photoUri.value != null) {
-                tieneFoto.value = true
-                fotoBytes.value = null // por si quedó algo viejo
-            } else {
-                tieneFoto.value = false
-                photoUri.value = null
-                Toast.makeText(context, "Captura cancelada", Toast.LENGTH_SHORT).show()
-            }
+    // launcher
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok ->
+        if (ok && photoUri.value != null) {
+            tieneFoto.value = true
+            Log.d("FotoDebug", "✅ TakePicture OK: ${photoUri.value}")
+        } else {
+            Log.d("FotoDebug", "❌ TakePicture cancelada/falló, limpiando Uri temporal")
+            tieneFoto.value = false
+            photoUri.value = null
         }
+
+    }
+
 
     LaunchedEffect(Unit) {
         if (!restored.value) {
@@ -336,10 +332,6 @@ fun FormEntradaDeInventario(
 
         ubicacionesLista.addAll(codigos.sorted())
     }
-
-
-
-
 
     fun enfocarSkuDespuesDeGrabar() {
         // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
@@ -477,7 +469,13 @@ fun FormEntradaDeInventario(
             )
 
 
-            fun continuarGuardadoConFoto(fotoUrl: String?) {
+            // ANCLA: reemplazo completo de continuarGuardadoConFoto(...)
+            fun continuarGuardadoConFoto(hadPhoto: Boolean, uriLocal: String?, fotoUrl: String?) {
+
+                // 1) Forzar estado real de foto según la URI local
+                val hadPhotoFinal = !uriLocal.isNullOrBlank()
+                val uriLog = uriLocal ?: photoUri.value?.toString()
+
                 validarRegistroDuplicado(
                     db = firestore,
                     ubicacion = location.value,
@@ -492,27 +490,33 @@ fun FormEntradaDeInventario(
                             showDialogRegistroDuplicado.value = true
                             isSaving = false
                         } else {
-                            Log.d("FotoDebug", "📤 Enviando a Firestore: $fotoUrl")
+                            Log.d("FotoDebug", "📤 Enviando a Firestore: fotoUrlRemota=$fotoUrl")
+                            Log.d("FotoDebug", "🚀 Llamando saveToFirestore hadPhoto=$hadPhotoFinal, uriLocal=$uriLog")
 
                             saveToFirestore(
-                                firestore,
-                                location.value,
-                                sku.value,
-                                productoDescripcion.value,
-                                lot.value,
-                                dateText.value,
-                                quantity.value.toDoubleOrNull() ?: 0.0,
-                                unidadMedida.value,
-                                allData,
+                                db = firestore,
+                                location = location.value,
+                                sku = sku.value,
+                                description = productoDescripcion.value,
+                                lote = lot.value,
+                                expirationDate = dateText.value,
+                                quantity = quantity.value.toDoubleOrNull() ?: 0.0,
+                                unidadMedida = unidadMedida.value,
+                                allData = allData,
                                 usuario = userViewModel.nombre.value ?: "",
-                                coroutineScope,
+                                coroutineScope = coroutineScope,
                                 localidad = localidad,
-                                userViewModel,
-                                showSuccessDialog,
-                                listState,
-                                fotoUrl = fotoUrl
+                                userViewModel = userViewModel,
+                                showSuccessDialog = showSuccessDialog,
+                                listState = listState,
+                                fotoUrl = null,                          // la sube el worker
+                                hadPhoto = hadPhotoFinal,                // << clave: según uriLocal
+                                fotoUriLocal = uriLocal?.trim(),         // usar el String? directamente
+                                appContext = context.applicationContext
                             )
 
+                            // Si usas listeners en tiempo real podrías omitir este fetch, pero
+                            // mantengo tu comportamiento actual:
                             fetchDataFromFirestore(
                                 db = firestore,
                                 allData = allData,
@@ -538,7 +542,7 @@ fun FormEntradaDeInventario(
                         isSaving = false
                         enfocarSkuDespuesDeGrabar()
                     },
-                    onError = { e ->                                     // 👈 MEJORADO
+                    onError = { e ->
                         Log.e("DupCheck", "Error al validar duplicados: ${e.message}", e)
                         Toast.makeText(
                             context,
@@ -546,128 +550,20 @@ fun FormEntradaDeInventario(
                             Toast.LENGTH_LONG
                         ).show()
                         isSaving = false
-                    })
-            }
-
-            fun subirImagenAFirebase(
-                bytes: ByteArray?, uri: Uri?, onUrlLista: (String) -> Unit
-            ) {
-                val storage = com.google.firebase.storage.FirebaseStorage.getInstance()
-                val storageRef =
-                    storage.reference.child("fotos_registro/${java.util.UUID.randomUUID()}.jpg")
-
-                // Metadatos con cacheControl (mejora muchísimo la carga posterior)
-                val metadata = com.google.firebase.storage.StorageMetadata.Builder()
-                    .setContentType("image/jpeg")
-                    .setCacheControl("public, max-age=31536000, immutable").build()
-
-                // 🔹 Borra el archivo temporal (si es del FileProvider o un File path)
-                fun borrarTemporal(u: Uri) {
-                    try {
-                        if (u.scheme == "content") {
-                            val rows = context.contentResolver.delete(u, null, null)
-                            Log.d("FotoDebug", "Tmp borrado via resolver: rows=$rows")
-                        } else {
-                            val f = File(u.path ?: "")
-                            if (f.exists()) {
-                                val ok = f.delete()
-                                Log.d("FotoDebug", "Tmp borrado via File.delete(): $ok")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.w("FotoDebug", "No se pudo borrar tmp: ${e.message}", e)
                     }
-                }
-
-                if (uri != null) {
-                    // ⬇️ Optimiza (1600px máx., 80% JPEG) y sube con putFile
-                    val optimizedUri: Uri = prepararFotoParaSubir(context, uri)
-
-                    storageRef.putFile(optimizedUri, metadata).addOnSuccessListener {
-                            getDownloadUrlWithRetry(
-                                ref = storageRef,
-                                attempts = 2,
-                                delayMs = 300,
-                                onSuccess = { dl ->
-                                    Log.d("FotoDebug", "✅ Subida OK (putFile). URL=$dl")
-
-                                    // 🧹 limpieza de temporales
-                                    borrarTemporal(optimizedUri)
-                                    if (optimizedUri != uri) borrarTemporal(uri)
-
-                                    onUrlLista(dl.toString())
-                                },
-                                onError = { e ->
-                                    Log.e(
-                                        "FotoDebug",
-                                        "❌ downloadUrl falló tras reintentos: ${e.message}",
-                                        e
-                                    )
-
-                                    // 🧹 igual limpiamos temporales
-                                    borrarTemporal(optimizedUri)
-                                    if (optimizedUri != uri) borrarTemporal(uri)
-
-                                    onUrlLista("")
-                                })
-                        }.addOnFailureListener { e ->
-                            val se = e as? com.google.firebase.storage.StorageException
-                            Log.e(
-                                "FotoDebug",
-                                "❌ putFile falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
-                                e
-                            )
-
-                            // 🧹 limpieza de temporales también en fallo
-                            borrarTemporal(optimizedUri)
-                            if (optimizedUri != uri) borrarTemporal(uri)
-
-                            onUrlLista("")
-                        }
-                    return
-                }
-
-                // Fallback: subir desde bytes (compatibilidad)
-                if (bytes != null && bytes.isNotEmpty()) {
-                    storageRef.putBytes(bytes, metadata).addOnSuccessListener {
-                            getDownloadUrlWithRetry(
-                                ref = storageRef,
-                                attempts = 2,
-                                delayMs = 300,
-                                onSuccess = { dl ->
-                                    Log.d("FotoDebug", "✅ Subida OK (bytes). URL=$dl")
-                                    onUrlLista(dl.toString())
-                                },
-                                onError = { e ->
-                                    Log.e(
-                                        "FotoDebug",
-                                        "❌ downloadUrl (bytes) tras reintentos: ${e.message}",
-                                        e
-                                    )
-                                    onUrlLista("")
-                                })
-                        }.addOnFailureListener { e ->
-                            val se = e as? com.google.firebase.storage.StorageException
-                            Log.e(
-                                "FotoDebug",
-                                "❌ putBytes falló. code=${se?.errorCode} http=${se?.httpResultCode} msg=${e.message}",
-                                e
-                            )
-                            onUrlLista("")
-                        }
-                    return
-                }
-
-                Log.d("FotoDebug", "Sin foto (ni Uri ni bytes)")
-                onUrlLista("")
+                )
             }
+
+
+
 
             // Libera loading y continúa con o sin URL
-            fun finishSaving(urlFoto: String?) {
+            fun finishSaving(hadPhoto: Boolean, uriLocal: String?) {
                 showSavingDialog.value = false
                 isSaving = false
-                continuarGuardadoConFoto(urlFoto)
+                continuarGuardadoConFoto(hadPhoto, uriLocal, fotoUrl = null  )
             }
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -679,16 +575,15 @@ fun FormEntradaDeInventario(
             ) {
                 Button(
                     onClick = {
-                        val ctx = context
-                        val imagesDir = File(ctx.cacheDir, "images").apply { mkdirs() }
-                        val imageFile = File.createTempFile("foto_", ".jpg", imagesDir)
+                        //val ctx = context
+                       // val imagesDir = File(ctx.cacheDir, "images").apply { mkdirs() }
+                        //val imageFile = File.createTempFile("foto_", ".jpg", imagesDir)
 
-                        val uri = getUriForFile(
-                            ctx, ctx.packageName + ".fileprovider", imageFile
-                        )
-                        photoUri.value = uri
+                        // ANCLA BOTON-FOTO (onClick)
+                        val tmpUri = ImageUtils.createTempImageUri(context)
+                        photoUri.value = tmpUri
+                        takePictureLauncher.launch(tmpUri)
 
-                        tomarFotoLauncher.launch(uri)
                     },
                     enabled = !isSaving && !tieneFoto.value,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
@@ -716,19 +611,17 @@ fun FormEntradaDeInventario(
                                 codigoIngresado = location.value
                             )
 
-                            /*
-                             * true  -> existe (continúa)
-                             * false -> NO existe (muestra diálogo y detiene)
-                             * null  -> sin red / no verificable ahora (permitir grabar y avisar)
-                             */
                             when (ubicCheck) {
-                                true -> { /* OK, sigue */ }
+                                true -> { /* OK, sigue */
+                                }
+
                                 false -> {
                                     showErrorLocation.value = true
                                     openUbicacionInvalidaDialog.value = true
                                     isSaving = false
                                     return@launch
                                 }
+
                                 null -> {
                                     Toast.makeText(
                                         context,
@@ -797,7 +690,6 @@ fun FormEntradaDeInventario(
 
                         }
                     },
-
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF003366), contentColor = Color.White
                     ), modifier = Modifier
@@ -865,7 +757,6 @@ fun FormEntradaDeInventario(
                     Text("✅ Foto lista para subir", fontSize = 12.sp, color = Color(0xFF2E7D32))
 
                     TextButton(onClick = {
-                        fotoBytes.value = null
                         tieneFoto.value = false
                         photoUri.value = null
                     }) { Text("Quitar foto") }
@@ -891,25 +782,24 @@ fun FormEntradaDeInventario(
                                 showConfirmDialog.value = false
                                 showSavingDialog.value = true
 
+                                // ANCLA donde falla ahora
                                 val uri = photoUri.value
-                                val hadPhoto = tieneFoto.value
+                                val hadPhoto = (uri != null)              // <- antes usabas uriLocal
+                                finishSaving(hadPhoto, uri?.toString())   // <- pasamos el String? correcto
 
-                                if (hadPhoto && uri != null) {
-                                    subirImagenAFirebase(
-                                        bytes = fotoBytes.value, uri = uri
-                                    ) { url ->
-                                        // Limpieza SIEMPRE
-                                        fotoBytes.value = null
-                                        photoUri.value = null
-                                        tieneFoto.value = false
-
-                                        // si subió ok → url no vacía; si falló → null
-                                        finishSaving(url.ifEmpty { null })
-                                    }
-                                } else {
-                                    // no hay foto → guardado normal
-                                    finishSaving(null)
+                                // Limpieza y aviso (igual que ya tenías)
+                                if (hadPhoto) {
+                                    photoUri.value = null
+                                    tieneFoto.value = false
+                                    Toast.makeText(
+                                        context,
+                                        "Registro guardado. La foto se subirá en segundo plano.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
+
+
+
                             }) {
                             Text("Sí, grabar", color = Color(0xFF003366))
                         }
@@ -927,8 +817,8 @@ fun FormEntradaDeInventario(
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialog = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -940,8 +830,8 @@ fun FormEntradaDeInventario(
             if (showDialog1) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog1 = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialog1 = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -953,8 +843,8 @@ fun FormEntradaDeInventario(
             if (showDialog2) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog2 = true
-                },
+                        showDialog2 = true
+                    },
                     title = { Text("Codigo No Existe") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -966,8 +856,8 @@ fun FormEntradaDeInventario(
             if (showDialogValueQuantityCero) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialogValueQuantityCero = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialogValueQuantityCero = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -1105,8 +995,7 @@ fun FormEntradaDeInventario(
                         shouldRequestFocusAfterClear.value = false
                         focusRequesterSku.requestFocus()   // pasa al SKU
                         showLocationDialog.value = false
-                    }
-                    ,
+                    },
                     onDismiss = { showLocationDialog.value = false }
                 )
             }
@@ -1122,128 +1011,6 @@ fun FormEntradaDeInventario(
 }
 
 
-private fun applyExifRotation(
-    context: Context, sourceUri: Uri, bmp: Bitmap
-): Bitmap {
-    return try {
-        context.contentResolver.openInputStream(sourceUri)?.use { ins ->
-            val exif = ExifInterface(ins)
-            val rotation = when (exif.getAttributeInt(
-                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
-            )) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                else -> 0f
-            }
-            if (rotation != 0f) {
-                val m = Matrix().apply { postRotate(rotation) }
-                Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
-            } else bmp
-        } ?: bmp
-    } catch (_: Exception) {
-        bmp
-    }
-}
-
-private fun prepararFotoParaSubir(
-    context: Context,
-    sourceUri: Uri,
-    maxDimPx: Int = 1600,
-    qualityStart: Int = 85,
-    targetMaxBytes: Long = 1_200_000L, // ~1.2 MB
-    qualityFloor: Int = 60
-): Uri {
-    var decoded: Bitmap? = null
-    var oriented: Bitmap? = null
-    var scaled: Bitmap? = null
-
-    try {
-        val resolver = context.contentResolver
-
-        // 1) Sólo bounds
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(sourceUri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-
-        val w = bounds.outWidth
-        val h = bounds.outHeight
-        if (w <= 0 || h <= 0) return sourceUri
-
-        // 2) Sample + config ahorradora
-        var inSample = 1
-        run {
-            val halfW = w / 2
-            val halfH = h / 2
-            while ((halfW / inSample) >= maxDimPx || (halfH / inSample) >= maxDimPx) {
-                inSample *= 2
-            }
-        }
-        val decodeOpts = BitmapFactory.Options().apply {
-            inSampleSize = inSample.coerceAtLeast(1)
-            inPreferredConfig = Bitmap.Config.RGB_565
-            inDither = true
-        }
-
-        decoded = resolver.openInputStream(sourceUri)?.use {
-            BitmapFactory.decodeStream(it, null, decodeOpts)
-        } ?: return sourceUri
-
-        // 3) Rotación EXIF
-        oriented = applyExifRotation(context, sourceUri, decoded)
-        if (oriented !== decoded) {
-            decoded.recycle(); decoded = null
-        }
-
-        // 4) Escalado final
-        val cur = oriented
-        val maxCur = maxOf(cur.width, cur.height)
-        scaled = if (maxCur > maxDimPx) {
-            val f = maxDimPx.toFloat() / maxCur.toFloat()
-            val m = Matrix().apply { postScale(f, f) }
-            Bitmap.createBitmap(cur, 0, 0, cur.width, cur.height, m, true)
-        } else {
-            cur
-        }
-        if (scaled !== oriented) {
-            oriented.recycle(); oriented = null
-        }
-
-        // 5) Escribir JPEG con control de tamaño (un solo archivo)
-        val imagesDir = File(context.cacheDir, "images").apply { mkdirs() }
-        val outFile = File.createTempFile("upload_", ".jpg", imagesDir)
-
-        var q = qualityStart.coerceIn(qualityFloor, 100)
-        fun write(qty: Int) {
-            FileOutputStream(outFile, false).use { fos ->
-                scaled.compress(Bitmap.CompressFormat.JPEG, qty, fos)
-                fos.flush()
-            }
-        }
-
-        write(q)
-        // Si quedó grande, bajamos calidad en pasos
-        while (outFile.length() > targetMaxBytes && q > qualityFloor) {
-            q = (q - 10).coerceAtLeast(qualityFloor)
-            write(q)
-        }
-
-        // 6) Devolver Uri del FileProvider
-        return getUriForFile(context, "${context.packageName}.fileprovider", outFile)
-    } catch (oom: OutOfMemoryError) {
-        Log.e("FotoDebug", "OOM al preparar foto: ${oom.message}")
-        Toast.makeText(context, "Memoria insuficiente al procesar la foto", Toast.LENGTH_LONG).show()
-        return sourceUri // seguimos sin bloquear el flujo
-    } catch (e: Exception) {
-        Log.w("FotoDebug", "prepararFotoParaSubir falló: ${e.message}", e)
-        return sourceUri
-    } finally {
-        try { scaled?.recycle() } catch (_: Exception) {}
-        try { oriented?.recycle() } catch (_: Exception) {}
-        try { decoded?.recycle() } catch (_: Exception) {}
-    }
-}
-
-
 // Helper: obtiene la URL con reintentos suaves y backoff.
 private fun getDownloadUrlWithRetry(
     ref: StorageReference, attempts: Int = 2,          // reintentos extra (total = 1 + attempts)
@@ -1251,13 +1018,13 @@ private fun getDownloadUrlWithRetry(
     onSuccess: (Uri) -> Unit, onError: (Exception) -> Unit
 ) {
     ref.downloadUrl.addOnSuccessListener { onSuccess(it) }.addOnFailureListener { e ->
-            if (attempts > 0) {
-                Handler(Looper.getMainLooper()).postDelayed(
-                    { getDownloadUrlWithRetry(ref, attempts - 1, delayMs * 2, onSuccess, onError) },
-                    delayMs
-                )
-            } else {
-                onError(e)
-            }
+        if (attempts > 0) {
+            Handler(Looper.getMainLooper()).postDelayed(
+                { getDownloadUrlWithRetry(ref, attempts - 1, delayMs * 2, onSuccess, onError) },
+                delayMs
+            )
+        } else {
+            onError(e)
         }
+    }
 }

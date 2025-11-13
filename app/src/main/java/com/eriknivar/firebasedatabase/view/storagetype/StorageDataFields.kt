@@ -23,9 +23,14 @@ data class DataFields(
     val cantidad: Double = 0.0,
     val fechaVencimiento: String = "-",
     val creadoPorUid: String = "",
+    var fotoUrlLocal: String? = null,
+    var fotoUriLocal: String? = null,
+    var fotoUrisLocales: List<String>? = null,
+    val fotoEstado: String = "",
     @ServerTimestamp val fecha: Timestamp? = null,
     @ServerTimestamp val fechaRegistro: Timestamp? = null,
     @ServerTimestamp val creadoEn: Timestamp? = null,
+
 
     // ===== EN (aliases que usa la UI)
     val documentId: String = "",
@@ -37,8 +42,7 @@ data class DataFields(
 ){
     // Úsalo en UI: si expirationDate viene vacío, cae a fechaVencimiento
     val expirationForUi: String
-        get() = if (expirationDate.isNotBlank()) expirationDate
-        else fechaVencimiento.ifBlank { "-" }
+        get() = expirationDate.ifBlank { fechaVencimiento.ifBlank { "-" } }
 }
 
 

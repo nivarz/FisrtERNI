@@ -100,6 +100,7 @@ dependencies {
     implementation(libs.coil.compose.v250)   // usa solo una variante
     implementation(libs.apache.poi)
     implementation(libs.poi.ooxml)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.ui)
@@ -108,6 +109,8 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.foundation)
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
 
     // --- CameraX (embebida) ---
     implementation("androidx.camera:camera-core:1.3.4")
@@ -126,5 +129,4 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
-
 
