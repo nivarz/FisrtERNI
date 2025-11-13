@@ -133,11 +133,11 @@ fun MasterDataFragment(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    // Estados (arriba, junto a clienteSel)
-    var clienteSel by rememberSaveable {
-        mutableStateOf(userViewModel.clienteId.value?.trim().orEmpty())
-    }
+    // SUPERUSER: empieza sin cliente seleccionado
+    // ADMIN: se llenará luego en el LaunchedEffect con su clienteId
+    var clienteSel by rememberSaveable { mutableStateOf("") }
     var clienteNombreSel by rememberSaveable { mutableStateOf("") }
+
     var menuClientesAbierto by remember { mutableStateOf(false) }
 
 
@@ -148,10 +148,10 @@ fun MasterDataFragment(
     LaunchedEffect(esSuper, userViewModel.clienteId.value) {
         if (!esSuper) {
             clienteSel = userViewModel.clienteId.value?.trim().orEmpty()
-            // opcional: podrías mostrar el id como “nombre” para el admin
             clienteNombreSel = clienteSel
         }
     }
+
 
     val clientes = remember { mutableStateListOf<Cliente>() }
 
@@ -233,20 +233,56 @@ fun MasterDataFragment(
     }
 
     fun cargarClientes() {
-        if (!esSuper) return
-        Firebase.firestore.collection("clientes").get().addOnSuccessListener { snap ->
-            clientes.clear()
-            clientes.addAll(snap.documents.map { d ->
-                Cliente(id = d.id, nombre = d.getString("nombre") ?: d.id)
-            }.sortedBy { it.nombre })
-        }.addOnFailureListener { e ->
-            Log.e("MD", "Error cargando clientes", e)
-            Toast.makeText(context, "Error cargando clientes: ${e.message}", Toast.LENGTH_SHORT)
-                .show()
+        val db = Firebase.firestore
+
+        if (esSuper) {
+            // SUPERUSER: lista completa para el dropdown
+            db.collection("clientes")
+                .get()
+                .addOnSuccessListener { snap ->
+                    clientes.clear()
+                    clientes.addAll(
+                        snap.documents.map { d ->
+                            Cliente(id = d.id, nombre = d.getString("nombre") ?: d.id)
+                        }.sortedBy { it.nombre }
+                    )
+                }
+                .addOnFailureListener { e ->
+                    Log.e("MD", "Error cargando clientes", e)
+                    Toast.makeText(
+                        context,
+                        "Error cargando clientes: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+        } else {
+            // ADMIN: solo su cliente, para mostrar NOMBRE + ID
+            val cid = clienteSel.ifBlank { userViewModel.clienteId.value?.trim().orEmpty() }
+            if (cid.isBlank()) return
+
+            db.collection("clientes")
+                .document(cid)
+                .get()
+                .addOnSuccessListener { d ->
+                    if (d.exists()) {
+                        clienteSel = cid
+                        clienteNombreSel = d.getString("nombre") ?: cid
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e("MD", "Error cargando cliente actual", e)
+                    Toast.makeText(
+                        context,
+                        "Error cargando datos del cliente: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
         }
     }
 
-    LaunchedEffect(esSuper) { if (esSuper) cargarClientes() }
+    LaunchedEffect(Unit) {
+        cargarClientes()
+    }
 
     ScreenWithNetworkBanner(
         showDisconnectedBanner = false,
@@ -293,16 +329,14 @@ fun MasterDataFragment(
                                 Spacer(Modifier.height(2.dp))
 
                                 if (clienteNombreSel.isBlank() && clienteSel.isBlank()) {
-                                    // ← Placeholder hasta que el usuario elija
                                     Text(
                                         "Selecciona un cliente",
                                         fontSize = 14.sp,
                                         color = Color.Gray
                                     )
                                 } else {
-                                    // Nombre (negrita) + id debajo
                                     Text(
-                                        text = if (clienteNombreSel.isNotBlank()) clienteNombreSel else clienteSel,
+                                        text = clienteNombreSel.ifBlank { clienteSel },
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -343,12 +377,56 @@ fun MasterDataFragment(
                                     text = { Text("${c.nombre} (${c.id})") },
                                     onClick = {
                                         clienteSel = c.id
-                                        clienteNombreSel = c.nombre           // ← setea nombre
-                                        userViewModel.setClienteId(c.id)      // tu estado global si lo necesitas
+                                        clienteNombreSel = c.nombre
+                                        userViewModel.setClienteId(c.id)
                                         menuClientesAbierto = false
                                         productos.clear()
                                     }
                                 )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                } else {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = softNavy),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Cliente",
+                                    color = navyBlue,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(2.dp))
+
+                                val textoPrincipal =
+                                    clienteNombreSel.ifBlank { clienteSel.ifBlank { userViewModel.clienteId.value?.trim().orEmpty() } }
+
+                                Text(
+                                    text = textoPrincipal.ifBlank { "Cliente asignado a tu usuario" },
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+
+                                if (clienteNombreSel.isNotBlank() && clienteSel.isNotBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = clienteSel,
+                                        fontSize = 13.sp,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                         }
                     }
