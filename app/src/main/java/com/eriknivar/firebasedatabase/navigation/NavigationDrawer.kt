@@ -67,8 +67,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
 import com.eriknivar.firebasedatabase.view.utility.DrawerMenuItem
-import com.google.firebase.Firebase
-import com.google.firebase.firestore.firestore
+import com.eriknivar.firebasedatabase.viewmodel.LogoutReason
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -352,33 +352,26 @@ fun NavigationDrawer(
                                 TextButton(
                                     modifier = Modifier.padding(),
                                     onClick = {
-                                        showLogoutDialog = false // 🔵 Cerrar el diálogo
+                                        showLogoutDialog = false  // 🔵 Cerrar el diálogo
 
-                                        val documentId = userViewModel.documentId.value ?: ""
+                                        // 🔴 YA NO tocamos Firestore directo ni sessionId aquí
+                                        userViewModel.cerrarSesion(LogoutReason.MANUAL) {
 
-                                        userViewModel.isManualLogout.value = true
+                                            // 🧹 Limpiar campos de la pantalla
+                                            limpiarCampos(
+                                                location = location ?: mutableStateOf(""),
+                                                sku = sku ?: mutableStateOf(""),
+                                                quantity = quantity ?: mutableStateOf(""),
+                                                lot = lot ?: mutableStateOf(""),
+                                                expirationDate = expirationDate ?: mutableStateOf("")
+                                            )
 
-                                        Firebase.firestore.collection("usuarios")
-                                            .document(documentId)
-                                            .update("sessionId", "")
-                                            .addOnCompleteListener {
-                                                userViewModel.clearUser() // 🧹 Limpiar usuario
-                                                userViewModel.isManualLogout.value =
-                                                    false // ✅ Restaurar bandera
+                                            // 🔄 Notificar para refrescar lista de usuarios en backoffice
+                                            userViewModel.activarRecargaUsuarios()
 
-                                                limpiarCampos(
-                                                    location = location ?: mutableStateOf(""),
-                                                    sku = sku ?: mutableStateOf(""),
-                                                    quantity = quantity ?: mutableStateOf(""),
-                                                    lot = lot ?: mutableStateOf(""),
-                                                    expirationDate = expirationDate
-                                                        ?: mutableStateOf("")
-                                                )
-
-                                                userViewModel.activarRecargaUsuarios()
-
-                                                activity?.finishAffinity() // 🔥 Cerrar completamente la app
-                                            }
+                                            // 🔥 Cerrar completamente la app
+                                            activity?.finishAffinity()
+                                        }
                                     }
                                 ) {
                                     Text(
@@ -392,8 +385,7 @@ fun NavigationDrawer(
                                 TextButton(
                                     modifier = Modifier.padding(),
                                     onClick = {
-                                        showLogoutDialog =
-                                            false // Solo cierra el diálogo si presiona "Cancelar"
+                                        showLogoutDialog = false
                                     }
                                 ) {
                                     Text(
@@ -406,7 +398,6 @@ fun NavigationDrawer(
                         )
                     }
                 }
-
             }
         }
     })

@@ -12,10 +12,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.FieldValue
 
 enum class LogoutReason {
-    MANUAL,
-    INACTIVIDAD,
-    ERROR,
-    FORZADO
+    MANUAL
 }
 
 class UserViewModel : ViewModel() {
@@ -206,7 +203,7 @@ class UserViewModel : ViewModel() {
     var onUserInteracted: (() -> Unit)? = null
 
     // === Session (Absolute Timeout) - GLOBAL en el VM ===
-    private val _sessionStartMs = MutableLiveData<Long>(System.currentTimeMillis())
+    private val _sessionStartMs = MutableLiveData(System.currentTimeMillis())
     val sessionStartMs: LiveData<Long> = _sessionStartMs
 
     /** Llama esto al iniciar sesión / cuando el usuario queda listo en pantalla */

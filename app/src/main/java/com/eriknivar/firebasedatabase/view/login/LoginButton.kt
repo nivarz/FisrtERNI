@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view.login
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.ButtonDefaults
@@ -138,7 +136,6 @@ fun LoginButton(
                             )
                         }
                     }
-
                 }
             }
         }
@@ -185,6 +182,7 @@ fun LoginButton(
                                 // Cargar perfil (nombre, flags) desde usuarios/{uid}
                                 Firebase.firestore.collection("usuarios").document(uid).get()
                                     .addOnSuccessListener { doc: DocumentSnapshot ->
+
                                         val nombre = doc.getString("nombre")
                                             ?: email.substringBefore("@").uppercase()
                                         val requiereCambio =
@@ -193,25 +191,43 @@ fun LoginButton(
                                         val tipoDoc = doc.getString("tipo") ?: "invitado"
                                         val clienteIdDoc = doc.getString("clienteId") ?: ""
 
+                                        // 🔹 Nuevos campos para controlar sesión real
+                                        val sesionActivaFlag = doc.getBoolean("sesionActiva") ?: false
+                                        val ultimaActividad = doc.getTimestamp("ultimaActividad")
+                                        val ahora = com.google.firebase.Timestamp.now()
+
+                                        // ⏱️ Consideramos "realmente activa" solo si:
+                                        //  - sesionActiva = true
+                                        //  - hay sessionId
+                                        //  - ultimaActividad es reciente (ej. < 60 segundos)
+                                        val sesionRealmenteActiva =
+                                            sesionActivaFlag &&
+                                                    sessionEnUso.isNotBlank() &&
+                                                    ultimaActividad != null &&
+                                                    (ahora.seconds - ultimaActividad.seconds) < 60L
+
                                         // Resuelve rol/cliente (claims priorizan)
                                         val tipoFinal =
-                                            if (tipoClaim.isNotBlank()) tipoClaim else tipoDoc
+                                            tipoClaim.ifBlank { tipoDoc }
                                         val clienteFinal =
-                                            if (clienteIdClaim.isNotBlank()) clienteIdClaim else clienteIdDoc
+                                            clienteIdClaim.ifBlank { clienteIdDoc }
 
-                                        if (sessionEnUso.isNotBlank() && !tipoFinal.equals(
-                                                "superuser",
-                                                true
-                                            ) && !requiereCambio
+                                        if (sesionRealmenteActiva &&
+                                            !tipoFinal.equals("superuser", true) &&
+                                            !requiereCambio
                                         ) {
+                                            // 🔒 Aquí SÍ bloqueamos: parece doble login vivo
                                             mostrarErrorToast(
                                                 context,
-                                                "Sesión activa, cerrado erróneo. Contactar al administrador."
+                                                "Sesión activa en otro dispositivo. Contactar al administrador."
                                             )
                                             auth.signOut()
                                             isLoading = false
                                             isButtonEnabled = true
                                         } else {
+                                            // 🟢 Sesión vieja / caída o superuser:
+                                            // continuamos con el login normal (generar nuevo sessionId, etc.)
+
                                             // Popular VM
                                             val sessionId = java.util.UUID.randomUUID().toString()
                                             userViewModel.setUser(nombre, tipoFinal, uid)
@@ -262,15 +278,29 @@ fun LoginButton(
 
                                             } else {
                                                 // Flujo normal: persistir sessionId y seguir
+                                                val updates = mapOf(
+                                                    "sessionId" to sessionId,
+                                                    "sesionActiva" to true,
+                                                    "ultimaActividad" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                                                )
+
                                                 Firebase.firestore.collection("usuarios")
                                                     .document(uid)
-                                                    .update("sessionId", sessionId)
+                                                    .update(updates)
                                                     .addOnSuccessListener {
                                                         userViewModel.cargarFotoUrl(uid)
                                                         nombreUsuario = nombre
                                                         showWelcomeDialog = true
                                                         isLoading = false
                                                         isButtonEnabled = true
+                                                    }
+                                                    .addOnFailureListener { e ->
+                                                        isLoading = false
+                                                        isButtonEnabled = true
+                                                        mostrarErrorToast(
+                                                            context,
+                                                            "No se pudo actualizar la sesión: ${e.message}"
+                                                        )
                                                     }
                                                     .addOnFailureListener { e ->
                                                         isLoading = false
