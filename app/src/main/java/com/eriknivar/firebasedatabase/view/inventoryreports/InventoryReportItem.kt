@@ -76,8 +76,12 @@ fun InventoryReportItem(
     var fechaVencimiento by remember { mutableStateOf(item.expirationDate) }
 
     val esInvitadoActual = tipoUsuarioActual.lowercase() == "invitado"
-    var esAuditado by remember { mutableStateOf(item.auditado) }
-    val backgroundColor = if (expanded) Color(0xFFE3F2FD) else Color.White
+    var esAuditado by remember(item.documentId) { mutableStateOf(item.auditado) }
+    val backgroundColor = when {
+        esAuditado -> Color(0xFFE8F5E9)        // 💚 Verde suave si está auditado
+        expanded   -> Color(0xFFE3F2FD)        // Azulito cuando está expandido
+        else       -> Color.White              // Normal
+    }
 
     var isSaving by remember { mutableStateOf(false) }
 

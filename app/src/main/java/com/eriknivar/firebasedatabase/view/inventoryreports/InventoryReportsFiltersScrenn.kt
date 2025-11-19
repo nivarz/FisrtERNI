@@ -131,6 +131,8 @@ fun InventoryReportFiltersScreen(
     val filtrosExpandido = remember { mutableStateOf(false) }
 
     val usuarioFiltro = remember { mutableStateOf("") }
+    val auditFilter =
+        remember { mutableStateOf("Todos") } // "Todos", "Solo auditados", "Solo no auditados"
 
     val context = LocalContext.current
     val calendar = remember { Calendar.getInstance() }
@@ -145,15 +147,9 @@ fun InventoryReportFiltersScreen(
     val firestore = Firebase.firestore
     val cid = userViewModel.clienteId.observeAsState("").value.trim().uppercase()
     val db = Firebase.firestore
-    //val cidRaw by userViewModel.clienteId.observeAsState("")
 
     // La lista que la UI pinta
     val filteredData = remember { mutableStateListOf<DataFields>() }
-
-    // Cambia estos nombres si tus estados se llaman distinto
-    //val selectedLocalidadState = remember { mutableStateOf("") }   // o tu estado real
-    //val selectedUsuarioState = remember { mutableStateOf("") }   // o tu estado real
-
     val cidLocal = (userViewModel.clienteId.value ?: "").trim().uppercase()
 
     LaunchedEffect(cid) {
@@ -345,6 +341,8 @@ fun InventoryReportFiltersScreen(
                     startDate.value = ""
                     endDate.value = ""
                     localidadSeleccionada.value = ""
+                    auditFilter.value = "Todos"
+
                     filteredData.clear()
                     filteredData.addAll(allData.sortedByDescending { it.fechaRegistro?.toDate() })
                 }
@@ -378,6 +376,8 @@ fun InventoryReportFiltersScreen(
                     localidadSeleccionada = localidadSeleccionada,
                     listaLocalidades = listaLocalidades
                 )
+
+                AuditFilterDropdown(auditFilter = auditFilter)
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -524,16 +524,30 @@ fun InventoryReportFiltersScreen(
                                                             ignoreCase = true
                                                         )
 
-                                            val usrFinalUi = if (tipoUsuario.lowercase().trim() == "invitado")
-                                                userViewModel.nombre.value.orEmpty()
-                                            else
-                                                usuarioFiltro.value.trim()
+                                            val usrFinalUi =
+                                                if (tipoUsuario.lowercase().trim() == "invitado")
+                                                    userViewModel.nombre.value.orEmpty()
+                                                else
+                                                    usuarioFiltro.value.trim()
 
                                             val matchesUsuario =
-                                                usrFinalUi.isBlank() || item.usuario.equals(usrFinalUi, ignoreCase = true)
+                                                usrFinalUi.isBlank() || item.usuario.equals(
+                                                    usrFinalUi,
+                                                    ignoreCase = true
+                                                )
 
+                                            val matchesAudit = when (auditFilter.value) {
+                                                "Solo auditados" -> item.auditado
+                                                "Solo no auditados" -> !item.auditado
+                                                else -> true  // "Todos"
+                                            }
 
-                                            matchesSku && matchesLocation && matchesDate && matchesLocalidad  && matchesUsuario
+                                            matchesSku &&
+                                                    matchesLocation &&
+                                                    matchesDate &&
+                                                    matchesLocalidad &&
+                                                    matchesUsuario &&
+                                                    matchesAudit
                                         }.sortedByDescending { it.fechaRegistro?.toDate() }
                                     )
 
@@ -729,7 +743,7 @@ fun InventoryReportFiltersScreen(
 
             else -> {
                 LazyColumn {
-                    items(filteredData) { item ->
+                    items(filteredData, key = { it.documentId }) { item ->
                         InventoryReportItem(
                             item = item,
                             puedeModificarRegistro = puedeModificarRegistro,
@@ -971,7 +985,6 @@ private fun mapParaAuditoria(full: Map<String, Any?>): Map<String, Any?> {
     return full.filterKeys { it in keep }
 }
 
-
 @Composable
 private fun rememberShimmerBrush(): Brush {
     val transition = rememberInfiniteTransition(label = "shimmer")
@@ -1044,6 +1057,57 @@ fun ShimmerReportCard() {
             ShimmerLine(Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
             ShimmerLine(Modifier.fillMaxWidth(0.8f))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AuditFilterDropdown(auditFilter: MutableState<String>) {
+    var expanded by remember { mutableStateOf(false) }
+    val opciones = listOf("Todos", "Solo auditados", "Solo no auditados")
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            readOnly = true,
+            value = auditFilter.value,
+            onValueChange = { },
+            label = { Text("Estado de auditoría", color = Color.Black) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = Color.Gray,
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = Color.Gray,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent
+            )
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            opciones.forEach { opcion ->
+                DropdownMenuItem(
+                    text = { Text(opcion) },
+                    onClick = {
+                        auditFilter.value = opcion
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }
