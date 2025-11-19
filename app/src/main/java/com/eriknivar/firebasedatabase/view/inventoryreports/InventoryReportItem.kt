@@ -49,6 +49,11 @@ import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import android.widget.Toast
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
+
 
 @Composable
 fun InventoryReportItem(
@@ -62,6 +67,7 @@ fun InventoryReportItem(
     var expanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showAuditDialog by remember { mutableStateOf(false) }
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
     val fechaFormateada = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
@@ -70,6 +76,7 @@ fun InventoryReportItem(
     var fechaVencimiento by remember { mutableStateOf(item.expirationDate) }
 
     val esInvitadoActual = tipoUsuarioActual.lowercase() == "invitado"
+    var esAuditado by remember { mutableStateOf(item.auditado) }
     val backgroundColor = if (expanded) Color(0xFFE3F2FD) else Color.White
 
     var isSaving by remember { mutableStateOf(false) }
@@ -114,6 +121,15 @@ fun InventoryReportItem(
                     fontSize = 12.sp,
                     color = Color.Blue
                 )
+                if (esAuditado) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AUDITADO",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        color = Color(0xFF2E7D32)
+                    )
+                }
             }
 
             if (expanded) {
@@ -151,12 +167,10 @@ fun InventoryReportItem(
                                 .weight(1f)
                                 .clickable {
                                     Log.d(
-                                        "FotoDebug",
-                                        "🟢 VER presionado en Reporte: ${item.fotoUrl}"
+                                        "FotoDebug", "🟢 VER presionado en Reporte: ${item.fotoUrl}"
                                     )
                                     showImageDialog = true
-                                }
-                        )
+                                })
                     }
 
                     if (showImageDialog) {
@@ -164,13 +178,16 @@ fun InventoryReportItem(
                             onDismissRequest = { showImageDialog = false },
                             confirmButton = {
                                 TextButton(onClick = { showImageDialog = false }) {
-                                    Text("Cerrar", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Cerrar",
+                                        color = Color(0xFF003366),
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             },
                             title = {
                                 Text(
-                                    text = "📷 Imagen Asociada",
-                                    fontWeight = FontWeight.Bold
+                                    text = "📷 Imagen Asociada", fontWeight = FontWeight.Bold
                                 )
                             },
                             text = {
@@ -186,22 +203,22 @@ fun InventoryReportItem(
                                         .fillMaxWidth()
                                         .height(300.dp)
                                 )
-                            }
-                        )
+                            })
                     }
                 }
-
 
                 Log.d(
                     "PERMISO",
                     "Evaluando permiso para registro. Usuario del registro: ${item.usuario}, Tipo creador: ${item.tipoUsuarioCreador}"
                 )
 
-                if (!esInvitadoActual && puedeModificarRegistro(
+                val puedeEditarEliminar =
+                    !esAuditado && !esInvitadoActual && puedeModificarRegistro(
                         item.usuario,
                         item.tipoUsuarioCreador
                     )
-                ) {
+
+                if (puedeEditarEliminar) {
                     Log.d("PERMISO", "✅ PUEDE MODIFICAR este registro")
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -211,12 +228,9 @@ fun InventoryReportItem(
                     ) {
                         IconButton(
                             onClick = { showEditDialog = true },
-
-                            ) {
+                        ) {
                             Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Editar",
-                                tint = Color.Blue
+                                Icons.Default.Edit, contentDescription = "Editar", tint = Color.Blue
                             )
                         }
                         IconButton(
@@ -229,8 +243,30 @@ fun InventoryReportItem(
                             )
                         }
                     }
+
+                    // 👇 Botón de AUDITORÍA solo si todavía no está auditado
+                    TextButton(
+                        onClick = { showAuditDialog = true }) {
+                        Text(
+                            text = "Cerrar conteo (Auditar)",
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+
                 } else {
                     Log.d("PERMISO", "❌ NO PUEDE MODIFICAR este registro")
+
+                    if (esAuditado) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Conteo auditado (solo lectura)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
                 }
             }
         }
@@ -253,8 +289,57 @@ fun InventoryReportItem(
                 TextButton(onClick = { showDeleteDialog = false }) {
                     Text("No", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
-            }
-        )
+            })
+    }
+
+    if (showAuditDialog) {
+        AlertDialog(
+            onDismissRequest = { showAuditDialog = false },
+            title = { Text("Cerrar conteo (Auditar)") },
+            text = {
+                Text(
+                    "¿Marcar este conteo como auditado?\n" + "Luego no podrá ser modificado excepto por el Superuser."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    val auditorNombre =
+                        FirebaseAuth.getInstance().currentUser?.displayName ?: tipoUsuarioActual
+
+                    FirebaseFirestore.getInstance().collection("clientes").document(clienteIdActual)
+                        .collection("inventario").document(item.documentId).update(
+                            mapOf(
+                                "auditado" to true,
+                                "auditadoPorUid" to uid,
+                                "auditadoPorNombre" to (auditorNombre ?: ""),
+                                "auditadoEn" to FieldValue.serverTimestamp()
+                            )
+                        ).addOnSuccessListener {
+                            esAuditado = true
+                            showAuditDialog = false
+                            Toast.makeText(
+                                context, "Conteo auditado correctamente", Toast.LENGTH_SHORT
+                            ).show()
+                        }.addOnFailureListener { e ->
+                            showAuditDialog = false
+                            Toast.makeText(
+                                context, "Error al auditar: ${e.message}", Toast.LENGTH_LONG
+                            ).show()
+                        }
+                }) {
+                    Text(
+                        "Sí, auditar", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAuditDialog = false }) {
+                    Text(
+                        "Cancelar", color = Color.Red, fontWeight = FontWeight.Bold
+                    )
+                }
+            })
     }
 
     if (showEditDialog) {
@@ -283,8 +368,7 @@ fun InventoryReportItem(
                         onValueChange = { fechaVencimiento = it },
                         label = {
                             Text(
-                                "Editar Fecha de Vencimiento",
-                                fontWeight = FontWeight.Bold
+                                "Editar Fecha de Vencimiento", fontWeight = FontWeight.Bold
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -309,8 +393,7 @@ fun InventoryReportItem(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isSaving,
-                    onClick = {
+                    enabled = !isSaving, onClick = {
                         if (isSaving) return@TextButton
                         isSaving = true
 
@@ -360,23 +443,25 @@ fun InventoryReportItem(
                                 }
                             },
                             onError = {
-                                ubiInvalidaTexto = AnnotatedString("No se pudo validar la ubicación.")
+                                ubiInvalidaTexto =
+                                    AnnotatedString("No se pudo validar la ubicación.")
                                 showUbiInvalida = true
                                 isSaving = false
-                            }
-                        )
+                            })
 
-                    }
-                ) {
-                    Text(if (isSaving) "Validando…" else "Guardar", color = Color(0xFF003366), fontWeight = FontWeight.Bold)
+                    }) {
+                    Text(
+                        if (isSaving) "Validando…" else "Guardar",
+                        color = Color(0xFF003366),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showEditDialog = false }) {
                     Text("Cancelar", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
-            }
-        )
+            })
         if (showUbiInvalida) {
             AlertDialog(
                 onDismissRequest = { showUbiInvalida = false },
@@ -386,7 +471,7 @@ fun InventoryReportItem(
                     }
                 },
                 title = { Text("Ubicación inválida") },
-                text  = { Text(ubiInvalidaTexto) } // <- AnnotatedString con “ubi” (y “loc”) en negrita
+                text = { Text(ubiInvalidaTexto) } // <- AnnotatedString con “ubi” (y “loc”) en negrita
             )
         }
     }
