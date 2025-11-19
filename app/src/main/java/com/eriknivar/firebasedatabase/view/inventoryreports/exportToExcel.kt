@@ -43,7 +43,8 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
         val headerRow = sheet.createRow(0)
         val headers = listOf(
             "Ubicacion", "SKU", "Descripción", "Lote", "F.Vencimiento",
-            "Cantidad", "U.Medida", "Usuario", "F.Registro", "Almacen", "Foto"
+            "Cantidad", "U.Medida", "Usuario", "F.Registro", "Almacen", "Imagen del Producto",
+            "Auditado", "Auditor", "Fecha Auditoría"
         )
         headers.forEachIndexed { index, title ->
             headerRow.createCell(index).apply {
@@ -90,8 +91,21 @@ fun exportToExcel(context: Context, data: List<DataFields>): File? {
             } ?: ""
             row.createCell(8).setCellValue(fechaFormateada)
 
+            // === Campos de auditoría ===
+            val auditadoStr = if (item.auditado) "SI" else "NO"
+            val auditor = item.auditadoPorNombre
+            val fechaAuditoria = item.auditadoEn?.toDate()?.let {
+                outputFormatter.format(
+                    it.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                )
+            } ?: ""
+
             row.createCell(9).setCellValue(item.localidad)
             row.createCell(10).setCellValue(item.fotoUrl)
+            row.createCell(11).setCellValue(auditadoStr)
+            row.createCell(12).setCellValue(auditor)
+            row.createCell(13).setCellValue(fechaAuditoria)
+
         }
 
         // ==== Resumen ====

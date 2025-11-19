@@ -62,6 +62,7 @@ fun InventoryReportItem(
     onEdit: (DataFields) -> Unit,
     puedeModificarRegistro: (String, String) -> Boolean,
     tipoUsuarioActual: String,
+    nombreUsuarioActual: String,
     clienteIdActual: String
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -308,8 +309,11 @@ fun InventoryReportItem(
             confirmButton = {
                 TextButton(onClick = {
                     val uid = FirebaseAuth.getInstance().currentUser?.uid
-                    val auditorNombre =
-                        FirebaseAuth.getInstance().currentUser?.displayName ?: tipoUsuarioActual
+                    val auditorNombre = nombreUsuarioActual.ifBlank {
+                        FirebaseAuth.getInstance().currentUser?.displayName
+                            ?: FirebaseAuth.getInstance().currentUser?.email
+                            ?: tipoUsuarioActual
+                    }
 
                     FirebaseFirestore.getInstance().collection("clientes").document(clienteIdActual)
                         .collection("inventario").document(item.documentId).update(

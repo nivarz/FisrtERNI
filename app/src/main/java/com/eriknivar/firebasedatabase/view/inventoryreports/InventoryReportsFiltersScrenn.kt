@@ -749,6 +749,7 @@ fun InventoryReportFiltersScreen(
                             puedeModificarRegistro = puedeModificarRegistro,
                             tipoUsuarioActual = userViewModel.tipo.value
                                 ?: "", // ✅ Aquí el nuevo parámetro
+                            nombreUsuarioActual = userViewModel.nombre.value.orEmpty(),  
                             clienteIdActual = userViewModel.clienteId.value.orEmpty(),
                             onDelete = { documentId ->
                                 val db = Firebase.firestore

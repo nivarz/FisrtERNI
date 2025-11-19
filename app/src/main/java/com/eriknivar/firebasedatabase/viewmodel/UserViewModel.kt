@@ -95,7 +95,6 @@ class UserViewModel : ViewModel() {
             }
     }
 
-
     fun setUser(nombre: String, tipo: String, documentId: String) {
         _nombre.value = nombre
         _tipo.value = tipo
@@ -157,7 +156,6 @@ class UserViewModel : ViewModel() {
         cerrarSesion(LogoutReason.MANUAL, onComplete)
     }
 
-
     // ✅ Esta función guarda los datos actuales antes del logout
     fun guardarValoresTemporalmente(
         sku: String,
@@ -193,7 +191,7 @@ class UserViewModel : ViewModel() {
 
         return when (actualTipo) {
             "superuser" -> true // Puede modificar todo
-            "admin" -> registroTipo.lowercase() != "superuser" // No puede modificar registros de superuser
+            "admin" -> true  //registroTipo.lowercase() != "superuser" // No puede modificar registros de superuser
             "invitado" -> registroUsuario == actualNombre // Solo puede modificar lo suyo
             else -> false
         }
