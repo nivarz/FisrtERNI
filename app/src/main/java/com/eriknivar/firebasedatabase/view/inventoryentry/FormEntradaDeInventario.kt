@@ -271,20 +271,16 @@ fun FormEntradaDeInventario(
     val showLocationDialog = remember { mutableStateOf(false) }
     val ubicacionesLista = remember { mutableStateListOf<String>() }
 
-    // ANCLA: // carga de ubicaciones para el diálogo
-    LaunchedEffect(clienteIdActual, localidad) {
+    // 🔁 Función reutilizable para recargar las ubicaciones desde Firestore
+    suspend fun recargarUbicacionesLista(cid: String, loc: String) {
         ubicacionesLista.clear()
-        val cid = clienteIdActual.orEmpty()
-        val loc = localidad
-        if (cid.isBlank() || loc.isBlank()) return@LaunchedEffect
+        if (cid.isBlank() || loc.isBlank()) return
 
         val db = FirebaseFirestore.getInstance()
         val codigos = mutableSetOf<String>()
 
         fun extraerCodigosFromSnap(snap: QuerySnapshot) {
-            // ⛔ elimina cualquier "val codes = …"
             snap.documents.forEach { d ->
-                // 1) Campo preferido
                 val byField =
                     d.getString("codigo_ubi")
                         ?: d.getString("codigoUbicacion")
@@ -293,15 +289,12 @@ fun FormEntradaDeInventario(
                         ?: d.getString("ubicacion")
                         ?: d.getString("location")
 
-                // 2) Fallback: parte final del ID
                 val byId = d.id.substringAfterLast('_').ifBlank { d.id }
 
-                // 3) Normaliza y agrega al set global
                 val code = (byField ?: byId).trim().uppercase()
                 if (code.isNotEmpty()) codigos += code
             }
         }
-
 
         try {
             // 1) Ruta nueva: clientes/{cid}/localidades/{loc}/ubicaciones/*
@@ -332,6 +325,14 @@ fun FormEntradaDeInventario(
 
         ubicacionesLista.addAll(codigos.sorted())
     }
+
+    // Carga inicial al entrar / cambiar cliente o localidad
+    LaunchedEffect(clienteIdActual, localidad) {
+        val cid = clienteIdActual.orEmpty()
+        val loc = localidad
+        recargarUbicacionesLista(cid, loc)
+    }
+
 
     fun enfocarSkuDespuesDeGrabar() {
         // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
@@ -375,7 +376,12 @@ fun FormEntradaDeInventario(
                 clienteIdActual = clienteIdActual,        // ← antes: userViewModel.clienteId.value
                 localidadActual = localidad,
                 onSearchClick = {
-                    showLocationDialog.value = true
+                    val cid = clienteIdActual.orEmpty()
+                    val loc = localidad
+                    coroutineScope.launch {
+                        recargarUbicacionesLista(cid, loc)   // 🔄 refresca maestro
+                        showLocationDialog.value = true      // y luego abre el diálogo
+                    }
                 }
             )
 

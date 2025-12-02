@@ -167,7 +167,7 @@ fun OutlinedTextFieldsInputsLocation(
     LaunchedEffect(isZebraScan.value) {
         if (isZebraScan.value) {
             val code = tempLocationInput.value
-            if (code.length >= 5) {
+            if (code.length >= 13) {
                 validarOAceptarUbicacion(code, ocultarTeclado = true)
             }
             try {
@@ -191,7 +191,7 @@ fun OutlinedTextFieldsInputsLocation(
                 .focusRequester(focusRequesterLocation)
                 // 1) onFocusChanged: baja el umbral
                 .onFocusChanged { focusState ->
-                    if (!focusState.isFocused && tempLocationInput.value.length >= 5) {
+                    if (!focusState.isFocused && tempLocationInput.value.length >= 13) {
 
                         if (!isOnline(ctx)) {
                             // Offline: no marcar error; acepta la ubicación y sigue
@@ -209,7 +209,7 @@ fun OutlinedTextFieldsInputsLocation(
                             return@onFocusChanged
                         }
 
-                        if (!focusState.isFocused && tempLocationInput.value.length >= 5) {
+                        if (!focusState.isFocused && tempLocationInput.value.length >= 13) {
                             validarOAceptarUbicacion(
                                 tempLocationInput.value,
                                 ocultarTeclado = false
@@ -227,7 +227,7 @@ fun OutlinedTextFieldsInputsLocation(
                 onUserInteraction()
 
                 // 3) onValueChange: detección Zebra más realista
-                if (clean.length >= 5 && clean.length - location.value.length >= 3) {
+                if (clean.length >= 13 && clean.length - location.value.length >= 3) {
                     isZebraScan.value = true
                 }
 
@@ -237,7 +237,7 @@ fun OutlinedTextFieldsInputsLocation(
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             // 4) KeyboardActions (onNext): baja el umbral
             keyboardActions = KeyboardActions(onNext = {
-                if (tempLocationInput.value.length >= 5) {
+                if (tempLocationInput.value.length >= 13) {
 
                     if (!isOnline(ctx)) {
                         val code = tempLocationInput.value.trim().uppercase()
@@ -253,7 +253,7 @@ fun OutlinedTextFieldsInputsLocation(
                         return@KeyboardActions
                     }
 
-                    if (tempLocationInput.value.length >= 5) {
+                    if (tempLocationInput.value.length >= 13) {
                         validarOAceptarUbicacion(tempLocationInput.value, ocultarTeclado = false)
                     }
 

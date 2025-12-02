@@ -2,7 +2,6 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,13 +13,11 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -28,15 +25,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.eriknivar.firebasedatabase.network.SelectedClientStore
-import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.eriknivar.firebasedatabase.scan.CapturePortraitActivity
+import com.google.firebase.firestore.Source
 
 
 @Composable
@@ -56,7 +51,7 @@ fun OutlinedTextFieldsInputsSku(
     clienteIdActual: String?
 ) {
 
-    val context = LocalContext.current
+    //val context = LocalContext.current
     val db = remember { FirebaseFirestore.getInstance() }
     val isLoadingProductos = remember { mutableStateOf(false) }
     val zebraScanned = remember { mutableStateOf(false) }
@@ -88,7 +83,7 @@ fun OutlinedTextFieldsInputsSku(
         if (cid.isNullOrBlank()) return@LaunchedEffect
 
         // pequeño debounce para no disparar en cada tecla
-        kotlinx.coroutines.delay(200L)
+        delay(200L)
         lookupSkuForClient(
             db = db,
             clienteId = cid,
@@ -164,19 +159,73 @@ fun OutlinedTextFieldsInputsSku(
             isError = showErrorSku.value && (sku.value.isEmpty() || sku.value == "CODIGO NO ENCONTRADO"),
             trailingIcon = {
                 Row {
-                    IconButton(onClick = { showProductDialog.value = true }) {
+                    IconButton(
+                        onClick = {
+                            onUserInteraction()
+
+                            val cid = clienteIdActual?.trim()?.uppercase()
+
+                            // Si no hay cliente, abre el diálogo con lo que haya
+                            if (cid.isNullOrBlank()) {
+                                showProductDialog.value = true
+                                return@IconButton
+                            }
+
+                            // 🔄 Refrescar productos desde Firestore
+                            isLoadingProductos.value = true
+
+                            db.collection("clientes")
+                                .document(cid)
+                                .collection("productos")
+                                .get(Source.SERVER)
+                                .addOnSuccessListener { snap ->
+                                    val lista = mutableListOf<String>()
+                                    val mapa = mutableMapOf<String, Pair<String, String>>()
+
+                                    for (doc in snap.documents) {
+                                        val codigo = (doc.getString("codigo") ?: doc.id)
+                                            .trim()
+                                            .uppercase()
+
+                                        val desc = (doc.getString("nombreComercial")
+                                            ?: doc.getString("nombreNormalizado")
+                                            ?: doc.getString("descripcion")
+                                            ?: ""
+                                                ).trim()
+
+                                        val um = doc.extractUnidad()
+                                        val label = if (desc.isNotEmpty()) "$codigo - $desc" else codigo
+
+                                        lista.add(label)
+                                        mapa[label] = codigo to um
+                                    }
+
+                                    productList.value = lista
+                                    productMap.value = mapa
+                                    isLoadingProductos.value = false
+                                    showProductDialog.value = true
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("SKU_DIALOG", "Error recargando productos", e)
+                                    isLoadingProductos.value = false
+                                    // igual abrimos el diálogo con lo que hubiera
+                                    showProductDialog.value = true
+                                }
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Buscar productos"
                         )
                     }
+
                     IconButton(onClick = {
                         val options = ScanOptions().apply {
                             setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
                             setPrompt("Escanea el código")
                             setBeepEnabled(false)
-                            setOrientationLocked(true)                         // ← bloquea rotación
-                            setCaptureActivity(CapturePortraitActivity::class.java) // ← portrait
+                            setOrientationLocked(true)
+                            setCaptureActivity(CapturePortraitActivity::class.java)
                         }
                         scanLauncherSku.launch(options)
                     }) {
