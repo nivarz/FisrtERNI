@@ -73,8 +73,6 @@ fun OutlinedTextFieldsInputsLocation(
 
     val ctx = LocalContext.current
 
-
-
     LaunchedEffect(shouldRequestFocusAfterClear.value) {
         if (shouldRequestFocusAfterClear.value) {
             delay(100)
@@ -156,7 +154,6 @@ fun OutlinedTextFieldsInputsLocation(
             tempLocationInput.value = scanned
             validarOAceptarUbicacion(scanned, ocultarTeclado = true)
 
-
             Log.d("ScanDebug", "Escaneo recibido: $scanned")
         } else {
             Log.d("ScanDebug", "Escaneo cancelado / sin contenido")
@@ -215,7 +212,6 @@ fun OutlinedTextFieldsInputsLocation(
                                 ocultarTeclado = false
                             )
                         }
-
                     }
                 },
             singleLine = true,
@@ -230,7 +226,6 @@ fun OutlinedTextFieldsInputsLocation(
                 if (clean.length >= 13 && clean.length - location.value.length >= 3) {
                     isZebraScan.value = true
                 }
-
                 showErrorLocation.value = false
             },
             isError = showErrorLocation.value && (location.value.isEmpty() || location.value == "UBICACIÓN NO EXISTE"),
@@ -252,11 +247,9 @@ fun OutlinedTextFieldsInputsLocation(
                         ).show()
                         return@KeyboardActions
                     }
-
                     if (tempLocationInput.value.length >= 13) {
                         validarOAceptarUbicacion(tempLocationInput.value, ocultarTeclado = false)
                     }
-
                 }
                 if (!showErrorLocation.value) nextFocusRequester.requestFocus()
                 else showUbicacionNoExisteDialog.value = true
@@ -269,7 +262,16 @@ fun OutlinedTextFieldsInputsLocation(
                 ) {
                     // Lupa → abre el diálogo de selección de ubicación
                     IconButton(
-                        onClick = { onSearchClick() },           // ← callback que abre LocationSelectionDialog
+                        onClick = {
+                            // 👇 Mensaje inmediato mientras carga el AlertDialog
+                            Toast.makeText(
+                                ctx,
+                                "Cargando ubicaciones...",
+                                Toast.LENGTH_LONG
+                            ).show()
+
+                            onSearchClick()
+                        },           // ← callback que abre LocationSelectionDialog
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
@@ -301,7 +303,6 @@ fun OutlinedTextFieldsInputsLocation(
                     }
                 }
             }
-
         )
 
         // 🔵 Ícono de borrar separado (afuera del campo)

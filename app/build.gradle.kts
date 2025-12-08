@@ -87,7 +87,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
-    //implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-crashlytics")
 
     // para Tasks.await
     implementation(libs.retrofit)

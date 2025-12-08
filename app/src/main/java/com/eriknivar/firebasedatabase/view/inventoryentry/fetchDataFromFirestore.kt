@@ -32,7 +32,7 @@ fun fetchDataFromFirestore(
     val cid = clienteId.trim().uppercase(Locale.ROOT)
     val loc = localidad.trim().uppercase(Locale.ROOT)
 
-    val hoyStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+    val hoyStr = java.text.SimpleDateFormat("yyyyMMdd", Locale.getDefault())
         .format(java.util.Date())
 
     val q: Query = db.collection("clientes").document(cid).collection("inventario")

@@ -31,7 +31,6 @@ import kotlinx.coroutines.delay
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.eriknivar.firebasedatabase.scan.CapturePortraitActivity
-import com.google.firebase.firestore.Source
 
 
 @Composable
@@ -163,54 +162,10 @@ fun OutlinedTextFieldsInputsSku(
                         onClick = {
                             onUserInteraction()
 
-                            val cid = clienteIdActual?.trim()?.uppercase()
-
-                            // Si no hay cliente, abre el diálogo con lo que haya
-                            if (cid.isNullOrBlank()) {
-                                showProductDialog.value = true
-                                return@IconButton
-                            }
-
-                            // 🔄 Refrescar productos desde Firestore
-                            isLoadingProductos.value = true
-
-                            db.collection("clientes")
-                                .document(cid)
-                                .collection("productos")
-                                .get(Source.SERVER)
-                                .addOnSuccessListener { snap ->
-                                    val lista = mutableListOf<String>()
-                                    val mapa = mutableMapOf<String, Pair<String, String>>()
-
-                                    for (doc in snap.documents) {
-                                        val codigo = (doc.getString("codigo") ?: doc.id)
-                                            .trim()
-                                            .uppercase()
-
-                                        val desc = (doc.getString("nombreComercial")
-                                            ?: doc.getString("nombreNormalizado")
-                                            ?: doc.getString("descripcion")
-                                            ?: ""
-                                                ).trim()
-
-                                        val um = doc.extractUnidad()
-                                        val label = if (desc.isNotEmpty()) "$codigo - $desc" else codigo
-
-                                        lista.add(label)
-                                        mapa[label] = codigo to um
-                                    }
-
-                                    productList.value = lista
-                                    productMap.value = mapa
-                                    isLoadingProductos.value = false
-                                    showProductDialog.value = true
-                                }
-                                .addOnFailureListener { e ->
-                                    Log.e("SKU_DIALOG", "Error recargando productos", e)
-                                    isLoadingProductos.value = false
-                                    // igual abrimos el diálogo con lo que hubiera
-                                    showProductDialog.value = true
-                                }
+                            // Ya no recargamos catálogo completo aquí.
+                            // Solo abrimos el diálogo y que ProductSelectionDialog
+                            // haga la búsqueda por texto contra Firestore.
+                            showProductDialog.value = true
                         }
                     ) {
                         Icon(

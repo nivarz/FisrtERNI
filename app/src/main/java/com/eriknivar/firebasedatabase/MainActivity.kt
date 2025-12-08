@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.eriknivar.firebasedatabase.navigation.NetworkAwareNavGraph
 import com.eriknivar.firebasedatabase.view.utility.InactivityHandler
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 
 
 class MainActivity : ComponentActivity() {
@@ -50,6 +51,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::inactivityHandler.isInitialized) {
+            inactivityHandler.startTimer()
+        }
+    }
+
+    override fun onPause() {
+        if (::inactivityHandler.isInitialized) {
+            inactivityHandler.stopTimer()
+        }
+        super.onPause()
+    }
+
+
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (::inactivityHandler.isInitialized) {
             inactivityHandler.userInteracted()
@@ -66,11 +82,28 @@ fun MyApp(
 ) {
     val navController = rememberNavController()
 
+    // ==== Crashlytics: identificar al usuario logueado ====
+    val crashUserId   = userViewModel.documentId.observeAsState("").value
+    val crashCliente  = userViewModel.clienteId.observeAsState("").value
+    val crashTipo     = userViewModel.tipo.observeAsState("").value
+    val crashNombre   = userViewModel.nombre.observeAsState("").value   // ⬅️ nombre
+
+    LaunchedEffect(crashUserId, crashCliente, crashTipo) {
+        if (crashUserId.isNotBlank()) {
+            val crash = FirebaseCrashlytics.getInstance()
+            crash.setUserId(crashUserId)
+            crash.setCustomKey("clienteId", crashCliente)
+            crash.setCustomKey("tipoUsuario", crashTipo)
+            crash.setCustomKey("nombreUsuario", crashNombre)  // ⬅️ nombre visible
+
+        }
+    }
+    // =======================================================
 
     // Solicita permiso de cámara y arranca el timer
     LaunchedEffect(Unit) {
         requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        inactivityHandler.startTimer()
+        //inactivityHandler.startTimer()
     }
 
     // Detecta si el usuario fue deslogueado

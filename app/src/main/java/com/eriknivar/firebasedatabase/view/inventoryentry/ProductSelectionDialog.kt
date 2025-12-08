@@ -3,9 +3,13 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,26 +48,57 @@ fun ProductSelectionDialog(
     val db = remember { FirebaseFirestore.getInstance() }
     val cidUi = remember(clienteIdActual) { clienteIdActual?.trim()?.uppercase() }
 
-    // Carga de productos al abrir/cambiar cliente
-    LaunchedEffect(cidUi, showProductDialog.value) {
+
+    // Búsqueda bajo demanda según lo que escribe el usuario
+    LaunchedEffect(cidUi, searchQuery, showProductDialog.value) {
         if (!showProductDialog.value) return@LaunchedEffect
+
+        val cid = cidUi
+        val term = searchQuery.trim()
+
+        // Sin cliente seleccionado
+        if (cid.isNullOrBlank()) {
+            isLoading = false
+            errorMsg = "Selecciona un cliente para ver productos."
+            productList.value = emptyList()
+            productMap.value = emptyMap()
+            return@LaunchedEffect
+        }
+
+        // Si aún no ha escrito suficiente texto, no llamamos a Firestore
+        if (term.length < 2) {
+            isLoading = false
+            errorMsg = null
+            productList.value = emptyList()
+            productMap.value = emptyMap()
+            return@LaunchedEffect
+        }
+
         isLoading = true
         errorMsg = null
         productList.value = emptyList()
         productMap.value = emptyMap()
 
-        val cid = cidUi
-        if (cid.isNullOrBlank()) {
-            isLoading = false
-            errorMsg = "Selecciona un cliente para ver productos."
-            return@LaunchedEffect
-        }
+        try {
+            val col = db.collection("clientes").document(cid).collection("productos")
+
+            // asumimos nombreNormalizado en MAYÚSCULAS
+            val termUpper = term.uppercase()
+
+            val PAGE_SIZE = 200L   // al inicio del composable o arriba del try
+
+            val snap = col
+                .orderBy("descripcion")
+                .startAt(termUpper)
+                .endAt(termUpper + "\uf8ff")
+                .limit(PAGE_SIZE)
+                .get()
+                .await()
 
 
-        suspend fun cargar(query: com.google.firebase.firestore.Query) {
-            val snap = query.get().await()
             val lista = mutableListOf<String>()
             val mapa = mutableMapOf<String, Pair<String, String>>()
+
             for (doc in snap.documents) {
                 val codigo = doc.id
                 val desc = (
@@ -78,18 +113,19 @@ fun ProductSelectionDialog(
                     mapa[desc] = codigo to um
                 }
             }
+
             productList.value = lista.sorted()
             productMap.value = mapa
-        }
 
-        try {
-            val col = db.collection("clientes").document(cid).collection("productos")
-            // 1) primero con filtro 'activo'
-            cargar(col.whereEqualTo("activo", true))
-            // 2) si quedó vacío, probamos sin filtro (por si faltara el campo en algunos docs)
-            if (productList.value.isEmpty()) cargar(col)
+            if (lista.isEmpty()) {
+                // opcional: mensaje de "sin resultados"
+                errorMsg = null  // lo dejamos null para que lo maneje la UI
+            }
+
         } catch (e: Exception) {
-            errorMsg = e.message ?: "Error desconocido al cargar productos"
+            errorMsg = e.message ?: "Error desconocido al buscar productos"
+            productList.value = emptyList()
+            productMap.value = emptyMap()
         } finally {
             isLoading = false
         }
@@ -107,12 +143,25 @@ fun ProductSelectionDialog(
                 // Buscador
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = { newValue ->
+                        // siempre en MAYÚSCULAS
+                        searchQuery = newValue.uppercase()
+                    },
                     label = { Text("Buscar producto") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 8.dp),
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Borrar búsqueda"
+                                )
+                            }
+                        }
+                    }
                 )
 
                 // Estado
@@ -129,16 +178,14 @@ fun ProductSelectionDialog(
                         Text(errorMsg!!, color = Color.Red, fontSize = 12.sp)
                     }
                     else -> {
-                        val filtered = productList.value.filter {
-                            it.contains(searchQuery, ignoreCase = true)
-                        }
+                        val listaActual = productList.value
 
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 120.dp, max = 480.dp)
                         ) {
-                            items(filtered) { descripcion ->
+                            items(listaActual) { descripcion ->
                                 TextButton(
                                     onClick = {
                                         onUserInteraction()
@@ -160,10 +207,6 @@ fun ProductSelectionDialog(
                                             overflow = TextOverflow.Ellipsis,
                                             color = Color.Black,
                                         )
-                                        // Si quieres mostrar la UM dentro del diálogo, descomenta:
-                                        // productMap.value[descripcion]?.second?.takeIf { it.isNotBlank() }?.let { um ->
-                                        //     Text(text = um, fontSize = 12.sp, color = Color.Gray)
-                                        // }
                                     }
                                 }
                                 HorizontalDivider()

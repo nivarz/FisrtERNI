@@ -79,6 +79,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.tasks.await
 import com.eriknivar.firebasedatabase.view.utility.ImageUtils
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 
 @Composable
 fun FormEntradaDeInventario(
@@ -363,6 +364,20 @@ fun FormEntradaDeInventario(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
+            /*
+            // IMPORTANTE arriba del archivo:
+            // import com.google.firebase.crashlytics.FirebaseCrashlytics
+
+            Button(
+                onClick = {
+                    FirebaseCrashlytics.getInstance()
+                        .log("Prueba de Crashlytics desde el botón secreto")
+                    throw RuntimeException("Test Crashlytics Nivar - botón secreto")
+                }
+            ) {
+                Text("Forzar Crash")
+            }
+            */
 
             // Location
 
@@ -474,7 +489,6 @@ fun FormEntradaDeInventario(
                 keyboardController = LocalSoftwareKeyboardController.current
             )
 
-
             // ANCLA: reemplazo completo de continuarGuardadoConFoto(...)
             fun continuarGuardadoConFoto(hadPhoto: Boolean, uriLocal: String?, fotoUrl: String?) {
 
@@ -497,7 +511,10 @@ fun FormEntradaDeInventario(
                             isSaving = false
                         } else {
                             Log.d("FotoDebug", "📤 Enviando a Firestore: fotoUrlRemota=$fotoUrl")
-                            Log.d("FotoDebug", "🚀 Llamando saveToFirestore hadPhoto=$hadPhotoFinal, uriLocal=$uriLog")
+                            Log.d(
+                                "FotoDebug",
+                                "🚀 Llamando saveToFirestore hadPhoto=$hadPhotoFinal, uriLocal=$uriLog"
+                            )
 
                             saveToFirestore(
                                 db = firestore,
@@ -560,16 +577,12 @@ fun FormEntradaDeInventario(
                 )
             }
 
-
-
-
             // Libera loading y continúa con o sin URL
             fun finishSaving(hadPhoto: Boolean, uriLocal: String?) {
                 showSavingDialog.value = false
                 isSaving = false
-                continuarGuardadoConFoto(hadPhoto, uriLocal, fotoUrl = null  )
+                continuarGuardadoConFoto(hadPhoto, uriLocal, fotoUrl = null)
             }
-
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -582,7 +595,7 @@ fun FormEntradaDeInventario(
                 Button(
                     onClick = {
                         //val ctx = context
-                       // val imagesDir = File(ctx.cacheDir, "images").apply { mkdirs() }
+                        // val imagesDir = File(ctx.cacheDir, "images").apply { mkdirs() }
                         //val imageFile = File.createTempFile("foto_", ".jpg", imagesDir)
 
                         // ANCLA BOTON-FOTO (onClick)
@@ -693,7 +706,6 @@ fun FormEntradaDeInventario(
                             showErrorLocation.value = false
                             showErrorSku.value = false
 
-
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -732,7 +744,6 @@ fun FormEntradaDeInventario(
                         unidadMedida.value = ""
                         qrCodeContentSku.value = ""
                         qrCodeContentLot.value = ""
-
                         showErrorLocation.value = false
                         showErrorSku.value = false
                         showErrorQuantity.value = false
@@ -790,21 +801,23 @@ fun FormEntradaDeInventario(
 
                                 // ANCLA donde falla ahora
                                 val uri = photoUri.value
-                                val hadPhoto = (uri != null)              // <- antes usabas uriLocal
-                                finishSaving(hadPhoto, uri?.toString())   // <- pasamos el String? correcto
+                                val hadPhoto =
+                                    (uri != null)              // <- antes usabas uriLocal
+                                finishSaving(
+                                    hadPhoto,
+                                    uri?.toString()
+                                )   // <- pasamos el String? correcto
 
                                 // Limpieza y aviso (igual que ya tenías)
                                 if (hadPhoto) {
                                     photoUri.value = null
                                     tieneFoto.value = false
-                                   /* Toast.makeText(
-                                        context,
-                                        "Registro guardado. La foto se subirá en segundo plano.",
-                                        Toast.LENGTH_SHORT
-                                    ).show()*/
+                                    /* Toast.makeText(
+                                         context,
+                                         "Registro guardado. La foto se subirá en segundo plano.",
+                                         Toast.LENGTH_SHORT
+                                     ).show()*/
                                 }
-
-
 
                             }) {
                             Text("Sí, grabar", color = Color(0xFF003366))
@@ -1005,7 +1018,6 @@ fun FormEntradaDeInventario(
                     onDismiss = { showLocationDialog.value = false }
                 )
             }
-
         }
     }
     LaunchedEffect(pendingExit) {
@@ -1015,7 +1027,6 @@ fun FormEntradaDeInventario(
         }
     }
 }
-
 
 // Helper: obtiene la URL con reintentos suaves y backoff.
 private fun getDownloadUrlWithRetry(

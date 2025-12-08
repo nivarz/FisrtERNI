@@ -860,7 +860,7 @@ fun LocalidadDropdown(
             readOnly = true,
             value = localidadSeleccionada.value,
             onValueChange = { },
-            label = { Text("Localidad", color = Color.Black) },
+            label = { Text("Almacen", color = Color.Black) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded)
             },

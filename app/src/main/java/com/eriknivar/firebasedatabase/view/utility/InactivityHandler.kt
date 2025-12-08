@@ -12,7 +12,7 @@ class InactivityHandler(private val timeoutMillis: Long = 1_800_000, val onTimeo
         handler.postDelayed(runnable, timeoutMillis)
     }
 
-    private fun stopTimer() {
+    fun stopTimer() {
         handler.removeCallbacks(runnable)
     }
 
