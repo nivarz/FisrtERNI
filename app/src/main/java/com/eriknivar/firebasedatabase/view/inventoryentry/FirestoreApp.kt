@@ -15,10 +15,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -86,6 +90,25 @@ fun FirestoreApp(
     val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
 
+    // 🔎 Búsqueda por código/SKU
+    var searchCodigo by remember { mutableStateOf("") }
+
+    // Lista filtrada que usará el LazyColumn
+    val filteredData by remember(searchCodigo, allData) {
+        derivedStateOf {
+            val q = searchCodigo.trim().uppercase()
+            if (q.isBlank()) {
+                allData
+            } else {
+                allData.filter { item ->
+                    item.sku.uppercase().contains(q) ||
+                            item.location.uppercase().contains(q)
+                            || item.description.uppercase().contains(q)
+                }
+            }
+        }
+    }
+
     val currentUserId = userViewModel.documentId.value?.takeIf { it.isNotBlank() }
 
     DisposableEffect(currentUserId, currentSessionId) {
@@ -113,7 +136,8 @@ fun FirestoreApp(
                 val fromCache = snapshot.metadata.isFromCache
 
                 val remoteSessionId = snapshot.getString("sessionId")?.trim().orEmpty()
-                val localSessionId = (currentSessionId).trim() // si fuera nullable: currentSessionId?.trim().orEmpty()
+                val localSessionId =
+                    (currentSessionId).trim() // si fuera nullable: currentSessionId?.trim().orEmpty()
 
                 // ✅ Solo “kick” si NO es cache y ambos IDs tienen valor y son distintos
                 val mustKick = !fromCache &&
@@ -121,7 +145,10 @@ fun FirestoreApp(
                         localSessionId.isNotBlank() &&
                         remoteSessionId != localSessionId
 
-                Log.d("SESSION", "fromCache=$fromCache remote=$remoteSessionId local=$localSessionId mustKick=$mustKick manual=${userViewModel.isManualLogout.value}")
+                Log.d(
+                    "SESSION",
+                    "fromCache=$fromCache remote=$remoteSessionId local=$localSessionId mustKick=$mustKick manual=${userViewModel.isManualLogout.value}"
+                )
 
                 if (mustKick && !userViewModel.isManualLogout.value) {
                     Toast.makeText(
@@ -163,8 +190,7 @@ fun FirestoreApp(
         }
     }
 
-
-// 🔊 Listener Realtime de inventario (reemplaza el que tenías antes)
+    // 🔊 Listener Realtime de inventario (reemplaza el que tenías antes)
     DisposableEffect(
         // Observa el cliente seleccionado y la localidad (storageType)
         userViewModel.clienteId.observeAsState("").value,
@@ -238,7 +264,9 @@ fun FirestoreApp(
 
                 val sku = when {
                     df.sku.isNotBlank() -> df.sku
-                    !doc.getString("codigoProducto").isNullOrBlank() -> doc.getString("codigoProducto")!!
+                    !doc.getString("codigoProducto")
+                        .isNullOrBlank() -> doc.getString("codigoProducto")!!
+
                     else -> ""
                 }
 
@@ -254,15 +282,15 @@ fun FirestoreApp(
                     ?: ""
 
                 df.copy(
-                    documentId   = doc.id,
-                    quantity     = cantidad,
-                    location     = ubicacion,
+                    documentId = doc.id,
+                    quantity = cantidad,
+                    location = ubicacion,
                     unidadMedida = unidad,
-                    sku          = sku,
-                    description  = descripcion,
+                    sku = sku,
+                    description = descripcion,
                     // 👇 claves que necesitaba el contador
                     fechaRegistro = fechaTS,
-                    usuario       = usuarioNombre,
+                    usuario = usuarioNombre,
                     tipoUsuarioCreador = tipoCreador
 
                 )
@@ -270,7 +298,10 @@ fun FirestoreApp(
 
             allData.clear()
             allData.addAll(nuevos)
-            Log.d("InvRealtime", "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})")
+            Log.d(
+                "InvRealtime",
+                "UI actualizada: ${nuevos.size} regs (fromCache=${docs.metadata.isFromCache})"
+            )
 
         }
 
@@ -357,7 +388,6 @@ fun FirestoreApp(
                             )
                         }
 
-
                         Icon(
                             imageVector = Icons.Default.ExpandMore,
                             contentDescription = if (expandedForm.value) "Ocultar formulario" else "Mostrar formulario",
@@ -367,6 +397,31 @@ fun FirestoreApp(
                             tint = Color.Blue
                         )
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 5.dp))
+
+                    // 🔎 Search por código/SKU para los cards
+                    OutlinedTextField(
+                        value = searchCodigo,
+                        onValueChange = { searchCodigo = it },
+                        label = { Text("Buscar por código / SKU / Descripcion", fontSize = 12.sp) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        trailingIcon = {
+                            if (searchCodigo.isNotBlank()) {
+                                IconButton(onClick = { searchCodigo = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Limpiar búsqueda"
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 40.dp, max = 58.dp)   // un poco más bajito
+                            .padding(horizontal = 8.dp)
+                    )
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 5.dp))
 
@@ -419,7 +474,7 @@ fun FirestoreApp(
                     state = listState
                 ) {
                     itemsIndexed(
-                        items = allData,
+                        items = filteredData,
                         key = { _, item -> item.documentId }
                     ) { index, item ->
                         MessageCard(

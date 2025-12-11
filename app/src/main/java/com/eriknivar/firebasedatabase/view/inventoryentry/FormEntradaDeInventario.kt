@@ -684,11 +684,53 @@ fun FormEntradaDeInventario(
                             }
 
                             // 🟥 6. Validación: producto no existe o sin descripción válida
-                            if (productoDescripcion.value == "Sin descripción" || productoDescripcion.value.isEmpty() || productoDescripcion.value == "Error al obtener datos") {
+                            if (
+                                productoDescripcion.value == "Sin descripción" ||
+                                productoDescripcion.value.isEmpty() ||
+                                productoDescripcion.value == "Error al obtener datos"
+                            ) {
                                 delay(150)
                                 showDialog2 = true
                                 isSaving = false
                                 return@launch
+                            }
+
+                            // 🔐 6 BIS. Refrescar descripción desde el maestro según el SKU actual
+                            try {
+                                val cid = clienteIdActual.orEmpty()
+                                val codigoActual = sku.value.trim()
+
+                                if (cid.isNotEmpty() && codigoActual.isNotEmpty()) {
+                                    val doc = FirebaseFirestore.getInstance()
+                                        .collection("clientes")
+                                        .document(cid)
+                                        .collection("productos")
+                                        .document(codigoActual)
+                                        .get()
+                                        .await()
+
+                                    if (!doc.exists()) {
+                                        // El SKU no existe en el maestro → no dejamos grabar
+                                        showDialog2 =
+                                            true      // reutilizas el mismo diálogo de “producto inválido”
+                                        isSaving = false
+                                        return@launch
+                                    }
+
+                                    val descMaestro = (doc.getString("descripcion") ?: "").trim()
+                                    if (descMaestro.isBlank()) {
+                                        showDialog2 = true
+                                        isSaving = false
+                                        return@launch
+                                    }
+
+                                    // Siempre forzamos la descripción oficial del maestro
+                                    productoDescripcion.value = descMaestro
+                                }
+                            } catch (e: Exception) {
+                                // Si falla por red, seguimos con lo que ya teníamos,
+                                // pero al menos no rompemos el flujo de grabado.
+                                e.printStackTrace()
                             }
 
                             // 🟥 7. Validación: cantidad igual a 0

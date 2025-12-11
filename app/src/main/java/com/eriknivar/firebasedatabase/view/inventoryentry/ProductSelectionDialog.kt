@@ -28,7 +28,7 @@ import kotlinx.coroutines.tasks.await
 @Composable
 fun ProductSelectionDialog(
     productList: MutableState<List<String>>,
-    productMap: MutableState<Map<String, Pair<String, String>>>, // desc -> (codigo, unidad)
+    productMap: MutableState<Map<String, Pair<String, String>>>, // descUi -> (codigo, unidad)
     showProductDialog: MutableState<Boolean>,
     sku: MutableState<String>,
     qrCodeContentSku: MutableState<String>,
@@ -38,7 +38,6 @@ fun ProductSelectionDialog(
     unidadMedida: MutableState<String>,
     clienteIdActual: String?
 ) {
-    // Si no está visible, no pintamos nada
     if (!showProductDialog.value) return
 
     var searchQuery by remember { mutableStateOf("") }
@@ -48,27 +47,15 @@ fun ProductSelectionDialog(
     val db = remember { FirebaseFirestore.getInstance() }
     val cidUi = remember(clienteIdActual) { clienteIdActual?.trim()?.uppercase() }
 
-
-    // Búsqueda bajo demanda según lo que escribe el usuario
-    LaunchedEffect(cidUi, searchQuery, showProductDialog.value) {
+    // 1) CARGA DE PRODUCTOS (una sola vez por cliente al abrir el diálogo)
+    LaunchedEffect(cidUi, showProductDialog.value) {
         if (!showProductDialog.value) return@LaunchedEffect
 
         val cid = cidUi
-        val term = searchQuery.trim()
 
-        // Sin cliente seleccionado
         if (cid.isNullOrBlank()) {
             isLoading = false
             errorMsg = "Selecciona un cliente para ver productos."
-            productList.value = emptyList()
-            productMap.value = emptyMap()
-            return@LaunchedEffect
-        }
-
-        // Si aún no ha escrito suficiente texto, no llamamos a Firestore
-        if (term.length < 2) {
-            isLoading = false
-            errorMsg = null
             productList.value = emptyList()
             productMap.value = emptyMap()
             return@LaunchedEffect
@@ -80,55 +67,89 @@ fun ProductSelectionDialog(
         productMap.value = emptyMap()
 
         try {
-            val col = db.collection("clientes").document(cid).collection("productos")
+            val col = db.collection("clientes")
+                .document(cid)
+                .collection("productos")
 
-            // asumimos nombreNormalizado en MAYÚSCULAS
-            val termUpper = term.uppercase()
-
-            val PAGE_SIZE = 200L   // al inicio del composable o arriba del try
-
-            val snap = col
-                .orderBy("descripcion")
-                .startAt(termUpper)
-                .endAt(termUpper + "\uf8ff")
-                .limit(PAGE_SIZE)
-                .get()
-                .await()
-
+            val pageSize = 10_000L      // límite Firestore
+            val hardLimit = 35_000      // seguridad
 
             val lista = mutableListOf<String>()
             val mapa = mutableMapOf<String, Pair<String, String>>()
 
-            for (doc in snap.documents) {
-                val codigo = doc.id
-                val desc = (
-                        doc.getString("nombreComercial")
-                            ?: doc.getString("nombreNormalizado")
-                            ?: doc.getString("descripcion")
-                            ?: ""
-                        ).trim()
-                val um = doc.extractUnidad()
-                if (desc.isNotEmpty()) {
-                    lista.add(desc)
-                    mapa[desc] = codigo to um
+            var lastDoc: DocumentSnapshot? = null
+            var totalCargados = 0
+
+            while (true) {
+                var query = col
+                    .orderBy("descripcion")
+                    .limit(pageSize)
+
+                if (lastDoc != null) {
+                    query = query.startAfter(lastDoc)
                 }
+
+                val snap = query.get().await()
+                if (snap.isEmpty) break
+
+                for (doc in snap.documents) {
+                    val codigo = doc.id
+                    val descRaw = (
+                            doc.getString("descripcion")
+                                ?: doc.getString("nombreComercial")
+                                ?: doc.getString("nombreNormalizado")
+                                ?: ""
+                            ).trim()
+
+                    // ⚠️ AHORA sí guardamos la UNIDAD real
+                    val unidad = doc.extractUnidad()
+
+                    val descUi = "$codigo - $descRaw"
+
+                    lista.add(descUi)
+                    mapa[descUi] = codigo to unidad
+                }
+
+                totalCargados += snap.size()
+                lastDoc = snap.documents.last()
+
+                if (snap.size() < pageSize.toInt()) break
+                if (totalCargados >= hardLimit) break
             }
 
-            productList.value = lista.sorted()
+            productList.value = lista
             productMap.value = mapa
-
-            if (lista.isEmpty()) {
-                // opcional: mensaje de "sin resultados"
-                errorMsg = null  // lo dejamos null para que lo maneje la UI
-            }
-
         } catch (e: Exception) {
-            errorMsg = e.message ?: "Error desconocido al buscar productos"
-            productList.value = emptyList()
-            productMap.value = emptyMap()
+            errorMsg = e.message ?: "Error cargando productos"
         } finally {
             isLoading = false
         }
+    }
+
+    // 2) FILTRO LOCAL según lo escrito por el usuario
+    val filteredList by remember(productList.value, productMap.value, searchQuery) {
+        mutableStateOf(
+            if (searchQuery.isBlank()) {
+                productList.value
+            } else {
+                val q = searchQuery
+                productList.value.filter { descUi ->
+                    val (codigo) =
+                        productMap.value[descUi] ?: return@filter false
+
+                    // descUi visible trae "CODIGO - DESCRIPCION COMPLETA"
+                    // pero aquí usamos la descripción "unidadOrDesc" NO,
+                    // mejor la parte después del guion para que no dependa del bug:
+                    val descSolo = descUi.substringAfter(" - ", missingDelimiterValue = descUi)
+
+                    coincideConBusqueda(
+                        descripcion = descSolo,
+                        codigo = codigo,
+                        rawQuery = q
+                    )
+                }
+            }
+        )
     }
 
     AlertDialog(
@@ -140,11 +161,10 @@ fun ProductSelectionDialog(
         text = {
             Column(Modifier.fillMaxWidth()) {
 
-                // Buscador
+                // Caja de búsqueda
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { newValue ->
-                        // siempre en MAYÚSCULAS
                         searchQuery = newValue.uppercase()
                     },
                     label = { Text("Buscar producto") },
@@ -164,7 +184,6 @@ fun ProductSelectionDialog(
                     }
                 )
 
-                // Estado
                 when {
                     isLoading -> {
                         Box(
@@ -174,25 +193,25 @@ fun ProductSelectionDialog(
                             contentAlignment = Alignment.Center
                         ) { CircularProgressIndicator() }
                     }
+
                     !errorMsg.isNullOrBlank() -> {
                         Text(errorMsg!!, color = Color.Red, fontSize = 12.sp)
                     }
-                    else -> {
-                        val listaActual = productList.value
 
+                    else -> {
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 120.dp, max = 480.dp)
                         ) {
-                            items(listaActual) { descripcion ->
+                            items(filteredList) { descripcionUi ->
                                 TextButton(
                                     onClick = {
                                         onUserInteraction()
-                                        productMap.value[descripcion]?.let { (codigo, um) ->
+                                        productMap.value[descripcionUi]?.let { (codigo, um) ->
                                             sku.value = codigo
                                             qrCodeContentSku.value = codigo
-                                            productoDescripcion.value = descripcion
+                                            productoDescripcion.value = descripcionUi
                                             unidadMedida.value = um
                                         }
                                         showProductDialog.value = false
@@ -202,7 +221,7 @@ fun ProductSelectionDialog(
                                 ) {
                                     Column(Modifier.fillMaxWidth()) {
                                         Text(
-                                            text = descripcion,
+                                            text = descripcionUi,
                                             maxLines = 4,
                                             overflow = TextOverflow.Ellipsis,
                                             color = Color.Black,
@@ -213,10 +232,10 @@ fun ProductSelectionDialog(
                             }
                         }
 
-                        if (productList.value.isEmpty()) {
+                        if (!isLoading && filteredList.isEmpty()) {
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                text = "No hay productos para este cliente.",
+                                text = "No hay productos que coincidan con la búsqueda.",
                                 color = Color.Gray,
                                 fontSize = 12.sp
                             )
@@ -244,4 +263,26 @@ private fun DocumentSnapshot.extractUnidad(): String {
         }
     }
     return "UND"
+}
+
+private fun coincideConBusqueda(
+    descripcion: String?,
+    codigo: String?,
+    rawQuery: String
+): Boolean {
+    val query = rawQuery.trim().lowercase()
+    if (query.isBlank()) return true
+
+    val terms = query.split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+
+    if (terms.isEmpty()) return true
+
+    val textoDescripcion = (descripcion ?: "").lowercase()
+    val textoCodigo = (codigo ?: "").lowercase()
+
+    // Todas las palabras deben aparecer en descripción O código
+    return terms.all { term ->
+        textoDescripcion.contains(term) || textoCodigo.contains(term)
+    }
 }

@@ -362,15 +362,15 @@ fun MessageCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = item.description,
+                        text = "${item.codigoProducto} | ${item.description}",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         color = Color.Blue,
                         modifier = Modifier.padding(bottom = 2.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 2,                        // 👈 antes estaba en 1
+                        overflow = TextOverflow.Ellipsis,    // sigue cortando si pasa de 2 líneas
+                        softWrap = true                      // (opcional, pero ayuda a dejar claro que puede saltar de línea)
                     )
-
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
