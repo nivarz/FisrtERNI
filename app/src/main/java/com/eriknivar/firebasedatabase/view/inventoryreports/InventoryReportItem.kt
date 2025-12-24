@@ -37,7 +37,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -50,10 +49,17 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import android.widget.Toast
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
-
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun InventoryReportItem(
@@ -69,6 +75,12 @@ fun InventoryReportItem(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showAuditDialog by remember { mutableStateOf(false) }
+    var showImageDialog by remember { mutableStateOf(false) }
+    var showFullScreenImage by remember { mutableStateOf(false) }
+
+    val previewUri = remember(item.documentId, item.fotoUrl) {
+        item.fotoUrl.trim().takeIf { it.isNotBlank() }
+    }
 
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
     val fechaFormateada = item.fechaRegistro?.toDate()?.let { sdf.format(it) } ?: "Sin fecha"
@@ -80,15 +92,14 @@ fun InventoryReportItem(
     var esAuditado by remember(item.documentId) { mutableStateOf(item.auditado) }
     val backgroundColor = when {
         esAuditado -> Color(0xFFE8F5E9)        // 💚 Verde suave si está auditado
-        expanded   -> Color(0xFFE3F2FD)        // Azulito cuando está expandido
-        else       -> Color.White              // Normal
+        expanded -> Color(0xFFE3F2FD)        // Azulito cuando está expandido
+        else -> Color.White              // Normal
     }
 
     var isSaving by remember { mutableStateOf(false) }
 
     var showUbiInvalida by remember { mutableStateOf(false) }
     var ubiInvalidaTexto by remember { mutableStateOf(AnnotatedString("")) }
-
 
     val datePickerDialog = DatePickerDialog(
         context,
@@ -148,34 +159,38 @@ fun InventoryReportItem(
                 InfoRow("Usuario:", item.usuario)
                 InfoRow("Localidad:", item.localidad)
 
-                // 🟦 Mostrar enlace a foto si existe
-                if (item.fotoUrl.isNotBlank()) {
-                    var showImageDialog by remember { mutableStateOf(false) }
-
+                // 🟦 Foto con miniatura + diálogo + full screen
+                if (previewUri != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
                         Text(
-                            "Foto: ",
+                            "Foto:",
                             fontSize = 13.sp,
                             color = Color.Black,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(150.dp)
+                            modifier = Modifier.width(90.dp)
                         )
-                        Text(
-                            text = "VER",
-                            color = Color.Black,
-                            fontSize = 13.sp,
-                            textDecoration = TextDecoration.Underline,
+
+                        Spacer(modifier = Modifier.width(60.dp))
+
+                        AsyncImage(
+                            model = previewUri,
+                            contentDescription = "Miniatura foto",
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .weight(1f)
+                                .size(80.dp)
+                                .border(
+                                    width = 1.dp,
+                                    color = Color(0xFFB0BEC5),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
                                 .clickable {
-                                    Log.d(
-                                        "FotoDebug", "🟢 VER presionado en Reporte: ${item.fotoUrl}"
-                                    )
+                                    Log.d("FotoDebug", "🟢 Miniatura reporte pulsada: $previewUri")
                                     showImageDialog = true
-                                })
+                                }
+                        )
                     }
 
                     if (showImageDialog) {
@@ -192,23 +207,22 @@ fun InventoryReportItem(
                             },
                             title = {
                                 Text(
-                                    text = "📷 Imagen Asociada", fontWeight = FontWeight.Bold
+                                    text = "📷 Imagen asociada",
+                                    fontWeight = FontWeight.Bold
                                 )
                             },
                             text = {
-                                Log.d(
-                                    "FotoDebug",
-                                    "📷 Mostrando imagen en Reporte desde URL: ${item.fotoUrl}"
-                                )
                                 AsyncImage(
-                                    model = item.fotoUrl.trim(),
+                                    model = previewUri,
                                     contentDescription = "Imagen asociada",
                                     contentScale = ContentScale.Fit,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(300.dp)
+                                        .height(500.dp)
+                                        .clickable { showFullScreenImage = true }
                                 )
-                            })
+                            }
+                        )
                     }
                 }
 
@@ -320,7 +334,7 @@ fun InventoryReportItem(
                             mapOf(
                                 "auditado" to true,
                                 "auditadoPorUid" to uid,
-                                "auditadoPorNombre" to (auditorNombre ?: ""),
+                                "auditadoPorNombre" to auditorNombre,
                                 "auditadoEn" to FieldValue.serverTimestamp()
                             )
                         ).addOnSuccessListener {
@@ -481,6 +495,30 @@ fun InventoryReportItem(
                 title = { Text("Ubicación inválida") },
                 text = { Text(ubiInvalidaTexto) } // <- AnnotatedString con “ubi” (y “loc”) en negrita
             )
+        }
+    }
+
+    if (showFullScreenImage && previewUri != null) {
+        Dialog(
+            onDismissRequest = { showFullScreenImage = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { showFullScreenImage = false },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = previewUri,
+                    contentDescription = "Imagen asociada (full screen)",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                )
+            }
         }
     }
 }

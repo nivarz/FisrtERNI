@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 
@@ -31,8 +32,8 @@ fun LocationSelectionDialog(
     // Filtrado simple por contiene, ignorando mayúsculas
     val filtered = remember(locations, query) {
         val q = query.text.trim().uppercase()
-        if (q.isEmpty()) locations
-        else locations.filter { it.uppercase().contains(q) }
+        val base = if (q.isEmpty()) locations else locations.filter { it.uppercase().contains(q) }
+        base.distinct() // <- evita duplicados en la UI
     }
 
     AlertDialog(
@@ -42,13 +43,21 @@ fun LocationSelectionDialog(
             Column(Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = { newValue ->
+                        val upper = newValue.text.uppercase()
+                        query = newValue.copy(
+                            text = upper,
+                            selection = TextRange(upper.length)  // cursor al final
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 12.dp),
                     singleLine = true,
                     placeholder = { Text("Buscar") },
                     label = { Text("Buscar") },
+                    maxLines = 1,
+
                     trailingIcon = {
                         if (query.text.isNotEmpty()) {
                             IconButton(onClick = { query = TextFieldValue("") }) {
@@ -61,7 +70,8 @@ fun LocationSelectionDialog(
 
                 Box(Modifier.heightIn(min = 120.dp, max = 360.dp)) {
                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                        items(filtered, key = { it }) { code ->
+                        // usamos la posición como key implícita; no forzamos String como key
+                        items(filtered) { code ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

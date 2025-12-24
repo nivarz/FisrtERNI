@@ -291,27 +291,52 @@ private fun lookupSkuForClient(
     code: String,
     onResult: (String, String) -> Unit
 ) {
-    val skuCode = code.trim().uppercase()
-    if (skuCode.isEmpty()) {
-        onResult("", ""); return
+    val rawCode = code.trim()
+
+    // 🛡 1) Validación básica
+    if (rawCode.isEmpty()) {
+        onResult("", "")
+        return
     }
 
-    db.collection("clientes").document(clienteId)
-        .collection("productos").document(skuCode)
-        .get()
-        .addOnSuccessListener { doc ->
-            if (!doc.exists()) {
-                onResult("Sin descripción", "")
-                return@addOnSuccessListener
+    // 🛡 2) Filtro anti-URL / paths inválidos (caso QR DGII y similares)
+    if (rawCode.contains("://") || rawCode.contains("/") || rawCode.contains("\\")) {
+        Log.w("lookupSkuForClient", "Código inválido para Firestore: $rawCode")
+        onResult("Sin descripción", "")
+        return
+    }
+
+    val skuCode = rawCode.uppercase()
+
+    try {
+        db.collection("clientes").document(clienteId)
+            .collection("productos").document(skuCode)
+            .get()
+            .addOnSuccessListener { doc ->
+                if (!doc.exists()) {
+                    onResult("Sin descripción", "")
+                    return@addOnSuccessListener
+                }
+
+                val desc = (doc.getString("nombreComercial")
+                    ?: doc.getString("nombreNormalizado")
+                    ?: doc.getString("descripcion")
+                    ?: "Sin descripción").trim()
+
+                val um = doc.extractUnidad()
+                onResult(desc, um)
             }
-            val desc = (doc.getString("nombreComercial")
-                ?: doc.getString("nombreNormalizado")
-                ?: doc.getString("descripcion")
-                ?: "Sin descripción").trim()
-            val um = doc.extractUnidad()
-            onResult(desc, um)
-        }
-        .addOnFailureListener {
-            onResult("Error al obtener datos", "N/A")
-        }
+            .addOnFailureListener { e ->
+                Log.e("lookupSkuForClient", "Error al obtener SKU $skuCode", e)
+                onResult("Error al obtener datos", "N/A")
+            }
+    } catch (e: IllegalArgumentException) {
+        // 🔴 Por si se cuela algo raro en el path
+        Log.e("lookupSkuForClient", "Path inválido para SKU $rawCode", e)
+        onResult("Error al obtener datos", "N/A")
+    } catch (e: Exception) {
+        Log.e("lookupSkuForClient", "Error inesperado buscando SKU $rawCode", e)
+        onResult("Error al obtener datos", "N/A")
+    }
 }
+

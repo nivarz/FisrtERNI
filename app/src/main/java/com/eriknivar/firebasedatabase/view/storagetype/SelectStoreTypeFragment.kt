@@ -1,6 +1,5 @@
 package com.eriknivar.firebasedatabase.view.storagetype
 
-import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -23,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,34 +37,19 @@ import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.view.common.ClienteItem
 import com.eriknivar.firebasedatabase.view.common.ClientePickerDialog
 import com.eriknivar.firebasedatabase.view.common.cargarClientes
-import com.eriknivar.firebasedatabase.view.utility.SessionUtils
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.eriknivar.firebasedatabase.data.LocalidadesRepo
-import com.eriknivar.firebasedatabase.data.Refs
-import com.google.firebase.firestore.ktx.firestore
-import androidx.compose.material3.*
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GetTokenResult
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.firestore.FirebaseFirestore
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 
 
 @Composable
 fun SelectStorageFragment(
-    navController: NavHostController,
-    userViewModel: UserViewModel
+    navController: NavHostController, userViewModel: UserViewModel
 ) {
     val context = LocalContext.current
 
@@ -77,54 +60,59 @@ fun SelectStorageFragment(
     val tipoRaw by userViewModel.tipo.observeAsState("")
     val cidRaw by userViewModel.clienteId.observeAsState("")
     val tipo = tipoRaw.lowercase()
-    val db = Firebase.firestore
+    //val db = Firebase.firestore
 
     val cidActual = cidRaw.trim().uppercase()
 
     //val localidadesOptions = remember { mutableStateListOf<String>() }   // <- NUEVO
-    var valueText by remember { mutableStateOf("") }                      // si ya existe, no lo declares de nuevo
+    //var valueText by remember { mutableStateOf("") }                      // si ya existe, no lo declares de nuevo
 
     val localidades = remember { mutableStateListOf<String>() }
     var isLocalidadesLoading by rememberSaveable { mutableStateOf(false) }
     var localidadSeleccionada by rememberSaveable { mutableStateOf<String?>(null) }
-    var expandedLocalidad by remember { mutableStateOf(false) }
-
+    //var expandedLocalidad by remember { mutableStateOf(false) }
 
     // === estados para el picker ===
     val showClientePicker = remember { mutableStateOf(false) }
     val clientes = remember { mutableStateListOf<ClienteItem>() }
 
-
     DisposableEffect(currentUserId, currentSessionId) {
-        val firestore = Firebase.firestore
 
-        val listenerRegistration = firestore.collection("usuarios")
-            .document(currentUserId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.e("FirestoreListener", "Error en snapshotListener", error)
-                    return@addSnapshotListener
-                }
+        if (currentUserId.isBlank()) {
+            // 🛡 Evitar crash si todavía no tenemos userId
+            Log.w(
+                "FirestoreListener",
+                "No se puede suscribir a /usuarios: currentUserId vacío. " + "Probablemente todavía no se ha cargado el usuario."
+            )
 
-                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+            // 👉 Esta rama también debe devolver un DisposableEffectResult
+            onDispose {
+                // nada que limpiar
+            }
+        } else {
+            val firestore = Firebase.firestore
 
-                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
-                    Toast.makeText(
-                        context,
-                        "Tu sesión fue cerrada por el administrador",
-                        Toast.LENGTH_LONG
-                    ).show()
+            val listenerRegistration = firestore.collection("usuarios")
+                .document(currentUserId)   // aquí ya sabemos que NO está vacío
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e("FirestoreListener", "Error en snapshotListener", error)
+                        return@addSnapshotListener
+                    }
 
-                    userViewModel.clearUser()
+                    if (snapshot != null && snapshot.exists()) {
+                        val clienteId = snapshot.getString("clienteId") ?: ""
+                        //val tipoUsuario = snapshot.getString("tipo") ?: ""
 
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
+                        userViewModel.setClienteId(clienteId)
+                        // userViewModel.setTipoUsuario(tipoUsuario)
                     }
                 }
-            }
 
-        onDispose {
-            listenerRegistration.remove()
+            // 👉 Y esta rama devuelve su propio DisposableEffectResult
+            onDispose {
+                listenerRegistration.remove()
+            }
         }
     }
 
@@ -134,35 +122,26 @@ fun SelectStorageFragment(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-
-
     LaunchedEffect(tipo, cidActual) {
         if (tipo == "superuser" && cidActual.isBlank()) {
-            cargarClientes(
-                db = Firebase.firestore,
-                onOk = { lista ->
-                    clientes.clear()
-                    clientes.addAll(
-                        lista
-                            .distinctBy { it.id }                 // 🔒 evita repetidos por ID
-                            .sortedBy { it.nombre.uppercase() }   // 👁️ mejor orden visual
-                    )
-                    if (lista.size == 1) {
-                        val sel = lista.first()
-                        LocalidadesRepo.invalidate(sel.id)
-                        userViewModel.setClienteId(sel.id)
-                        val docId = userViewModel.documentId.value ?: ""
-                        if (docId.isNotBlank()) {
-                            Firebase.firestore.collection("usuarios")
-                                .document(docId)
-                                .update("clienteId", sel.id)
-                        }
-                    } else {
-                        showClientePicker.value = true
+            cargarClientes(db = Firebase.firestore, onOk = { lista ->
+                clientes.clear()
+                clientes.addAll(lista.distinctBy { it.id }                 // 🔒 evita repetidos por ID
+                    .sortedBy { it.nombre.uppercase() }   // 👁️ mejor orden visual
+                )
+                if (lista.size == 1) {
+                    val sel = lista.first()
+                    LocalidadesRepo.invalidate(sel.id)
+                    userViewModel.setClienteId(sel.id)
+                    val docId = userViewModel.documentId.value ?: ""
+                    if (docId.isNotBlank()) {
+                        Firebase.firestore.collection("usuarios").document(docId)
+                            .update("clienteId", sel.id)
                     }
-                },
-                onErr = { /* opcional: snackbar/log */ }
-            )
+                } else {
+                    showClientePicker.value = true
+                }
+            }, onErr = { /* opcional: snackbar/log */ })
         }
     }
 
@@ -174,20 +153,16 @@ fun SelectStorageFragment(
 
         if (cidActual.isNotBlank()) {
             // Escucha en tiempo real solo si hay cliente
-            LocalidadesRepo.listen(
-                clienteId = cidActual,
-                onData = { lista ->
-                    localidades.clear()
-                    localidades.addAll(lista)
-                    isLocalidadesLoading = false
-                },
-                onErr = { e ->
-                    Log.e("LOCALIDADES", "listen error", e)
-                    localidades.clear()
-                    isLocalidadesLoading = false
-                    // TODO: snackbar/log si quieres
-                }
-            )
+            LocalidadesRepo.listen(clienteId = cidActual, onData = { lista ->
+                localidades.clear()
+                localidades.addAll(lista)
+                isLocalidadesLoading = false
+            }, onErr = { e ->
+                Log.e("LOCALIDADES", "listen error", e)
+                localidades.clear()
+                isLocalidadesLoading = false
+                // TODO: snackbar/log si quieres
+            })
         } else {
             // Si no hay cliente, asegúrate de detener cualquier listener previo
             LocalidadesRepo.stop()
@@ -207,11 +182,10 @@ fun SelectStorageFragment(
                 userViewModel.setNombre((perfil["nombre"] as? String).orEmpty())
                 // 👉 Desde aquí la UI usa SIEMPRE el doc (no los claims).
             } else {
-                android.util.Log.e("PERFIL", "Error: $msg")
+                Log.e("PERFIL", "Error: $msg")
             }
         }
     }
-
 
     NavigationDrawer(
         navController,
@@ -259,8 +233,7 @@ fun SelectStorageFragment(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Bienvenido al sistema de toma de inventarios **ERNI**.\n\n" +
-                                "Para continuar, selecciona el almacén al cual deseas realizar el proceso.",
+                        text = "Bienvenido al sistema de toma de inventarios **ERNI**.\n\n" + "Para continuar, selecciona el almacén al cual deseas realizar el proceso.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         color = Color.DarkGray
@@ -270,8 +243,7 @@ fun SelectStorageFragment(
                     // 👇 Mano señalando hacia el Dropdown
                     Text(
                         text = "\uD83D\uDC47", // Unicode para 👇
-                        fontSize = 32.sp,
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        fontSize = 32.sp, modifier = Modifier.padding(bottom = 12.dp)
                     )
 
                     // ⬇️ Aquí el selector real
@@ -304,8 +276,7 @@ fun SelectStorageFragment(
 
     // === diálogo ===
     ClientePickerDialog(
-        open = showClientePicker,
-        clientes = clientes
+        open = showClientePicker, clientes = clientes
     ) { elegido ->
         // 👇 invalida cache ANTES de cambiar el cliente
         LocalidadesRepo.invalidate(elegido.id)
@@ -319,11 +290,7 @@ fun SelectStorageFragment(
         showClientePicker.value = false
     }
 
-
-
     BackHandler(true) {
         Log.i("LOG_TAG", "Clicked back") // Desactiva el botón atrás
     }
 }
-
-

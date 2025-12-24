@@ -118,10 +118,10 @@ private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
 @Composable
 fun InventoryReportFiltersScreen(
     userViewModel: UserViewModel,
-    allData: List<DataFields>,
+    allData: SnapshotStateList<DataFields>,
     tipoUsuario: String,
-    puedeModificarRegistro: (String, String) -> Boolean,
-    onSuccess: () -> Unit // 👈 este es nuevo
+    onSuccess: () -> Unit,
+    puedeModificarRegistro: (String, String) -> Boolean
 
 ) {
     val sku = remember { mutableStateOf("") }
@@ -194,49 +194,7 @@ fun InventoryReportFiltersScreen(
         )
     }
 
-    var loading by remember { mutableStateOf(true) } // ⬅️ inicia en true
-
-    fun cargarReportes() {
-        val filtros = buildMap {
-            localidadSeleccionada.value.trim().takeIf { it.isNotBlank() }?.let {
-                put("localidad", it.uppercase())
-            }
-
-            val tipo = tipoUsuario.lowercase().trim()
-            val usr = if (tipo == "invitado") {
-                userViewModel.nombre.value.orEmpty()   // 🔒 fuerza su propio nombre
-            } else {
-                usuarioFiltro.value.trim()
-            }
-            if (usr.isNotBlank()) put("usuario", usr) // 👈 importante: sin uppercase
-        }
-
-        // ⬇️ Reemplazo de fetchFilteredInventoryFromFirestore(...)
-        val q = ReportesRepo.buildReportQueryForRole(
-            db = firestore,
-            clienteId = cid,
-            tipoUsuario = tipoUsuario,
-            uidActual = userViewModel.documentId.value,
-            filters = filtros
-        )
-
-        loading = true
-        q.get()
-            .addOnSuccessListener { snap ->
-                val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }
-                filteredData.clear()
-                filteredData.addAll(nuevos.sortedByDescending { it.fechaRegistro?.toDate() })
-                filtrosExpandido.value = false
-                isLoading.value = false
-                loading = false
-            }
-            .addOnFailureListener {
-                loading = false
-                isLoading.value = false
-                Toast.makeText(context, "Error al consultar Firestore", Toast.LENGTH_SHORT).show()
-            }
-
-    }
+    var loading by remember { mutableStateOf(false) } // al entrar, nada cargando
 
     fun recargarFiltrosDelCliente(cid: String) {
         if (cid.isBlank()) return
@@ -284,7 +242,7 @@ fun InventoryReportFiltersScreen(
     }
 
     // Carga inicial (y cuando cambie el cliente)
-    LaunchedEffect(cid) { cargarReportes() }
+   // LaunchedEffect(cid) { cargarReportes() }
 
     Column(
         modifier = Modifier
@@ -344,7 +302,11 @@ fun InventoryReportFiltersScreen(
                     auditFilter.value = "Todos"
 
                     filteredData.clear()
-                    filteredData.addAll(allData.sortedByDescending { it.fechaRegistro?.toDate() })
+                    filteredData.addAll(
+                        allData.sortedByDescending { registro: DataFields ->
+                            registro.fechaRegistro?.toDate()
+                        }
+                    )
                 }
 
                 OutlinedTextField(

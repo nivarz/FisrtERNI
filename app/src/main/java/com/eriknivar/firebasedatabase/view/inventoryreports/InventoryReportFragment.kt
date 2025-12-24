@@ -1,7 +1,6 @@
 package com.eriknivar.firebasedatabase.view.inventoryreports
 
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,56 +12,49 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
+import androidx.compose.ui.window.DialogProperties
 import com.eriknivar.firebasedatabase.navigation.NavigationDrawer
 import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
-import com.eriknivar.firebasedatabase.data.ReportesRepo
-import kotlinx.coroutines.tasks.await
-import com.google.firebase.firestore.DocumentSnapshot
 import com.eriknivar.firebasedatabase.view.storagetype.DataFields
-
-private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
-    val base = this.toObject(DataFields::class.java) ?: DataFields()
-    return base.copy(
-        // Aliases UI ← ES reales de Firestore
-        sku            = base.codigoProducto,
-        description    = base.descripcion,
-        location       = base.ubicacion,
-        quantity       = base.cantidad,
-        expirationDate = base.fechaVencimiento,
-        // (opcional) si tu UI lee `usuario` desde alias, ya viene en ES:
-        // usuario = base.usuarioNombre  // si tu DataFields tuviera ese alias
-    )
-}
 
 @Composable
 fun InventoryReportsFragment(
     navController: NavHostController,
     userViewModel: UserViewModel
 ) {
+    // Lista “base” para que el filtro pueda usarla en Limpiar filtros
     val allData = remember { mutableStateListOf<DataFields>() }
-    val usuario by userViewModel.nombre.observeAsState("")
     val tipoUsuario by userViewModel.tipo.observeAsState("")
 
+    // dummies para el NavigationDrawer
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
     val dummyQuantity = remember { mutableStateOf("") }
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    val context = LocalContext.current
     val currentUserId = userViewModel.documentId.value ?: ""
     val currentSessionId = userViewModel.sessionId.value
 
+    // 🔄 Solo para mantener actualizado el clienteId del usuario
     DisposableEffect(currentUserId, currentSessionId) {
+        if (currentUserId.isBlank()) {
+            Log.w(
+                "FirestoreListener",
+                "No se puede suscribir a /usuarios: currentUserId vacío. " +
+                        "Probablemente todavía no se ha cargado el usuario."
+            )
+            return@DisposableEffect onDispose { }
+        }
+
         val firestore = Firebase.firestore
 
-        val listenerRegistration = firestore.collection("usuarios")
+        val listenerRegistration = firestore
+            .collection("usuarios")
             .document(currentUserId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -70,20 +62,9 @@ fun InventoryReportsFragment(
                     return@addSnapshotListener
                 }
 
-                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
-
-                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
-                    Toast.makeText(
-                        context,
-                        "Tu sesión fue cerrada por el administrador",
-                        Toast.LENGTH_LONG
-                    ).show()
-
-                    userViewModel.clearUser()
-
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
-                    }
+                if (snapshot != null && snapshot.exists()) {
+                    val clienteId = snapshot.getString("clienteId") ?: ""
+                    userViewModel.setClienteId(clienteId)
                 }
             }
 
@@ -92,54 +73,9 @@ fun InventoryReportsFragment(
         }
     }
 
-    val cid = (userViewModel.clienteId.value ?: "").trim().uppercase()
-
-    LaunchedEffect(usuario, tipoUsuario, cid) {
-        if (usuario.isNotEmpty() && cid.isNotBlank()) {
-            val firestore = Firebase.firestore
-            val uid = userViewModel.documentId.value ?: ""
-
-            // Para admin/super/invitado usamos el helper; no pasamos "usuario" aquí.
-            // Si luego quieres filtrar por localidad o día, lo agregamos al map.
-            val filtros = emptyMap<String, String>()
-
-            try {
-                val q = ReportesRepo.buildReportQueryForRole(
-                    db = firestore,
-                    clienteId = cid,
-                    tipoUsuario = tipoUsuario,
-                    uidActual = uid,
-                    filters = filtros
-                )
-
-                val snap = q.get().await()
-
-                // 🔎 Diagnóstico: ver nombres reales de campos
-                val first = snap.documents.firstOrNull()
-                if (first != null) {
-                    Log.d("DBG", "DocId=${first.id} data=${first.data}")
-                    Log.d("DBG", "sku=${first.getString("sku")} | SKU=${first.getString("SKU")}")
-                    Log.d("DBG", "ubicacion=${first.getString("ubicacion")} | location=${first.getString("location")}")
-                    Log.d("DBG", "usuario=${first.getString("usuario")} | usuarioUid=${first.getString("usuarioUid")}")
-                    Log.d("DBG", "cantidad=${first.getDouble("cantidad")} | qty=${first.getDouble("qty")}")
-                }
-
-                val nuevos = snap.documents.map { doc -> doc.toDataFieldsUi() }
-
-                allData.clear()
-                allData.addAll(nuevos)
-                Log.d("Reportes", "Cargados reporte=${allData.size} (tipo=$tipoUsuario, cid=$cid)")
-            } catch (e: Exception) {
-                Log.e("Reportes", "❌ Error al cargar reportes", e)
-                Toast.makeText(context, "No se pudieron cargar los reportes", Toast.LENGTH_SHORT)
-                    .show()
-            }
-        }
-    }
-
     var showSuccessDialog by remember { mutableStateOf(false) }
 
-    // ✅ Dialog visual centrado para confirmación de actualización
+    // ✅ Dialog de confirmación de actualización
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
@@ -175,7 +111,7 @@ fun InventoryReportsFragment(
             onSuccess = { showSuccessDialog = true },
             puedeModificarRegistro = { usuario, tipoCreador ->
                 userViewModel.puedeModificarRegistro(usuario, tipoCreador)
-            },
+            }
         )
     }
 }

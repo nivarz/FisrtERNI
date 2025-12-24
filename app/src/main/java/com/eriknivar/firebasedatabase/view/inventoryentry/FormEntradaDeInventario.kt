@@ -70,6 +70,10 @@ import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateListOf
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
@@ -79,7 +83,6 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.tasks.await
 import com.eriknivar.firebasedatabase.view.utility.ImageUtils
-import com.google.firebase.crashlytics.FirebaseCrashlytics
 
 @Composable
 fun FormEntradaDeInventario(
@@ -148,6 +151,17 @@ fun FormEntradaDeInventario(
     val restored = remember { mutableStateOf(false) }
     val showSuccessDialog = remember { mutableStateOf(false) }
     var usuarioDuplicado by remember { mutableStateOf("Desconocido") }
+
+    // 🧩 Estados para manejar acción sobre registro duplicado
+    var showDuplicateActionDialog by remember { mutableStateOf(false) }
+
+    // Guardaremos aquí el doc a actualizar y la cantidad existente
+    var duplicateDocRef by remember {
+        mutableStateOf<com.google.firebase.firestore.DocumentReference?>(
+            null
+        )
+    }
+    var duplicateCantidadActual by remember { mutableDoubleStateOf(0.0) }
 
     val uidActual = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val tipoActual = userViewModel.tipo.value?.lowercase().orEmpty()
@@ -230,7 +244,6 @@ fun FormEntradaDeInventario(
 
     }
 
-
     LaunchedEffect(Unit) {
         if (!restored.value) {
             sku.value = userViewModel.tempSku
@@ -282,13 +295,9 @@ fun FormEntradaDeInventario(
 
         fun extraerCodigosFromSnap(snap: QuerySnapshot) {
             snap.documents.forEach { d ->
-                val byField =
-                    d.getString("codigo_ubi")
-                        ?: d.getString("codigoUbicacion")
-                        ?: d.getString("codigo")
-                        ?: d.getString("code")
-                        ?: d.getString("ubicacion")
-                        ?: d.getString("location")
+                val byField = d.getString("codigo_ubi") ?: d.getString("codigoUbicacion")
+                ?: d.getString("codigo") ?: d.getString("code") ?: d.getString("ubicacion")
+                ?: d.getString("location")
 
                 val byId = d.id.substringAfterLast('_').ifBlank { d.id }
 
@@ -300,25 +309,20 @@ fun FormEntradaDeInventario(
         try {
             // 1) Ruta nueva: clientes/{cid}/localidades/{loc}/ubicaciones/*
             extraerCodigosFromSnap(
-                db.collection("clientes").document(cid)
-                    .collection("localidades").document(loc)
+                db.collection("clientes").document(cid).collection("localidades").document(loc)
                     .collection("ubicaciones").get().await()
             )
 
             // 2) Ruta nueva sin subcolección por loc: clientes/{cid}/ubicaciones where localidad==loc
             extraerCodigosFromSnap(
-                db.collection("clientes").document(cid)
-                    .collection("ubicaciones")
-                    .whereEqualTo("localidad", loc)
-                    .get().await()
+                db.collection("clientes").document(cid).collection("ubicaciones")
+                    .whereEqualTo("localidad", loc).get().await()
             )
 
             // 3) Legacy global: ubicaciones where clienteId==cid and localidad==loc
             extraerCodigosFromSnap(
-                db.collection("ubicaciones")
-                    .whereEqualTo("clienteId", cid)
-                    .whereEqualTo("localidad", loc)
-                    .get().await()
+                db.collection("ubicaciones").whereEqualTo("clienteId", cid)
+                    .whereEqualTo("localidad", loc).get().await()
             )
         } catch (e: Exception) {
             Log.e("UbicDlg", "Error cargando ubicaciones ($cid/$loc)", e)
@@ -333,7 +337,6 @@ fun FormEntradaDeInventario(
         val loc = localidad
         recargarUbicacionesLista(cid, loc)
     }
-
 
     fun enfocarSkuDespuesDeGrabar() {
         // Limpia cualquier foco previo y muestra el teclado ya en el campo SKU
@@ -397,8 +400,7 @@ fun FormEntradaDeInventario(
                         recargarUbicacionesLista(cid, loc)   // 🔄 refresca maestro
                         showLocationDialog.value = true      // y luego abre el diálogo
                     }
-                }
-            )
+                })
 
             // SKU
 
@@ -476,7 +478,6 @@ fun FormEntradaDeInventario(
                 )
             }
 
-
             // 📌 CAMPO DE TEXTO PARA LA CANTIDAD
 
             OutlinedTextFieldsInputsQuantity(
@@ -504,12 +505,31 @@ fun FormEntradaDeInventario(
                     cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
                     localidad = localidad,
                     clienteId = clienteIdActual.orEmpty(),
-                    onResult = { existeDuplicado, usuarioEncontrado ->
-                        if (existeDuplicado) {
+                    onResult = { existeDuplicado, usuarioEncontrado, docRef, cantidadExistente ->
+
+                        if (existeDuplicado && docRef != null && cantidadExistente != null) {
+                            // 👉 Hay duplicado y sabemos cuál doc actualizar
                             usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
-                            showDialogRegistroDuplicado.value = true
-                            isSaving = false
-                        } else {
+
+                            // Usuario actualmente logueado
+                            val nombreActual = userViewModel.nombre.value ?: ""
+                            val esMismoUsuario = usuarioDuplicado == nombreActual
+
+                            if (esMismoUsuario) {
+                                // ✅ Mismo usuario → mostrar opciones Sumar / Reemplazar / Cancelar
+                                duplicateDocRef = docRef
+                                duplicateCantidadActual = cantidadExistente
+                                showDuplicateActionDialog = true   // abrimos el diálogo con opciones
+                                // NO grabamos todavía, esperamos la decisión del usuario
+                            } else {
+                                // 🚫 Otro usuario hizo ese conteo → no permitimos grabar
+                                showDialogRegistroDuplicado.value = true
+                                isSaving = false
+                                // aquí simplemente salimos del callback sin llamar a saveToFirestore
+                            }
+
+                        } else if (!existeDuplicado) {
+                            // 👉 Sin duplicado: comportamiento normal (tu código tal cual)
                             Log.d("FotoDebug", "📤 Enviando a Firestore: fotoUrlRemota=$fotoUrl")
                             Log.d(
                                 "FotoDebug",
@@ -533,13 +553,11 @@ fun FormEntradaDeInventario(
                                 showSuccessDialog = showSuccessDialog,
                                 listState = listState,
                                 fotoUrl = null,                          // la sube el worker
-                                hadPhoto = hadPhotoFinal,                // << clave: según uriLocal
-                                fotoUriLocal = uriLocal?.trim(),         // usar el String? directamente
+                                hadPhoto = hadPhotoFinal,
+                                fotoUriLocal = uriLocal?.trim(),
                                 appContext = context.applicationContext
                             )
 
-                            // Si usas listeners en tiempo real podrías omitir este fetch, pero
-                            // mantengo tu comportamiento actual:
                             fetchDataFromFirestore(
                                 db = firestore,
                                 allData = allData,
@@ -561,9 +579,15 @@ fun FormEntradaDeInventario(
                             qrCodeContentSku.value = ""
                             qrCodeContentLot.value = ""
                             userViewModel.limpiarValoresTemporales()
+
+                            isSaving = false
+                            enfocarSkuDespuesDeGrabar()
+                        } else {
+                            // Caso raro: dijo que hay duplicado pero no tenemos docRef/cantidad
+                            usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
+                            showDialogRegistroDuplicado.value = true
+                            isSaving = false
                         }
-                        isSaving = false
-                        enfocarSkuDespuesDeGrabar()
                     },
                     onError = { e ->
                         Log.e("DupCheck", "Error al validar duplicados: ${e.message}", e)
@@ -573,8 +597,7 @@ fun FormEntradaDeInventario(
                             Toast.LENGTH_LONG
                         ).show()
                         isSaving = false
-                    }
-                )
+                    })
             }
 
             // Libera loading y continúa con o sin URL
@@ -631,8 +654,7 @@ fun FormEntradaDeInventario(
                             )
 
                             when (ubicCheck) {
-                                true -> { /* OK, sigue */
-                                }
+                                true -> { /* OK, sigue */ }
 
                                 false -> {
                                     showErrorLocation.value = true
@@ -648,7 +670,6 @@ fun FormEntradaDeInventario(
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     showErrorLocation.value = false
-
                                 }
                             }
 
@@ -683,7 +704,34 @@ fun FormEntradaDeInventario(
                                 dateText.value = "-"
                             }
 
-                            // 🟥 6. Validación: producto no existe o sin descripción válida
+                            // 🔐 6. Refrescar SIEMPRE la descripción desde el maestro según el SKU actual
+                            try {
+                                val cidMaestro = clienteIdActual.orEmpty()
+                                val codigoActual = sku.value.trim()
+
+                                if (cidMaestro.isNotEmpty() && codigoActual.isNotEmpty()) {
+                                    val doc = firestore.collection("clientes")
+                                        .document(cidMaestro)
+                                        .collection("productos")
+                                        .document(codigoActual)
+                                        .get()
+                                        .await()
+
+                                    if (!doc.exists()) {
+                                        // SKU no existe en el maestro → marcamos como sin descripción
+                                        productoDescripcion.value = "Sin descripción"
+                                    } else {
+                                        val descMaestro = (doc.getString("descripcion") ?: "").trim()
+                                        productoDescripcion.value =
+                                            descMaestro.ifBlank { "Sin descripción" }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("FormEntrada", "Error refrescando descripción desde maestro", e)
+                                // si falla, seguimos con el valor que ya tuviera productoDescripcion
+                            }
+
+                            // 🟥 7. Validación: producto no existe o sin descripción válida (ya después de refrescar)
                             if (
                                 productoDescripcion.value == "Sin descripción" ||
                                 productoDescripcion.value.isEmpty() ||
@@ -695,45 +743,7 @@ fun FormEntradaDeInventario(
                                 return@launch
                             }
 
-                            // 🔐 6 BIS. Refrescar descripción desde el maestro según el SKU actual
-                            try {
-                                val cid = clienteIdActual.orEmpty()
-                                val codigoActual = sku.value.trim()
-
-                                if (cid.isNotEmpty() && codigoActual.isNotEmpty()) {
-                                    val doc = FirebaseFirestore.getInstance()
-                                        .collection("clientes")
-                                        .document(cid)
-                                        .collection("productos")
-                                        .document(codigoActual)
-                                        .get()
-                                        .await()
-
-                                    if (!doc.exists()) {
-                                        // El SKU no existe en el maestro → no dejamos grabar
-                                        showDialog2 =
-                                            true      // reutilizas el mismo diálogo de “producto inválido”
-                                        isSaving = false
-                                        return@launch
-                                    }
-
-                                    val descMaestro = (doc.getString("descripcion") ?: "").trim()
-                                    if (descMaestro.isBlank()) {
-                                        showDialog2 = true
-                                        isSaving = false
-                                        return@launch
-                                    }
-
-                                    // Siempre forzamos la descripción oficial del maestro
-                                    productoDescripcion.value = descMaestro
-                                }
-                            } catch (e: Exception) {
-                                // Si falla por red, seguimos con lo que ya teníamos,
-                                // pero al menos no rompemos el flujo de grabado.
-                                e.printStackTrace()
-                            }
-
-                            // 🟥 7. Validación: cantidad igual a 0
+                            // 🟥 8. Validación: cantidad igual a 0
                             if (quantity.value == "0" || quantity.value.isEmpty()) {
                                 showDialogValueQuantityCero = true
                                 showErrorQuantity.value = true
@@ -741,7 +751,7 @@ fun FormEntradaDeInventario(
                                 return@launch
                             }
 
-                            // ✅ 8. Si todas las validaciones pasaron, mostrar AlertDialog de confirmación
+                            // ✅ 9. Si todas las validaciones pasaron, mostrar AlertDialog de confirmación
                             delay(150)
                             showConfirmDialog.value = true
 
@@ -749,8 +759,7 @@ fun FormEntradaDeInventario(
                             showErrorSku.value = false
 
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
+                    }, colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF003366), contentColor = Color.White
                     ), modifier = Modifier
                         .weight(1f)
@@ -846,15 +855,13 @@ fun FormEntradaDeInventario(
                                 val hadPhoto =
                                     (uri != null)              // <- antes usabas uriLocal
                                 finishSaving(
-                                    hadPhoto,
-                                    uri?.toString()
+                                    hadPhoto, uri?.toString()
                                 )   // <- pasamos el String? correcto
 
                                 // Limpieza y aviso (igual que ya tenías)
                                 if (hadPhoto) {
                                     photoUri.value = null
-                                    tieneFoto.value = false
-                                    /* Toast.makeText(
+                                    tieneFoto.value = false/* Toast.makeText(
                                          context,
                                          "Registro guardado. La foto se subirá en segundo plano.",
                                          Toast.LENGTH_SHORT
@@ -878,8 +885,8 @@ fun FormEntradaDeInventario(
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialog = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -891,8 +898,8 @@ fun FormEntradaDeInventario(
             if (showDialog1) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog1 = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialog1 = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -904,8 +911,8 @@ fun FormEntradaDeInventario(
             if (showDialog2) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialog2 = true
-                    },
+                    showDialog2 = true
+                },
                     title = { Text("Codigo No Existe") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -917,8 +924,8 @@ fun FormEntradaDeInventario(
             if (showDialogValueQuantityCero) {
                 AlertDialog(
                     onDismissRequest = {
-                        showDialogValueQuantityCero = true
-                    }, // No se cierra al tocar fuera del cuadro
+                    showDialogValueQuantityCero = true
+                }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -955,6 +962,175 @@ fun FormEntradaDeInventario(
                             Text("Aceptar")
                         }
                     })
+            }
+
+            // 🔁 Nuevo diálogo para decidir qué hacer con el duplicado
+            if (showDuplicateActionDialog && duplicateDocRef != null) {
+                AlertDialog(onDismissRequest = {
+                    // No cerramos solo tocando fuera
+                }, title = { Text("Registro duplicado") }, text = {
+                    Text(
+                        "Ya existe un registro con la misma Localidad + Ubicación + SKU + Lote.\n\n" + "¿Qué deseas hacer con la cantidad?"
+                    )
+                },
+                    confirmButton = {
+                        // 🔒 Flag local para evitar múltiples clics mientras se actualiza
+                        var isUpdatingDuplicate by remember { mutableStateOf(false) }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 🧮 SUMAR CANTIDADES
+                            TextButton(
+                                onClick = {
+                                    if (isUpdatingDuplicate) return@TextButton   // evita doble tap
+
+                                    val cantidadNueva =
+                                        quantity.value.replace(",", ".").toDoubleOrNull() ?: 0.0
+                                    val total = duplicateCantidadActual + cantidadNueva
+
+                                    coroutineScope.launch {
+                                        isUpdatingDuplicate = true
+                                        try {
+                                            duplicateDocRef?.update("cantidad", total)?.await()
+
+                                            Toast.makeText(
+                                                context,
+                                                "Cantidad actualizada (sumada).",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+
+                                            // refrescamos lista
+                                            fetchDataFromFirestore(
+                                                db = firestore,
+                                                allData = allData,
+                                                usuario = usuario,
+                                                listState = listState,
+                                                localidad = localidad,
+                                                clienteId = clienteIdActual.orEmpty(),
+                                                tipo = tipoActual,
+                                                uid = uidActual
+                                            )
+
+                                            // limpiamos campos como en el grabado normal
+                                            sku.value = ""
+                                            lot.value = ""
+                                            dateText.value = ""
+                                            quantity.value = ""
+                                            productoDescripcion.value = ""
+                                            unidadMedida.value = ""
+                                            qrCodeContentSku.value = ""
+                                            qrCodeContentLot.value = ""
+                                            userViewModel.limpiarValoresTemporales()
+
+                                        } catch (e: Exception) {
+                                            Toast.makeText(
+                                                context,
+                                                "Error al actualizar: ${e.message}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        } finally {
+                                            isUpdatingDuplicate = false
+                                            showDuplicateActionDialog = false
+                                            isSaving = false
+                                            enfocarSkuDespuesDeGrabar()
+                                        }
+                                    }
+                                },
+                                enabled = !isUpdatingDuplicate,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = Color(0xFF2E7D32) // verde
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AddCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Sumar")
+                            }
+
+                            // 🔁 REEMPLAZAR CANTIDAD
+                            TextButton(
+                                onClick = {
+                                    if (isUpdatingDuplicate) return@TextButton   // evita doble tap
+
+                                    val cantidadNueva =
+                                        quantity.value.replace(",", ".").toDoubleOrNull() ?: 0.0
+
+                                    coroutineScope.launch {
+                                        isUpdatingDuplicate = true
+                                        try {
+                                            duplicateDocRef?.update("cantidad", cantidadNueva)?.await()
+
+                                            Toast.makeText(
+                                                context,
+                                                "Cantidad reemplazada.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+
+                                            fetchDataFromFirestore(
+                                                db = firestore,
+                                                allData = allData,
+                                                usuario = usuario,
+                                                listState = listState,
+                                                localidad = localidad,
+                                                clienteId = clienteIdActual.orEmpty(),
+                                                tipo = tipoActual,
+                                                uid = uidActual
+                                            )
+
+                                            sku.value = ""
+                                            lot.value = ""
+                                            dateText.value = ""
+                                            quantity.value = ""
+                                            productoDescripcion.value = ""
+                                            unidadMedida.value = ""
+                                            qrCodeContentSku.value = ""
+                                            qrCodeContentLot.value = ""
+                                            userViewModel.limpiarValoresTemporales()
+
+                                        } catch (e: Exception) {
+                                            Toast.makeText(
+                                                context,
+                                                "Error al actualizar: ${e.message}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        } finally {
+                                            isUpdatingDuplicate = false
+                                            showDuplicateActionDialog = false
+                                            isSaving = false
+                                            enfocarSkuDespuesDeGrabar()
+                                        }
+                                    }
+                                },
+                                enabled = !isUpdatingDuplicate,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = Color(0xFF1565C0) // azulito para diferenciar
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Reemplazar")
+                            }
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showDuplicateActionDialog = false
+                                isSaving = false
+                            }
+                        ) {
+                            Text("Cancelar", color = Color.Red)
+                        }
+                    }
+                )
             }
 
             if (showSuccessDialog.value) {
@@ -1041,24 +1217,20 @@ fun FormEntradaDeInventario(
 
             // ANCLA: // diálogos al final
             if (showLocationDialog.value) {
-                LocationSelectionDialog(
-                    locations = ubicacionesLista,
-                    onSelect = { code ->
-                        val limpio = code.trim().uppercase()
+                LocationSelectionDialog(locations = ubicacionesLista, onSelect = { code ->
+                    val limpio = code.trim().uppercase()
 
-                        // 👇 lo que ve el TextField
-                        tempLocationInput.value = limpio
+                    // 👇 lo que ve el TextField
+                    tempLocationInput.value = limpio
 
-                        // 👇 tu valor “oficial” validado
-                        location.value = limpio
+                    // 👇 tu valor “oficial” validado
+                    location.value = limpio
 
-                        showErrorLocation.value = false
-                        shouldRequestFocusAfterClear.value = false
-                        focusRequesterSku.requestFocus()   // pasa al SKU
-                        showLocationDialog.value = false
-                    },
-                    onDismiss = { showLocationDialog.value = false }
-                )
+                    showErrorLocation.value = false
+                    shouldRequestFocusAfterClear.value = false
+                    focusRequesterSku.requestFocus()   // pasa al SKU
+                    showLocationDialog.value = false
+                }, onDismiss = { showLocationDialog.value = false })
             }
         }
     }

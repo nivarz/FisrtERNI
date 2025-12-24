@@ -39,7 +39,6 @@ class MainActivity : ComponentActivity() {
             inactivityHandler = InactivityHandler(1_800_000) {
 
 
-
                 userViewModel.logout()
             }
 
@@ -103,16 +102,24 @@ fun MyApp(
     // Solicita permiso de cámara y arranca el timer
     LaunchedEffect(Unit) {
         requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        //inactivityHandler.startTimer()
+        inactivityHandler.startTimer()
     }
 
-    // Detecta si el usuario fue deslogueado
+    // Detecta si el usuario está deslogueado (nombre vacío)
     val isLoggedOut = userViewModel.nombre.observeAsState("").value.isEmpty()
 
     LaunchedEffect(isLoggedOut) {
         if (isLoggedOut) {
-            navController.navigate("login") {
-                popUpTo(0) { inclusive = true }
+            // Pequeño delay para asegurarnos de que el NavHost ya montó el gráfico
+            kotlinx.coroutines.delay(100)
+
+            try {
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            } catch (e: IllegalStateException) {
+                Log.e("Nav", "Error navegando a login", e)
             }
         }
     }
