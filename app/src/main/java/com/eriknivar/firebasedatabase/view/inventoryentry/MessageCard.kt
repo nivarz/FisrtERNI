@@ -1054,14 +1054,14 @@ fun MessageCard(
                                                 continuarConUpdate()
                                             } else {
                                                 // Sí cambió → validar en maestro (nueva ruta + fallback legacy)
-                                                val ubiNormalizada = normalizeUbi(nuevaUbi)
+
                                                 validarUbicacionEnMaestro(
                                                     clienteId = cidLocal,
                                                     localidadCodigo = locCodigo,
-                                                    codigoUbi = nuevaUbi,   // ✅ raw (con o sin guiones)
-                                                    onResult = { existe, encontrado ->
+                                                    codigoUbi = editedLocationState.value, // ✅ manda lo que el usuario escribió (con guiones)
+                                                    onResult = { existe, ganador ->
                                                         if (existe) {
-                                                            editedLocationState.value = encontrado
+                                                            editedLocationState.value = ganador
                                                             continuarConUpdate()
                                                         } else {
                                                             showErrorLocation.value = true
@@ -1069,12 +1069,12 @@ fun MessageCard(
                                                         }
                                                     },
                                                     onError = { e ->
-                                                        // Red / permisos: informa y no guardes
                                                         showErrorLocation.value = true
                                                         coroutineScope.launch {
                                                             snackbarHostState.showSnackbar("No se pudo validar ubicación (${e.message ?: "error"}).")
                                                         }
-                                                    })
+                                                    }
+                                                )
                                             }
 
                                         }, colors = ButtonDefaults.buttonColors(

@@ -436,29 +436,27 @@ fun InventoryReportItem(
                             clienteId = cid,
                             localidadCodigo = loc,
                             codigoUbi = ubi,
-                            onResult = { existe, codigoOk ->
+                            onResult = { existe, ganador ->
                                 if (existe) {
                                     val actualizado = item.copy(
-                                        location = codigoOk,     // 👈 usa el encontrado
+                                        location = ganador,
                                         lote = loteEdit,
                                         expirationDate = fechaEdit,
                                         quantity = cantEdit
                                     )
                                     onEdit(actualizado)
                                     isSaving = false
-                                    showEditDialog = false
                                 } else {
-                                    // tu mismo manejo de error
-                                    showUbiInvalida = true
+                                    // tu manejo de error...
                                     isSaving = false
                                 }
                             },
                             onError = {
-                                ubiInvalidaTexto = AnnotatedString("No se pudo validar la ubicación.")
-                                showUbiInvalida = true
+                                // tu manejo de error...
                                 isSaving = false
                             }
                         )
+
 
                     }) {
                     Text(

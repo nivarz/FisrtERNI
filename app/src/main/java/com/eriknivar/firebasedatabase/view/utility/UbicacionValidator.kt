@@ -33,22 +33,20 @@ fun validarUbicacionEnMaestro(
     clienteId: String,
     localidadCodigo: String,
     codigoUbi: String,
-    onResult: (Boolean, String) -> Unit, // <- devuelve también el código “ganador”
+    onResult: (Boolean, String) -> Unit, // existe + codigo “ganador”
     onError: (Exception) -> Unit = {}
 ) {
     val cid = clienteId.trim().uppercase()
     val loc = localidadCodigo.trim().uppercase()
 
-    // variantes: original (con guiones) + normalizada (sin guiones) + otras si tienes
-    val variants = ubiVariants(codigoUbi)
-        .map { it.trim().uppercase() }
-        .distinct()
+    val raw  = codigoUbi.trim().uppercase()
+    val norm = normalizeUbi(raw)
+    val variants = listOf(raw, norm).distinct()
 
     val db = Firebase.firestore
 
     fun tryNew(i: Int) {
         if (i >= variants.size) {
-            // Fallback LEGACY: whereIn (máximo 10)
             val list = variants.take(10)
             db.collection("clientes").document(cid)
                 .collection("ubicaciones")
@@ -59,7 +57,9 @@ fun validarUbicacionEnMaestro(
                     if (!q.isEmpty) {
                         val encontrado = q.documents.first().getString("codigo_ubi") ?: list.first()
                         onResult(true, encontrado)
-                    } else onResult(false, variants.first())
+                    } else {
+                        onResult(false, raw)
+                    }
                 }
                 .addOnFailureListener { onError(it) }
             return
@@ -79,5 +79,3 @@ fun validarUbicacionEnMaestro(
 
     tryNew(0)
 }
-
-

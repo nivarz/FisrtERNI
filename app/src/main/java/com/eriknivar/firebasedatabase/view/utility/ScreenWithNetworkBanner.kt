@@ -11,32 +11,35 @@ fun ScreenWithNetworkBanner(
     onCloseDisconnected: () -> Unit,
     onCloseRestored: () -> Unit,
     content: @Composable () -> Unit
-) {
+){
+
     Column {
-        if (showDisconnectedBanner && !showRestoredBanner) {
-            NetworkBanner(
-                message = "¡Sin conexión a Internet!",
-                backgroundColor = Color.Red,
-                onClose = onCloseDisconnected
-            )
+
+        // Regla: si hay “restaurada”, apaga el rojo.
+        LaunchedEffect(showRestoredBanner) {
+            if (showRestoredBanner) onCloseDisconnected()
         }
 
-        if (showRestoredBanner && !showDisconnectedBanner) {
-            NetworkBanner(
-                message = "¡Conexión restaurada!",
-                backgroundColor = Color(0xFF4CAF50),
-                onClose = onCloseRestored
-            )
+        when {
+            showRestoredBanner -> {
+                NetworkBanner(
+                    message = "¡Sin conexión a Internet!",
+                    backgroundColor = Color.Red,
+                    onClose = onCloseRestored
+                )
+            }
+
+            // 🔒 Solo deja ver “Sin conexión” si NO está restaurada
+            // (y opcionalmente: solo si showDisconnectedBanner == true)
+            showDisconnectedBanner && !showRestoredBanner -> {
+                NetworkBanner(
+                    message = "¡Conexión restaurada!",
+                    backgroundColor = Color(0xFF4CAF50),
+                    onClose = onCloseDisconnected
+                )
+            }
         }
 
         content()
     }
 }
-
-
-
-
-
-
-
-

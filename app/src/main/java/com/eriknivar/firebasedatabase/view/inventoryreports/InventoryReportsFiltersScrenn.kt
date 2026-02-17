@@ -103,7 +103,7 @@ private fun DocumentSnapshot.toDataFieldsUi(): DataFields {
 
     return base.copy(
         documentId = this.id,                 // ← imprescindible para editar/eliminar
-        // Aliases UI ← campos ES reales
+        // Aliases UI ← campos ES real
         sku = base.codigoProducto,
         description = base.descripcion,
         location = base.ubicacion,
@@ -234,7 +234,7 @@ fun InventoryReportFiltersScreen(
         if (cid.isNotBlank()) {
             recargarFiltrosDelCliente(cid)
         } else {
-            // Si quieres, limpia listas cuando no hay cliente
+            // Si quieres, limpia lista cuando no hay cliente
             // localidadesOptions.clear()
             // skuOptions.clear()
             // usuariosOptions.clear()

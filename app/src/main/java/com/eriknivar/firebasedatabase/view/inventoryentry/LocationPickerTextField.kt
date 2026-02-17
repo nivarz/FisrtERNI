@@ -113,10 +113,10 @@ fun OutlinedTextFieldsInputsLocation(
         validarUbicacionEnMaestro(
             clienteId = clienteIdActual.orEmpty(),
             localidadCodigo = localidadActual.orEmpty(),
-            codigoUbi = raw, // lo que escribió/escaneó
-            onResult = { existe, codigoOk ->
+            codigoUbi = raw,
+            onResult = { existe, ganador ->
                 if (existe) {
-                    location.value = codigoOk   // 👈 CLAVE: usa el encontrado
+                    location.value = ganador   // ✅ guarda exactamente como existe en el maestro
                     showErrorLocation.value = false
                     if (ocultarTeclado) keyboardController?.hide()
                     try { nextFocusRequester.requestFocus() } catch (_: Exception) {}
@@ -128,12 +128,11 @@ fun OutlinedTextFieldsInputsLocation(
             onError = {
                 location.value = raw
                 showErrorLocation.value = false
-                Toast.makeText(ctx, "No se pudo validar (red). Se validará al enviar.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx,"No se pudo validar (red). Se validará al enviar.",Toast.LENGTH_SHORT).show()
                 if (ocultarTeclado) keyboardController?.hide()
                 try { nextFocusRequester.requestFocus() } catch (_: Exception) {}
             }
         )
-
 
     }
 
