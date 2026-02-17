@@ -70,6 +70,7 @@ fun OutlinedTextFieldsInputsLocation(
     val showUbicacionNoExisteDialog = remember { mutableStateOf(false) }
     val focusRequesterLocation = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val prevLen = remember { mutableIntStateOf(0) }
 
     val ctx = LocalContext.current
 
@@ -90,11 +91,11 @@ fun OutlinedTextFieldsInputsLocation(
         codigo: String,
         ocultarTeclado: Boolean
     ) {
-        val code = normalizeUbi(codigo)
+        val raw = codigo.trim().uppercase()
 
         // 🔌 Offline → aceptar sin error y avisar
         if (!isOnline(ctx)) {
-            location.value = code
+            location.value = raw
             showErrorLocation.value = false
             Toast.makeText(ctx, "Sin conexión. Se validará al enviar.", Toast.LENGTH_SHORT).show()
             if (ocultarTeclado) keyboardController?.hide()
@@ -106,40 +107,34 @@ fun OutlinedTextFieldsInputsLocation(
         }
 
         // 🌐 Online → usar el validador central
+        // raw = lo que escribió / escaneó (con guiones)
+        //val raw = codigo.trim().uppercase()
+
         validarUbicacionEnMaestro(
             clienteId = clienteIdActual.orEmpty(),
             localidadCodigo = localidadActual.orEmpty(),
-            codigoUbi = code,
-            onResult = { existe ->
+            codigoUbi = raw, // lo que escribió/escaneó
+            onResult = { existe, codigoOk ->
                 if (existe) {
-                    location.value = code
+                    location.value = codigoOk   // 👈 CLAVE: usa el encontrado
                     showErrorLocation.value = false
                     if (ocultarTeclado) keyboardController?.hide()
-                    try {
-                        nextFocusRequester.requestFocus()
-                    } catch (_: Exception) {
-                    }
+                    try { nextFocusRequester.requestFocus() } catch (_: Exception) {}
                 } else {
                     showErrorLocation.value = true
                     showUbicacionNoExisteDialog.value = true
                 }
             },
             onError = {
-                // Trátalo como red caída/transitorio
-                location.value = code
+                location.value = raw
                 showErrorLocation.value = false
-                Toast.makeText(
-                    ctx,
-                    "No se pudo validar (red). Se validará al enviar.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(ctx, "No se pudo validar (red). Se validará al enviar.", Toast.LENGTH_SHORT).show()
                 if (ocultarTeclado) keyboardController?.hide()
-                try {
-                    nextFocusRequester.requestFocus()
-                } catch (_: Exception) {
-                }
+                try { nextFocusRequester.requestFocus() } catch (_: Exception) {}
             }
         )
+
+
     }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
@@ -148,10 +143,9 @@ fun OutlinedTextFieldsInputsLocation(
             val scanned = contents.trim().uppercase()
 
             // 1) Mostrar el código en el campo
-            tempLocationInput.value = scanned
-
             // 2) Validar inmediatamente contra el maestro
             tempLocationInput.value = scanned
+
             validarOAceptarUbicacion(scanned, ocultarTeclado = true)
 
             Log.d("ScanDebug", "Escaneo recibido: $scanned")
@@ -164,17 +158,13 @@ fun OutlinedTextFieldsInputsLocation(
     LaunchedEffect(isZebraScan.value) {
         if (isZebraScan.value) {
             val code = tempLocationInput.value
-            if (code.length >= 13) {
+            if (code.isNotBlank()) {
                 validarOAceptarUbicacion(code, ocultarTeclado = true)
-            }
-            try {
-                keyboardController?.hide()
-                nextFocusRequester.requestFocus()
-            } catch (_: Exception) {
             }
             isZebraScan.value = false
         }
     }
+
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -192,7 +182,7 @@ fun OutlinedTextFieldsInputsLocation(
 
                         if (!isOnline(ctx)) {
                             // Offline: no marcar error; acepta la ubicación y sigue
-                            val code = tempLocationInput.value.trim().uppercase()
+                            val code = normalizeUbi(tempLocationInput.value)
                             location.value = code
                             showErrorLocation.value = false
 
@@ -219,11 +209,14 @@ fun OutlinedTextFieldsInputsLocation(
             value = tempLocationInput.value,
             onValueChange = { newValue ->
                 val clean = newValue.trim().uppercase()
+                val oldLen = prevLen.intValue
+
                 tempLocationInput.value = clean
+                prevLen.intValue = clean.length
+
                 onUserInteraction()
 
-                // 3) onValueChange: detección Zebra más realista
-                if (clean.length >= 13 && clean.length - location.value.length >= 3) {
+                if (clean.length >= 13 && (clean.length - oldLen) >= 3) {
                     isZebraScan.value = true
                 }
                 showErrorLocation.value = false
@@ -231,29 +224,29 @@ fun OutlinedTextFieldsInputsLocation(
             isError = showErrorLocation.value && (location.value.isEmpty() || location.value == "UBICACIÓN NO EXISTE"),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             // 4) KeyboardActions (onNext): baja el umbral
-            keyboardActions = KeyboardActions(onNext = {
-                if (tempLocationInput.value.length >= 13) {
+            keyboardActions = KeyboardActions(
+                onNext = {
+                    val input = tempLocationInput.value.trim().uppercase()
 
-                    if (!isOnline(ctx)) {
-                        val code = tempLocationInput.value.trim().uppercase()
-                        location.value = code
-                        showErrorLocation.value = false
-                        nextFocusRequester.requestFocus()
+                    if (input.isNotBlank()) {
+                        if (!isOnline(ctx)) {
+                            val code = normalizeUbi(input)
+                            location.value = code
+                            showErrorLocation.value = false
+                            nextFocusRequester.requestFocus()
+                            Toast.makeText(ctx, "Sin conexión. Se validará al enviar.", Toast.LENGTH_SHORT).show()
+                            return@KeyboardActions
+                        }
 
-                        Toast.makeText(
-                            ctx,
-                            "Sin conexión. Se validará al enviar.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return@KeyboardActions
+                        // Online: válida siempre (sin depender del largo)
+                        validarOAceptarUbicacion(input, ocultarTeclado = false)
                     }
-                    if (tempLocationInput.value.length >= 13) {
-                        validarOAceptarUbicacion(tempLocationInput.value, ocultarTeclado = false)
-                    }
+
+                    if (!showErrorLocation.value) nextFocusRequester.requestFocus()
+                    else showUbicacionNoExisteDialog.value = true
                 }
-                if (!showErrorLocation.value) nextFocusRequester.requestFocus()
-                else showUbicacionNoExisteDialog.value = true
-            }),
+
+            ),
             // ANCLA: reemplazo de trailingIcon en el OutlinedTextField de Ubicación
             trailingIcon = {
                 Row(

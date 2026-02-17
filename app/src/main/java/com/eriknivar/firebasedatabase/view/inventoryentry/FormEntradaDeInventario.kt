@@ -583,7 +583,7 @@ fun FormEntradaDeInventario(
                             isSaving = false
                             enfocarSkuDespuesDeGrabar()
                         } else {
-                            // Caso raro: dijo que hay duplicado pero no tenemos docRef/cantidad
+                            // Caso raro: dijo que hay duplicado, pero no tenemos docRef/cantidad
                             usuarioDuplicado = usuarioEncontrado ?: "Desconocido"
                             showDialogRegistroDuplicado.value = true
                             isSaving = false

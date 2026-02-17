@@ -436,10 +436,10 @@ fun InventoryReportItem(
                             clienteId = cid,
                             localidadCodigo = loc,
                             codigoUbi = ubi,
-                            onResult = { existe ->
+                            onResult = { existe, codigoOk ->
                                 if (existe) {
                                     val actualizado = item.copy(
-                                        location = ubi,
+                                        location = codigoOk,     // 👈 usa el encontrado
                                         lote = loteEdit,
                                         expirationDate = fechaEdit,
                                         quantity = cantEdit
@@ -448,28 +448,17 @@ fun InventoryReportItem(
                                     isSaving = false
                                     showEditDialog = false
                                 } else {
-                                    ubiInvalidaTexto = buildAnnotatedString {
-                                        append("“")
-                                        pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
-                                        append(ubi)
-                                        pop()
-                                        append("” no existe en el maestro para ")
-                                        // Si también quieres resaltar la localidad, deja este bloque:
-                                        pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
-                                        append(loc)
-                                        pop()
-                                        append(".")
-                                    }
+                                    // tu mismo manejo de error
                                     showUbiInvalida = true
                                     isSaving = false
                                 }
                             },
                             onError = {
-                                ubiInvalidaTexto =
-                                    AnnotatedString("No se pudo validar la ubicación.")
+                                ubiInvalidaTexto = AnnotatedString("No se pudo validar la ubicación.")
                                 showUbiInvalida = true
                                 isSaving = false
-                            })
+                            }
+                        )
 
                     }) {
                     Text(

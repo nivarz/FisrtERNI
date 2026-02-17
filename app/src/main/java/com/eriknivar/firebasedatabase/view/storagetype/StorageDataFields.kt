@@ -35,7 +35,6 @@ data class DataFields(
     @ServerTimestamp val fechaRegistro: Timestamp? = null,
     @ServerTimestamp val creadoEn: Timestamp? = null,
 
-
     // ===== EN (aliases que usa la UI)
     val documentId: String = "",
     val quantity: Double = 0.0,
@@ -48,6 +47,3 @@ data class DataFields(
     val expirationForUi: String
         get() = expirationDate.ifBlank { fechaVencimiento.ifBlank { "-" } }
 }
-
-
-

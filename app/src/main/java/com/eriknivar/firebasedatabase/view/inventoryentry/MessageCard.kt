@@ -84,6 +84,8 @@ import com.eriknivar.firebasedatabase.view.utility.normalizeUbi
 import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import androidx.core.net.toUri
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun MessageCard(
@@ -123,26 +125,14 @@ fun MessageCard(
 
     LaunchedEffect(isEditing) {
         if (isEditing) {
-            // 1) copiar valores actuales del item SIN forzar "-"
             editedLote = item.lote
-            editedExpirationDate = item.expirationForUi.ifBlank { "-" }
 
-            val src = editedExpirationDate.trim().ifBlank { "-" }
-            editedExpirationDate = when {
-                src == "-" -> "-"                                  // ← mantiene “-”
-                src.matches(Regex("""\d{4}-\d{2}-\d{2}""")) -> {   // ← solo formatea si es una fecha real
-                    try {
-                        val d = java.time.LocalDate.parse(
-                            src, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
-                        )
-                        d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    } catch (_: Exception) {
-                        src
-                    }
-                }
+            // ✅ usar expirationForUi (fallback a fechaVencimiento)
+            editedExpirationDate = formatDateForUi(item.expirationForUi)
 
-                else -> src
-            }
+            editedQuantity = item.quantity.toString()
+            editedLocationState.value = item.location.uppercase()
+            showErrorLocation.value = false
         }
     }
 
@@ -308,6 +298,7 @@ fun MessageCard(
     }
     val backgroundColorCard = if (isExpanded) Color(0xFFE3F2FD) else Color.White
 
+    /*
     // (opcional) normaliza la fecha inicial del item: si vino "yyyy-MM-dd" -> "dd/MM/yyyy"
     LaunchedEffect(isEditing, item.documentId) {
         if (isEditing) {
@@ -326,7 +317,7 @@ fun MessageCard(
             }
         }
     }
-
+*/
     // construye el DatePicker con fecha inicial
     val cal = Calendar.getInstance().apply {
         val r = editedExpirationDate
@@ -748,8 +739,9 @@ fun MessageCard(
                                             val loteChanged =
                                                 (editedLote.trim().uppercase() != (item.lote.trim()
                                                     .uppercase()))
-                                            val fechaChanged =
-                                                (editedExpirationDate.trim() != item.expirationDate.trim())
+                                            val originalFecha = item.expirationForUi.trim().ifBlank { "-" }
+                                            val nuevaFecha = editedExpirationDate.trim().ifBlank { "-" }
+                                            val fechaChanged = (nuevaFecha != originalFecha)
 
                                             // === 1) Validaciones ===
                                             if (isInv) {
@@ -950,7 +942,7 @@ fun MessageCard(
                                                             "lote" to editedLote.trim()
                                                                 .ifBlank { "-" }
                                                                 .uppercase(),
-                                                            "fechaVencimiento" to editedExpirationDate.trim(),
+                                                            "fechaVencimiento" to editedExpirationDate.trim().ifBlank { "-" },
                                                             "updatedAt" to FieldValue.serverTimestamp(),
                                                             "updatedBy" to (userViewModel.documentId.value
                                                                 ?: ""))
@@ -971,7 +963,7 @@ fun MessageCard(
                                                                     lote = editedLote.trim()
                                                                         .ifBlank { "-" }
                                                                         .uppercase(),
-                                                                    expirationDate = editedExpirationDate.trim())
+                                                                    expirationDate = editedExpirationDate.trim().ifBlank { "-" })
 
                                                                 allData[idx] = updatedItem
                                                             }
@@ -1054,7 +1046,7 @@ fun MessageCard(
                                                     }
                                                 }
                                             }
-                                            // === 2.5) Validación en app (helper compartido) ===
+                                            // === 2.5() Validación en app (helper compartido) ===
                                             val locCodigo = item.localidad.trim().uppercase()
 
                                             if (!locationChanged) {
@@ -1066,12 +1058,10 @@ fun MessageCard(
                                                 validarUbicacionEnMaestro(
                                                     clienteId = cidLocal,
                                                     localidadCodigo = locCodigo,
-                                                    codigoUbi = ubiNormalizada,
-                                                    onResult = { existe ->
+                                                    codigoUbi = nuevaUbi,   // ✅ raw (con o sin guiones)
+                                                    onResult = { existe, encontrado ->
                                                         if (existe) {
-                                                            // Asegura que guardamos la versión normalizada
-                                                            editedLocationState.value =
-                                                                ubiNormalizada
+                                                            editedLocationState.value = encontrado
                                                             continuarConUpdate()
                                                         } else {
                                                             showErrorLocation.value = true
@@ -1148,5 +1138,24 @@ fun MessageCard(
                 }
             }
         }
+    }
+}
+
+private fun formatDateForUi(value: String): String {
+    val src = value.trim()
+    if (src.isBlank() || src == "-") return "-"
+
+    return try {
+        when {
+            src.matches(Regex("""\d{4}-\d{2}-\d{2}""")) -> {
+                LocalDate.parse(src, DateTimeFormatter.ISO_LOCAL_DATE)
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+            }
+            // ya viene en formato UI
+            src.matches(Regex("""\d{2}/\d{2}/\d{4}""")) -> src
+            else -> src
+        }
+    } catch (_: Exception) {
+        src
     }
 }

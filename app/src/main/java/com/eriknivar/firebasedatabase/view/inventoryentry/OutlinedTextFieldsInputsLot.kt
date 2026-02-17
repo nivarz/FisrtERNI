@@ -169,7 +169,7 @@ fun OutlinedTextFieldsInputsLot(
 
         // ⬇️ NUEVO: solo mostrar borrar si está habilitado
 
-        // Mostrar zafacón cuando hay texto (y no es "-") y el campo está habilitado
+        // Mostrar zafacón cuando hay texto (y no es "-"() y el campo está habilitado
         if (enable && lot.value.isNotBlank() && lot.value != "-") {
             IconButton(
                 onClick = {
