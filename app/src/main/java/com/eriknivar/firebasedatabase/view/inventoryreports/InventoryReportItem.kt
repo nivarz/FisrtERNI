@@ -46,8 +46,6 @@ import java.util.Calendar
 import java.util.Locale
 import com.eriknivar.firebasedatabase.view.utility.validarUbicacionEnMaestro
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
@@ -444,10 +442,10 @@ fun InventoryReportItem(
                                         expirationDate = fechaEdit,
                                         quantity = cantEdit
                                     )
-                                    onEdit(actualizado)
+                                    showEditDialog = false
                                     isSaving = false
+                                    onEdit(actualizado)
                                 } else {
-                                    // tu manejo de error...
                                     isSaving = false
                                 }
                             },

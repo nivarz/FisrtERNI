@@ -83,6 +83,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.tasks.await
 import com.eriknivar.firebasedatabase.view.utility.ImageUtils
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
 fun FormEntradaDeInventario(
@@ -226,22 +227,21 @@ fun FormEntradaDeInventario(
         else clienteIdFromUser
 
     // states
-    val photoUri = remember { mutableStateOf<Uri?>(null) }
-    val tieneFoto = remember { mutableStateOf(false) }
+    // states
+    val photoUri = userViewModel.photoUriTemporal
+    val tieneFoto = userViewModel.tieneFotoTemporal
 
     // launcher
     val takePictureLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { ok ->
-        if (ok && photoUri.value != null) {
-            tieneFoto.value = true
-            Log.d("FotoDebug", "✅ TakePicture OK: ${photoUri.value}")
+        if (ok && !photoUri.isNullOrBlank()) {
+            userViewModel.setPhotoTemporal(photoUri)
+            Log.d("FotoDebug", "✅ TakePicture OK: $photoUri")
         } else {
             Log.d("FotoDebug", "❌ TakePicture cancelada/falló, limpiando Uri temporal")
-            tieneFoto.value = false
-            photoUri.value = null
+            userViewModel.clearPhotoTemporal()
         }
-
     }
 
     LaunchedEffect(Unit) {
@@ -495,7 +495,7 @@ fun FormEntradaDeInventario(
 
                 // 1) Forzar estado real de foto según la URI local
                 val hadPhotoFinal = !uriLocal.isNullOrBlank()
-                val uriLog = uriLocal ?: photoUri.value?.toString()
+                val uriLog = uriLocal ?: photoUri
 
                 validarRegistroDuplicado(
                     db = firestore,
@@ -623,11 +623,11 @@ fun FormEntradaDeInventario(
 
                         // ANCLA BOTON-FOTO (onClick)
                         val tmpUri = ImageUtils.createTempImageUri(context)
-                        photoUri.value = tmpUri
+                        userViewModel.setPhotoTemporal(tmpUri.toString())
                         takePictureLauncher.launch(tmpUri)
 
                     },
-                    enabled = !isSaving && !tieneFoto.value,
+                    enabled = !isSaving && !tieneFoto,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
                     modifier = Modifier
                         .weight(1f)
@@ -814,7 +814,7 @@ fun FormEntradaDeInventario(
                 }
             }
 
-            if (tieneFoto.value) {
+            if (tieneFoto) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -825,8 +825,7 @@ fun FormEntradaDeInventario(
                     Text("✅ Foto lista para subir", fontSize = 12.sp, color = Color(0xFF2E7D32))
 
                     TextButton(onClick = {
-                        tieneFoto.value = false
-                        photoUri.value = null
+                        userViewModel.clearPhotoTemporal()
                     }) { Text("Quitar foto") }
 
                 }
@@ -851,21 +850,13 @@ fun FormEntradaDeInventario(
                                 showSavingDialog.value = true
 
                                 // ANCLA donde falla ahora
-                                val uri = photoUri.value
-                                val hadPhoto =
-                                    (uri != null)              // <- antes usabas uriLocal
-                                finishSaving(
-                                    hadPhoto, uri?.toString()
-                                )   // <- pasamos el String? correcto
+                                val uriLocal = photoUri
+                                val hadPhoto = !uriLocal.isNullOrBlank()
+                                finishSaving(hadPhoto, uriLocal)   // <- pasamos el String? correcto
 
                                 // Limpieza y aviso (igual que ya tenías)
                                 if (hadPhoto) {
-                                    photoUri.value = null
-                                    tieneFoto.value = false/* Toast.makeText(
-                                         context,
-                                         "Registro guardado. La foto se subirá en segundo plano.",
-                                         Toast.LENGTH_SHORT
-                                     ).show()*/
+                                    userViewModel.clearPhotoTemporal()
                                 }
 
                             }) {

@@ -128,6 +128,7 @@ fun MasterDataFragment(
     var codigoInput by remember { mutableStateOf("") }
     var descripcionInput by remember { mutableStateOf("") }
     var unidadInput by remember { mutableStateOf("") }
+    var costoInput by remember { mutableStateOf("") }
     var busqueda by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
@@ -468,6 +469,7 @@ fun MasterDataFragment(
                                 selectedProduct = null
                                 descripcionInput = ""
                                 unidadInput = ""
+                                costoInput = ""
 
                                 val clienteId = userViewModel.clienteId.value?.trim().orEmpty()
                                 previewSiguienteCodigo(clienteId) { next ->
@@ -487,7 +489,7 @@ fun MasterDataFragment(
 
                         Spacer(Modifier.width(12.dp))
 
-                        // Botón: Cargar Datos Maestro
+                        // Botón: Cargar datos maestro
                         ElevatedButton(
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = navyBlue, contentColor = Color.White
@@ -695,6 +697,20 @@ fun MasterDataFragment(
                                             fontSize = 15.sp
                                         )
 
+                                        Spacer(Modifier.height(4.dp))
+
+                                        Text(
+                                            buildAnnotatedString {
+                                                withStyle(style = SpanStyle(color = navyBlue)) {
+                                                    append("Costo: ")
+                                                }
+                                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                                    append("$" + String.format("%.2f", producto.costo))
+                                                }
+                                            },
+                                            fontSize = 15.sp
+                                        )
+
                                         Spacer(Modifier.height(8.dp))
 
                                         // Botones de acción (editar / eliminar)
@@ -708,6 +724,7 @@ fun MasterDataFragment(
                                                 codigoInput = producto.codigo
                                                 descripcionInput = producto.descripcion
                                                 unidadInput = producto.unidad
+                                                costoInput = producto.costo.toString()
                                                 showDialog = true
                                             }) {
                                                 Icon(
@@ -769,6 +786,17 @@ fun MasterDataFragment(
                                         label = { Text("Unidad de Medida") },
                                         modifier = Modifier.fillMaxWidth()
                                     )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = costoInput,
+                                        singleLine = true,
+                                        onValueChange = { nuevoValor ->
+                                            costoInput = nuevoValor.filter { it.isDigit() || it == '.' }
+                                        },
+                                        label = { Text("Costo") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                                    )
                                 }
                             },
                             confirmButton = {
@@ -805,10 +833,19 @@ fun MasterDataFragment(
                                             return@TextButton
                                         }
 
-                                        if (descripcionInput.isBlank() || unidadInput.isBlank()) {
+                                        if (descripcionInput.isBlank() || unidadInput.isBlank() || costoInput.isBlank()) {
                                             Toast.makeText(
                                                 context,
                                                 "Completa todos los campos",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@TextButton
+                                        }
+                                        val costoValor = costoInput.toDoubleOrNull()
+                                        if (costoValor == null || costoValor <= 0.0) {
+                                            Toast.makeText(
+                                                context,
+                                                "El costo debe ser mayor que 0",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                             return@TextButton
@@ -843,7 +880,8 @@ fun MasterDataFragment(
                                                         id = null,
                                                         codigo = codigoFinal,
                                                         descripcion = desc,
-                                                        unidad = uni
+                                                        unidad = uni,
+                                                        costo = costoValor
                                                     )
                                                     MaestroRepo.crearProducto(
                                                         clienteId = clienteId,
@@ -855,7 +893,8 @@ fun MasterDataFragment(
                                                                     id = codigoFinal,
                                                                     codigo = codigoFinal,
                                                                     descripcion = nuevo.descripcion,
-                                                                    unidad = nuevo.unidad
+                                                                    unidad = nuevo.unidad,
+                                                                    costo = nuevo.costo
                                                                 )
                                                             )
                                                             productos.sortBy { it.descripcion }
@@ -900,7 +939,7 @@ fun MasterDataFragment(
                                             }
 
                                             val cambios = mapOf(
-                                                "descripcion" to desc, "unidad" to uni
+                                                "descripcion" to desc, "unidad" to uni, "costo" to costoValor
                                             )
                                             isSaving = true
                                             MaestroRepo.actualizarProducto(
@@ -913,7 +952,7 @@ fun MasterDataFragment(
                                                         productos.indexOfFirst { it.codigo == selectedProduct!!.codigo }
                                                     if (idx != -1) {
                                                         productos[idx] = productos[idx].copy(
-                                                            descripcion = desc, unidad = uni
+                                                            descripcion = desc, unidad = uni, costo = costoValor
                                                         )
                                                     }
                                                     showDialog = false

@@ -2,7 +2,9 @@ package com.eriknivar.firebasedatabase.viewmodel
 
 import android.util.Log
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -139,6 +141,22 @@ class UserViewModel : ViewModel() {
 
     var isManualLogout = mutableStateOf(false)
 
+    var photoUriTemporal by mutableStateOf<String?>(null)
+        private set
+
+    var tieneFotoTemporal by mutableStateOf(false)
+        private set
+
+    fun setPhotoTemporal(uri: String?) {
+        photoUriTemporal = uri
+        tieneFotoTemporal = !uri.isNullOrBlank()
+    }
+
+    fun clearPhotoTemporal() {
+        photoUriTemporal = null
+        tieneFotoTemporal = false
+    }
+
     // ✅ Variables temporales para restaurar campos después del logout
     var tempSku = ""
     var tempLote = ""
@@ -183,6 +201,8 @@ class UserViewModel : ViewModel() {
         tempCantidad = ""
         tempUbicacion = ""
         tempFecha = ""
+
+        clearPhotoTemporal()
     }
 
     fun puedeModificarRegistro(registroUsuario: String, registroTipo: String): Boolean {

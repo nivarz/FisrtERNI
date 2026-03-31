@@ -34,11 +34,14 @@ object MaestroRepo {
                         val codigo = d.getString("codigo") ?: d.id
                         val descripcion = d.getString("descripcion") ?: ""
                         val unidad = d.getString("unidad") ?: d.getString("UM") ?: "" // por si tuvieras legacy "UM"
+                        val costo = d.getDouble("costo") ?: 0.0
+
                         Producto(
                             id = d.id,
                             codigo = codigo,
                             descripcion = descripcion,
-                            unidad = unidad
+                            unidad = unidad,
+                            costo = costo
                         )
                     } catch (_: Exception) { null }
                 }
@@ -67,7 +70,8 @@ object MaestroRepo {
             "codigo" to codigo,                      // == docId
             "clienteId" to cid,
             "descripcion" to clean(producto.descripcion),
-            "unidad" to clean(producto.unidad)
+            "unidad" to clean(producto.unidad),
+            "costo" to producto.costo
         )
 
         Log.d("MAESTRO", "CREATE /clientes/$cid/productos/$codigo $data")
@@ -93,8 +97,23 @@ object MaestroRepo {
         val updates = mutableMapOf<String, Any>()
         cambios.forEach { (k, v) ->
             when (k) {
-                "descripcion" -> if (!v?.toString().isNullOrBlank()) updates["descripcion"] = clean(v.toString())
-                "unidad", "UM" -> if (!v?.toString().isNullOrBlank()) updates["unidad"] = clean(v.toString())
+                "descripcion" -> if (!v?.toString().isNullOrBlank()) {
+                    updates["descripcion"] = clean(v.toString())
+                }
+
+                "unidad", "UM" -> if (!v?.toString().isNullOrBlank()) {
+                    updates["unidad"] = clean(v.toString())
+                }
+
+                "costo" -> {
+                    val costo = when (v) {
+                        is Number -> v.toDouble()
+                        else -> v?.toString()?.toDoubleOrNull()
+                    }
+                    if (costo != null && costo > 0.0) {
+                        updates["costo"] = costo
+                    }
+                }
                 // ignora 'codigo'
             }
         }
