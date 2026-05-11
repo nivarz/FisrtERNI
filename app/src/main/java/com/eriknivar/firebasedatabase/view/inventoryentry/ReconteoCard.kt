@@ -2,7 +2,6 @@ package com.eriknivar.firebasedatabase.view.inventoryentry
 
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,16 +18,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,22 +36,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavHostController
-import com.eriknivar.firebasedatabase.viewmodel.UserViewModel
-import com.google.firebase.Firebase
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.delay
+
 
 @Composable
 fun ReconteoCard(
-    item: Map<String, Any>,
-    onEliminarCard: () -> Unit,
-    actualizarActividad: () -> Unit
+    item: Map<String, Any>, onEliminarCard: () -> Unit, actualizarActividad: () -> Unit
 ) {
     val sku = item["sku"] as? String ?: ""
     val descripcion = item["descripcion"] as? String ?: "-"
+    val clienteId = item["clienteId"] as? String ?: ""
+    val usuarioAsignado = item["usuarioAsignado"] as? String ?: ""
+    val nombreAsignado = item["nombreAsignado"] as? String ?: ""
     val cantidadEsperada = when (val raw = item["cantidadEsperada"]) {
         is Number -> raw.toDouble()
         is String -> raw.toDoubleOrNull() ?: 0.0
@@ -78,7 +71,7 @@ fun ReconteoCard(
         mutableStateOf(cantidadFisicaOriginal.toString())
     }
     var cantidadFisica by remember(cantidadFisicaOriginal) {
-        mutableStateOf(cantidadFisicaOriginal.toDouble())
+        mutableDoubleStateOf(cantidadFisicaOriginal)
     }
 
     var isSaving by remember { mutableStateOf(false) }
@@ -102,37 +95,28 @@ fun ReconteoCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    descripcion,
-                    fontSize = 14.sp,
-                    color = Color.Black
+                    descripcion, fontSize = 14.sp, color = Color.Black
                 )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "SKU:",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color.Black
+                    "SKU:", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    sku,
-                    fontSize = 14.sp,
-                    color = Color.Black
+                    sku, fontSize = 14.sp, color = Color.Black
                 )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "Físico:",
@@ -154,12 +138,10 @@ fun ReconteoCard(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     textStyle = LocalTextStyle.current.copy(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold
                     ),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = Color.White, unfocusedContainerColor = Color.White
                     )
                 )
             }
@@ -167,8 +149,7 @@ fun ReconteoCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "Lote:",
@@ -187,8 +168,7 @@ fun ReconteoCard(
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = Color.White, unfocusedContainerColor = Color.White
                     )
                 )
             }
@@ -196,8 +176,7 @@ fun ReconteoCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "Ubicación:",
@@ -216,8 +195,7 @@ fun ReconteoCard(
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = Color.White, unfocusedContainerColor = Color.White
                     )
                 )
             }
@@ -225,8 +203,7 @@ fun ReconteoCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "Localidad: ",
@@ -236,22 +213,17 @@ fun ReconteoCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    localidad.ifBlank { "-" },
-                    fontSize = 13.sp,
-                    color = Color.Black
+                    localidad.ifBlank { "-" }, fontSize = 13.sp, color = Color.Black
                 )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Estado: ",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    "Estado: ", fontWeight = FontWeight.Bold, fontSize = 13.sp
                 )
                 Text(
                     estado.uppercase(),
@@ -268,34 +240,69 @@ fun ReconteoCard(
                     actualizarActividad()
                     isSaving = true
 
-                    FirebaseFirestore.getInstance()
-                        .collection("reconteo_pendiente")
-                        .whereEqualTo("sku", sku)
-                        .whereEqualTo("ubicacion", ubicacion)
+                    if (clienteId.isBlank()) {
+                        Toast.makeText(
+                            context, "No se encontró el cliente del reconteo", Toast.LENGTH_SHORT
+                        ).show()
+                        isSaving = false
+                        return@Button
+                    }
+
+                    FirebaseFirestore.getInstance().collection("clientes").document(clienteId)
+                        .collection("reconteo_pendiente").whereEqualTo("sku", sku)
+                        .whereEqualTo("ubicacion", ubicacion).whereEqualTo("localidad", localidad)
                         .whereEqualTo("lote", lote)
                         .whereEqualTo("cantidadEsperada", cantidadEsperada)
-                        .whereEqualTo("estado", "pendiente")
-                        .get()
+                        .whereEqualTo("estado", "pendiente").get()
+
                         .addOnSuccessListener { docs ->
+                            val db = FirebaseFirestore.getInstance()
+
                             for (doc in docs) {
+                                val reconteoData = doc.data
+
                                 doc.reference.update(
                                     mapOf(
                                         "cantidadFisica" to cantidadFisica,
-                                        "estado" to "completado"
+                                        "estado" to "completado",
+                                        "completadoEn" to FieldValue.serverTimestamp(),
+                                        "completadoPorUid" to usuarioAsignado,
+                                        "completadoPorNombre" to nombreAsignado
                                     )
                                 )
+
+                                val inventarioQuery = db.collection("clientes").document(clienteId)
+                                    .collection("inventario").whereEqualTo("codigoProducto", sku)
+                                    .whereEqualTo("ubicacion", ubicacion)
+                                    .whereEqualTo("localidad", localidad).whereEqualTo("lote", lote)
+                                    .limit(1)
+
+                                inventarioQuery.get().addOnSuccessListener { inventarioDocs ->
+                                        for (invDoc in inventarioDocs) {
+                                            invDoc.reference.update(
+                                                mapOf(
+                                                    "cantidad" to cantidadFisica,
+                                                    "fechaActualizacion" to FieldValue.serverTimestamp(),
+                                                    "usuario" to nombreAsignado,
+                                                    "usuarioNombre" to nombreAsignado,
+                                                    "recontadoPorUid" to usuarioAsignado,
+                                                    "recontadoPorNombre" to nombreAsignado,
+                                                    "reconteoActualizadoEn" to FieldValue.serverTimestamp()
+                                                )
+                                            )
+                                        }
+                                    }
                             }
+
                             Toast.makeText(
-                                context,
-                                "Guardado y marcado como completado",
-                                Toast.LENGTH_SHORT
+                                context, "Guardado y marcado como completado", Toast.LENGTH_SHORT
                             ).show()
-                            onEliminarCard() // ✅ Elimina de la UI
+                            onEliminarCard()
                         }
+
                         .addOnFailureListener {
                             Toast.makeText(context, "Error al guardar", Toast.LENGTH_SHORT).show()
-                        }
-                        .addOnCompleteListener {
+                        }.addOnCompleteListener {
                             isSaving = false
                         }
                 },

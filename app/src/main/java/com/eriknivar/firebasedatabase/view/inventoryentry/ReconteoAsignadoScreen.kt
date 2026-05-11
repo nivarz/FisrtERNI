@@ -39,6 +39,7 @@ fun ReconteoAsignadoScreen(
     val reconteos = remember { mutableStateListOf<Map<String, Any>>() }
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val clienteId = userViewModel.clienteId.value ?: ""
 
     val dummyLocation = remember { mutableStateOf("") }
     val dummySku = remember { mutableStateOf("") }
@@ -46,29 +47,38 @@ fun ReconteoAsignadoScreen(
     val dummyLot = remember { mutableStateOf("") }
     val dummyDateText = remember { mutableStateOf("") }
 
-    DisposableEffect(usuarioId) {
-        val listener = FirebaseFirestore.getInstance()
-            .collection("reconteo_pendiente")
-            .whereEqualTo("usuarioAsignado", usuarioId)
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.e("RECONTEO_DEBUG", "Error escuchando reconteos", e)
-                    return@addSnapshotListener
+
+    DisposableEffect(usuarioId, clienteId) {
+        if (usuarioId.isBlank() || clienteId.isBlank()) {
+            reconteos.clear()
+            isLoading = false
+            onDispose { }
+        } else {
+            val listener = FirebaseFirestore.getInstance()
+                .collection("clientes")
+                .document(clienteId)
+                .collection("reconteo_pendiente")
+                .whereEqualTo("usuarioAsignado", usuarioId)
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        Log.e("RECONTEO_DEBUG", "Error escuchando reconteos", e)
+                        isLoading = false
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
+                        reconteos.clear()
+                        reconteos.addAll(snapshot.documents.mapNotNull { it.data })
+                        Log.d("RECONTEO_DEBUG", "🔁 Actualización en tiempo real: ${reconteos.size}")
+                    } else {
+                        Log.w("RECONTEO_DEBUG", "❗Snapshot nulo sin excepción")
+                    }
+                    isLoading = false
                 }
 
-                if (snapshot != null) {
-                    reconteos.clear()
-                    reconteos.addAll(snapshot.documents.mapNotNull { it.data })
-                    Log.d("RECONTEO_DEBUG", "🔁 Actualización en tiempo real: ${reconteos.size}")
-                } else {
-                    Log.w("RECONTEO_DEBUG", "❗Snapshot nulo sin excepción")
-                }
-                isLoading = false
-
+            onDispose {
+                listener.remove()
             }
-
-        onDispose {
-            listener.remove()
         }
     }
 
@@ -107,7 +117,7 @@ fun ReconteoAsignadoScreen(
 
     val tipo = userViewModel.tipo.value ?: ""
 
-    if (tipo.lowercase() != "superuser") {
+    if (tipo.lowercase() != "superuser" && tipo.lowercase() != "admin" && tipo.lowercase() != "invitado") {
         Box(
             modifier = Modifier
                 .fillMaxSize()
