@@ -24,11 +24,9 @@ fun validarRegistroDuplicado(
     cantidad: Double,
     localidad: String,
     clienteId: String,
+    sesionId: String = "",
     onResult: (
-        existeDuplicado: Boolean,
-        usuarioNombre: String?,
-        docRef: DocumentReference?,
-        cantidadExistente: Double?
+        existeDuplicado: Boolean, usuarioNombre: String?, docRef: DocumentReference?, cantidadExistente: Double?
     ) -> Unit,
     onError: (Exception) -> Unit
 ) {
@@ -39,6 +37,7 @@ fun validarRegistroDuplicado(
         val ubi = ubicacion.trim().uppercase(Locale.ROOT)
         val cod = sku.trim().uppercase(Locale.ROOT)
         val lot = lote.trim().ifBlank { "-" }.uppercase(Locale.ROOT)
+        val sid = sesionId.trim()
 
         // mismo formato que el campo "dia" en Firestore: yyyyMMdd
         val hoyStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
@@ -49,19 +48,21 @@ fun validarRegistroDuplicado(
             return
         }
 
-        val ref = db.collection("clientes")
-            .document(cid)
-            .collection("inventario")
+        val ref = db.collection("clientes").document(cid).collection("inventario")
 
-        ref.whereEqualTo("localidad", loc)
-            .whereEqualTo("ubicacion", ubi)
-            .whereEqualTo("codigoProducto", cod)
-            .whereEqualTo("lote", lot)
-            .whereEqualTo("dia", hoyStr)
-            // 👆 YA NO filtramos por usuarioUid → aplica a TODOS los usuarios
-            .limit(1)
-            .get()
-            .addOnSuccessListener { snap ->
+        var query = ref.whereEqualTo("localidad", loc).whereEqualTo("ubicacion", ubi)
+            .whereEqualTo("codigoProducto", cod).whereEqualTo("lote", lot)
+        // 👆 YA NO filtramos por usuarioUid → aplica a TODOS los usuarios
+
+        if (sid.isNotBlank()) {
+            // 🧩 En modo sesiones, el duplicado vive dentro de la sesión activa
+            query = query.whereEqualTo("sesionId", sid)
+        } else {
+            // 🧩 Modo clásico: mantiene comportamiento actual por día
+            query = query.whereEqualTo("dia", hoyStr)
+        }
+
+        query.limit(1).get().addOnSuccessListener { snap ->
                 val doc = snap.documents.firstOrNull()
 
                 if (doc == null) {
@@ -69,15 +70,14 @@ fun validarRegistroDuplicado(
                     return@addOnSuccessListener
                 }
 
-                val usuarioNombre = doc.getString("usuarioNombre")
-                    ?: doc.getString("usuario") // compatibilidad
+                val usuarioNombre =
+                    doc.getString("usuarioNombre") ?: doc.getString("usuario") // compatibilidad
 
                 val cantidadExistente =
                     doc.getDouble("cantidad") ?: doc.getLong("cantidad")?.toDouble()
 
                 onResult(true, usuarioNombre, doc.reference, cantidadExistente)
-            }
-            .addOnFailureListener { e ->
+            }.addOnFailureListener { e ->
                 Log.e("DupCheck", "Fallo dup-check", e)
                 onError(e)
             }

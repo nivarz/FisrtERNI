@@ -35,7 +35,11 @@ fun saveToFirestore(
     fotoUrl: String?,                        // no se usa aquí (upload asíncrono)
     hadPhoto: Boolean,
     fotoUriLocal: String?,                   // uri local para preview y worker
-    appContext: Context
+    appContext: Context,
+
+    // 🧩 Sesión de conteo
+    sesionId: String = "",
+    sesionNombre: String = ""
 ) {
     val cid = (userViewModel.clienteId.value ?: "").trim().uppercase(Locale.ROOT)
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
@@ -53,6 +57,11 @@ fun saveToFirestore(
         "clienteId" to cid,
         "localidad" to localidad.trim().uppercase(Locale.ROOT),
         "ubicacion" to location.trim().uppercase(Locale.ROOT),
+
+        // 🧩 Sesión de conteo
+        "sesionId" to sesionId.trim(),
+        "sesionNombre" to sesionNombre.trim(),
+        "usaSesionConteo" to sesionId.isNotBlank(),
 
         // Producto
         "codigoProducto" to sku.trim().uppercase(Locale.ROOT),

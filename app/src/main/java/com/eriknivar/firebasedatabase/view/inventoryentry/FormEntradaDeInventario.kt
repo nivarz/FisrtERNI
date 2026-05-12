@@ -68,13 +68,16 @@ import com.eriknivar.firebasedatabase.network.SelectedClientStore
 import com.eriknivar.firebasedatabase.data.UbicacionesRepo
 import com.eriknivar.firebasedatabase.view.common.ConteoMode
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.text.style.TextOverflow
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -225,6 +228,113 @@ fun FormEntradaDeInventario(
         } ?: clienteIdFromUser
         else clienteIdFromUser
 
+    // 🧩 Sesión de conteo activa del cliente
+    var usaSesionesConteo by remember { mutableStateOf(false) }
+    var sesionActivaId by remember { mutableStateOf("") }
+    var sesionActivaNombre by remember { mutableStateOf("") }
+    var sesionActivaEstado by remember { mutableStateOf("") }
+    var cargandoSesionConteo by remember { mutableStateOf(false) }
+    var showSesionNoDisponibleDialog by remember { mutableStateOf(false) }
+    var sesionListener by remember {
+        mutableStateOf<com.google.firebase.firestore.ListenerRegistration?>(null)
+    }
+
+    suspend fun recargarSesionActivaConteo() {
+        val cid = clienteIdActual.orEmpty()
+
+        if (cid.isBlank()) {
+            usaSesionesConteo = false
+            sesionActivaId = ""
+            sesionActivaNombre = ""
+            sesionActivaEstado = ""
+            return
+        }
+
+        try {
+            val docCliente = firestore.collection("clientes")
+                .document(cid)
+                .get()
+                .await()
+
+            usaSesionesConteo =
+                docCliente.getBoolean("usaSesionesConteo")
+                    ?: docCliente.getBoolean("usaSesiones")
+                            ?: false
+
+            sesionActivaId = docCliente.getString("sesionActivaId").orEmpty()
+            sesionActivaNombre = docCliente.getString("sesionActivaNombre").orEmpty()
+            sesionActivaEstado = docCliente.getString("sesionActivaEstado").orEmpty()
+
+            Log.d(
+                "SESION_CONTEO_APP",
+                "🔄 Refrescada: usaSesiones=$usaSesionesConteo, sesionId=$sesionActivaId, estado=$sesionActivaEstado"
+            )
+
+        } catch (e: Exception) {
+            Log.e("SESION_CONTEO_APP", "Error refrescando sesión activa", e)
+        }
+    }
+
+    DisposableEffect(clienteIdActual) {
+        val cid = clienteIdActual.orEmpty()
+
+        // Limpiar listener anterior si existía
+        sesionListener?.remove()
+        sesionListener = null
+
+        if (cid.isBlank()) {
+            usaSesionesConteo = false
+            sesionActivaId = ""
+            sesionActivaNombre = ""
+            sesionActivaEstado = ""
+
+            onDispose {
+                sesionListener?.remove()
+                sesionListener = null
+            }
+        } else {
+            cargandoSesionConteo = true
+
+            sesionListener = firestore.collection("clientes")
+                .document(cid)
+                .addSnapshotListener { snap, e ->
+                    cargandoSesionConteo = false
+
+                    if (e != null) {
+                        Log.e("SESION_CONTEO_APP", "Error escuchando sesión activa", e)
+                        return@addSnapshotListener
+                    }
+
+                    if (snap == null || !snap.exists()) {
+                        usaSesionesConteo = false
+                        sesionActivaId = ""
+                        sesionActivaNombre = ""
+                        sesionActivaEstado = ""
+                        return@addSnapshotListener
+                    }
+
+                    usaSesionesConteo =
+                        snap.getBoolean("usaSesionesConteo")
+                            ?: snap.getBoolean("usaSesiones")
+                                    ?: false
+
+                    sesionActivaId = snap.getString("sesionActivaId").orEmpty()
+                    sesionActivaNombre = snap.getString("sesionActivaNombre").orEmpty()
+                    sesionActivaEstado = snap.getString("sesionActivaEstado").orEmpty()
+
+                    Log.d(
+                        "SESION_CONTEO_APP",
+                        "📡 Listener sesión: usaSesiones=$usaSesionesConteo, sesionId=$sesionActivaId, estado=$sesionActivaEstado"
+                    )
+                }
+
+            onDispose {
+                sesionListener?.remove()
+                sesionListener = null
+            }
+        }
+    }
+
     // states
     // states
     val photoUri = userViewModel.photoUriTemporal
@@ -366,20 +476,35 @@ fun FormEntradaDeInventario(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            /*
-            // IMPORTANTE arriba del archivo:
-            // import com.google.firebase.crashlytics.FirebaseCrashlytics
+            // 🧩 Franja compacta de Sesión de Conteo
+            if (usaSesionesConteo) {
+                val sesionOk = sesionActivaId.isNotBlank() &&
+                        (sesionActivaEstado == "ABIERTA" || sesionActivaEstado == "EN_RECONTEO")
 
-            Button(
-                onClick = {
-                    FirebaseCrashlytics.getInstance()
-                        .log("Prueba de Crashlytics desde el botón secreto")
-                    throw RuntimeException("Test Crashlytics Nivar - botón secreto")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .background(
+                            color = if (sesionOk) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = if (sesionOk) {
+                            "🟢 Sesión abierta: $sesionActivaNombre"
+                        } else {
+                            "🔴 No hay sesión abierta"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (sesionOk) Color(0xFF1B5E20) else Color(0xFFB71C1C),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-            ) {
-                Text("Forzar Crash")
             }
-            */
 
             // Location
 
@@ -504,6 +629,7 @@ fun FormEntradaDeInventario(
                     cantidad = quantity.value.toDoubleOrNull() ?: 0.0,
                     localidad = localidad,
                     clienteId = clienteIdActual.orEmpty(),
+                    sesionId = if (usaSesionesConteo) sesionActivaId else "",
                     onResult = { existeDuplicado, usuarioEncontrado, docRef, cantidadExistente ->
 
                         if (existeDuplicado && docRef != null && cantidadExistente != null) {
@@ -518,7 +644,8 @@ fun FormEntradaDeInventario(
                                 // ✅ Mismo usuario → mostrar opciones Sumar / Reemplazar / Cancelar
                                 duplicateDocRef = docRef
                                 duplicateCantidadActual = cantidadExistente
-                                showDuplicateActionDialog = true   // abrimos el diálogo con opciones
+                                showDuplicateActionDialog =
+                                    true   // abrimos el diálogo con opciones
                                 // NO grabamos todavía, esperamos la decisión del usuario
                             } else {
                                 // 🚫 Otro usuario hizo ese conteo → no permitimos grabar
@@ -551,10 +678,14 @@ fun FormEntradaDeInventario(
                                 userViewModel = userViewModel,
                                 showSuccessDialog = showSuccessDialog,
                                 listState = listState,
-                                fotoUrl = null,                          // la sube el worker
+                                fotoUrl = null,
                                 hadPhoto = hadPhotoFinal,
                                 fotoUriLocal = uriLocal?.trim(),
-                                appContext = context.applicationContext
+                                appContext = context.applicationContext,
+
+                                // 🧩 Sesión de conteo
+                                sesionId = if (usaSesionesConteo) sesionActivaId else "",
+                                sesionNombre = if (usaSesionesConteo) sesionActivaNombre else ""
                             )
 
                             fetchDataFromFirestore(
@@ -565,7 +696,8 @@ fun FormEntradaDeInventario(
                                 localidad = localidad,
                                 clienteId = clienteIdActual.orEmpty(),
                                 tipo = tipoActual,
-                                uid = uidActual
+                                uid = uidActual,
+                                sesionId = if (usaSesionesConteo) sesionActivaId else ""
                             )
 
                             // limpiar campos
@@ -644,6 +776,21 @@ fun FormEntradaDeInventario(
 
                         coroutineScope.launch {
 
+                            // 🔄 Siempre refrescar sesión activa antes de grabar
+                            recargarSesionActivaConteo()
+
+                            // 🧩 Validación de sesión de conteo activa
+                            if (usaSesionesConteo) {
+                                val estadoSesionOk =
+                                    sesionActivaEstado == "ABIERTA" || sesionActivaEstado == "EN_RECONTEO"
+
+                                if (sesionActivaId.isBlank() || !estadoSesionOk) {
+                                    showSesionNoDisponibleDialog = true
+                                    isSaving = false
+                                    return@launch
+                                }
+                            }
+
                             // 🟥 1) Validación de ubicación (OFFLINE-FIRST con tri-estado)
                             val cid = clienteIdActual.orEmpty()
                             val ubicCheck: Boolean? = UbicacionesRepo.existeUbicacionOfflineFirst(
@@ -653,7 +800,8 @@ fun FormEntradaDeInventario(
                             )
 
                             when (ubicCheck) {
-                                true -> { /* OK, sigue */ }
+                                true -> { /* OK, sigue */
+                                }
 
                                 false -> {
                                     showErrorLocation.value = true
@@ -720,13 +868,18 @@ fun FormEntradaDeInventario(
                                         // SKU no existe en el maestro → marcamos como sin descripción
                                         productoDescripcion.value = "Sin descripción"
                                     } else {
-                                        val descMaestro = (doc.getString("descripcion") ?: "").trim()
+                                        val descMaestro =
+                                            (doc.getString("descripcion") ?: "").trim()
                                         productoDescripcion.value =
                                             descMaestro.ifBlank { "Sin descripción" }
                                     }
                                 }
                             } catch (e: Exception) {
-                                Log.e("FormEntrada", "Error refrescando descripción desde maestro", e)
+                                Log.e(
+                                    "FormEntrada",
+                                    "Error refrescando descripción desde maestro",
+                                    e
+                                )
                                 // si falla, seguimos con el valor que ya tuviera productoDescripcion
                             }
 
@@ -875,8 +1028,8 @@ fun FormEntradaDeInventario(
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialog = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Campos Obligatorios Vacios") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -888,8 +1041,8 @@ fun FormEntradaDeInventario(
             if (showDialog1) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog1 = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialog1 = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("Codigo No Encontrado") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -901,8 +1054,8 @@ fun FormEntradaDeInventario(
             if (showDialog2) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialog2 = true
-                },
+                        showDialog2 = true
+                    },
                     title = { Text("Codigo No Existe") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -914,8 +1067,8 @@ fun FormEntradaDeInventario(
             if (showDialogValueQuantityCero) {
                 AlertDialog(
                     onDismissRequest = {
-                    showDialogValueQuantityCero = true
-                }, // No se cierra al tocar fuera del cuadro
+                        showDialogValueQuantityCero = true
+                    }, // No se cierra al tocar fuera del cuadro
                     title = { Text("No Admite cantidades 0") },
                     text = { Text("Por favor, completa todos los campos requeridos antes de continuar.") },
                     confirmButton = {
@@ -956,13 +1109,14 @@ fun FormEntradaDeInventario(
 
             // 🔁 Nuevo diálogo para decidir qué hacer con el duplicado
             if (showDuplicateActionDialog && duplicateDocRef != null) {
-                AlertDialog(onDismissRequest = {
-                    // No cerramos solo tocando fuera
-                }, title = { Text("Registro duplicado") }, text = {
-                    Text(
-                        "Ya existe un registro con la misma Localidad + Ubicación + SKU + Lote.\n\n" + "¿Qué deseas hacer con la cantidad?"
-                    )
-                },
+                AlertDialog(
+                    onDismissRequest = {
+                        // No cerramos solo tocando fuera
+                    }, title = { Text("Registro duplicado") }, text = {
+                        Text(
+                            "Ya existe un registro con la misma Localidad + Ubicación + SKU + Lote.\n\n" + "¿Qué deseas hacer con la cantidad?"
+                        )
+                    },
                     confirmButton = {
                         // 🔒 Flag local para evitar múltiples clics mientras se actualiza
                         var isUpdatingDuplicate by remember { mutableStateOf(false) }
@@ -999,7 +1153,8 @@ fun FormEntradaDeInventario(
                                                 localidad = localidad,
                                                 clienteId = clienteIdActual.orEmpty(),
                                                 tipo = tipoActual,
-                                                uid = uidActual
+                                                uid = uidActual,
+                                                sesionId = if (usaSesionesConteo) sesionActivaId else ""
                                             )
 
                                             // limpiamos campos como en el grabado normal
@@ -1052,7 +1207,8 @@ fun FormEntradaDeInventario(
                                     coroutineScope.launch {
                                         isUpdatingDuplicate = true
                                         try {
-                                            duplicateDocRef?.update("cantidad", cantidadNueva)?.await()
+                                            duplicateDocRef?.update("cantidad", cantidadNueva)
+                                                ?.await()
 
                                             Toast.makeText(
                                                 context,
@@ -1068,7 +1224,8 @@ fun FormEntradaDeInventario(
                                                 localidad = localidad,
                                                 clienteId = clienteIdActual.orEmpty(),
                                                 tipo = tipoActual,
-                                                uid = uidActual
+                                                uid = uidActual,
+                                                sesionId = if (usaSesionesConteo) sesionActivaId else ""
                                             )
 
                                             sku.value = ""
@@ -1181,6 +1338,25 @@ fun FormEntradaDeInventario(
                         }
                     })
             }
+
+            if (showSesionNoDisponibleDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSesionNoDisponibleDialog = false },
+                    title = { Text("Sesión de conteo no disponible") },
+                    text = {
+                        Text(
+                            "Este cliente trabaja con Sesiones de Conteo, pero no hay una sesión abierta o válida. " +
+                                    "Debes abrir una sesión desde el backoffice antes de continuar."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSesionNoDisponibleDialog = false }) {
+                            Text("Aceptar")
+                        }
+                    }
+                )
+            }
+
             if (showExitDialog) {
                 AlertDialog(
                     onDismissRequest = { showExitDialog = false },
