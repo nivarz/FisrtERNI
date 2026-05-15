@@ -171,22 +171,39 @@ fun MasterDataFragment(
 
     // Listener de sesión activa
     DisposableEffect(currentUserId, currentSessionId) {
-        val listenerRegistration = firestore.collection("usuarios").document(currentUserId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.e("FirestoreListener", "Error en snapshotListener", error)
-                    return@addSnapshotListener
+
+        if (currentUserId.isBlank()) {
+            Log.w("FirestoreListener", "Listener no iniciado: currentUserId vacío")
+            onDispose { }
+        } else {
+            val listenerRegistration = firestore.collection("usuarios")
+                .document(currentUserId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e("FirestoreListener", "Error en snapshotListener", error)
+                        return@addSnapshotListener
+                    }
+
+                    val remoteSessionId = snapshot?.getString("sessionId") ?: ""
+
+                    if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
+                        Toast.makeText(
+                            context,
+                            "Tu sesión fue cerrada por el administrador",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        userViewModel.clearUser()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 }
-                val remoteSessionId = snapshot?.getString("sessionId") ?: ""
-                if (remoteSessionId != currentSessionId && !userViewModel.isManualLogout.value) {
-                    Toast.makeText(
-                        context, "Tu sesión fue cerrada por el administrador", Toast.LENGTH_LONG
-                    ).show()
-                    userViewModel.clearUser()
-                    navController.navigate("login") { popUpTo(0) { inclusive = true } }
-                }
+
+            onDispose {
+                listenerRegistration.remove()
             }
-        onDispose { listenerRegistration.remove() }
+        }
     }
 
     // Acceso
@@ -418,7 +435,11 @@ fun MasterDataFragment(
                                 Spacer(Modifier.height(2.dp))
 
                                 val textoPrincipal =
-                                    clienteNombreSel.ifBlank { clienteSel.ifBlank { userViewModel.clienteId.value?.trim().orEmpty() } }
+                                    clienteNombreSel.ifBlank {
+                                        clienteSel.ifBlank {
+                                            userViewModel.clienteId.value?.trim().orEmpty()
+                                        }
+                                    }
 
                                 Text(
                                     text = textoPrincipal.ifBlank { "Cliente asignado a tu usuario" },
@@ -705,7 +726,12 @@ fun MasterDataFragment(
                                                     append("Costo: ")
                                                 }
                                                 withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                                    append("$" + String.format("%.2f", producto.costo))
+                                                    append(
+                                                        "$" + String.format(
+                                                            "%.2f",
+                                                            producto.costo
+                                                        )
+                                                    )
                                                 }
                                             },
                                             fontSize = 15.sp
@@ -791,7 +817,8 @@ fun MasterDataFragment(
                                         value = costoInput,
                                         singleLine = true,
                                         onValueChange = { nuevoValor ->
-                                            costoInput = nuevoValor.filter { it.isDigit() || it == '.' }
+                                            costoInput =
+                                                nuevoValor.filter { it.isDigit() || it == '.' }
                                         },
                                         label = { Text("Costo") },
                                         modifier = Modifier.fillMaxWidth(),
@@ -939,7 +966,9 @@ fun MasterDataFragment(
                                             }
 
                                             val cambios = mapOf(
-                                                "descripcion" to desc, "unidad" to uni, "costo" to costoValor
+                                                "descripcion" to desc,
+                                                "unidad" to uni,
+                                                "costo" to costoValor
                                             )
                                             isSaving = true
                                             MaestroRepo.actualizarProducto(
@@ -952,7 +981,9 @@ fun MasterDataFragment(
                                                         productos.indexOfFirst { it.codigo == selectedProduct!!.codigo }
                                                     if (idx != -1) {
                                                         productos[idx] = productos[idx].copy(
-                                                            descripcion = desc, unidad = uni, costo = costoValor
+                                                            descripcion = desc,
+                                                            unidad = uni,
+                                                            costo = costoValor
                                                         )
                                                     }
                                                     showDialog = false
